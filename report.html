@@ -575,6 +575,7 @@
   .btn-github:disabled { background: #94a3b8; cursor: not-allowed; }
 </style>
 <style>
+    #upload-screen, #github-modal,
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
@@ -586,19 +587,44 @@
 <div class="header">
   <div class="header-left">
     <h1 id="header-client">Sampson Cay Project</h1>
-    <p id="header-period">Social Media Performance · Jan 29, 2026 – Apr 23, 2026</p>
+    <p id="header-period">Social Media Performance Report &nbsp;·&nbsp; Upload CSVs to populate</p>
   </div>
-  <div class="header-right" id="header-badges">
-    <span class="badge badge-ig"><span class="badge-dot"></span> Instagram · 33 posts</span>
-    <span class="badge badge-fb"><span class="badge-dot"></span> Facebook · 33 posts</span>
-  </div>
+  <div class="header-right" id="header-badges"></div>
 </div>
 
 <!-- ══════════════════ UPLOAD SCREEN ══════════════════ -->
+<div id="upload-screen">
+  <div class="upload-card">
+    <h2>📊 Upload Your Data</h2>
+    <p>Upload the Facebook and Instagram CSV exports from Meta Business Suite. Both files are required to generate the full dashboard.</p>
 
+    <div class="upload-zones">
+      <div class="upload-zone" id="zone-fb">
+        <input type="file" accept=".csv" id="file-fb" onchange="handleFile('fb', this)">
+        <div class="icon">🔵</div>
+        <div class="label" id="label-fb">Facebook CSV</div>
+        <div class="sub">Post insights export</div>
+      </div>
+      <div class="upload-zone" id="zone-ig">
+        <input type="file" accept=".csv" id="file-ig" onchange="handleFile('ig', this)">
+        <div class="icon">📸</div>
+        <div class="label" id="label-ig">Instagram CSV</div>
+        <div class="sub">Post insights export</div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()" disabled="">
+      Generate Dashboard →
+    </button>
+
+    <p style="margin-top:16px; font-size:12px; color:#94a3b8;">
+      Data is processed locally in your browser — nothing is uploaded to any server.
+    </p>
+  </div>
+</div>
 
 <!-- ══════════════════ DASHBOARD ══════════════════ -->
-<div id="dashboard" style="display: block;">
+<div id="dashboard">
 
   <!-- TOOLBAR -->
   <div class="toolbar">
@@ -621,60 +647,37 @@
     <div class="kpi-card reach">
       <div class="kpi-icon">👁</div>
       <div class="kpi-label">Total Reach</div>
-      <div class="kpi-value" id="kpi-reach">462.6K</div>
-      <div class="kpi-sub" id="kpi-reach-sub">IG: 184.8K · FB: 277.8K</div>
+      <div class="kpi-value" id="kpi-reach">—</div>
+      <div class="kpi-sub" id="kpi-reach-sub">Unique accounts</div>
     </div>
     <div class="kpi-card views">
       <div class="kpi-icon">▶</div>
       <div class="kpi-label">Total Views</div>
-      <div class="kpi-value" id="kpi-views">1.1M</div>
+      <div class="kpi-value" id="kpi-views">—</div>
       <div class="kpi-sub" id="kpi-views-sub">Across all posts</div>
     </div>
     <div class="kpi-card engagement">
       <div class="kpi-icon">💬</div>
       <div class="kpi-label">Avg Engagement Rate</div>
-      <div class="kpi-value" id="kpi-eng">2.44%</div>
+      <div class="kpi-value" id="kpi-eng">—</div>
       <div class="kpi-sub" id="kpi-eng-sub">Interactions ÷ Reach</div>
     </div>
     <div class="kpi-card posts">
       <div class="kpi-icon">📄</div>
       <div class="kpi-label">Posts Published</div>
-      <div class="kpi-value" id="kpi-posts">66</div>
-      <div class="kpi-sub" id="kpi-posts-sub">IG: 33 · FB: 33</div>
+      <div class="kpi-value" id="kpi-posts">—</div>
+      <div class="kpi-sub" id="kpi-posts-sub">Across all post types</div>
     </div>
     <div class="kpi-card followers">
       <div class="kpi-icon">➕</div>
-      <div class="kpi-label" id="kpi-followers-label">New IG Followers</div>
-      <div class="kpi-value" id="kpi-followers">170</div>
-      <div class="kpi-sub" id="kpi-followers-sub">FB followers not in export</div>
+      <div class="kpi-label" id="kpi-followers-label">New Followers</div>
+      <div class="kpi-value" id="kpi-followers">—</div>
+      <div class="kpi-sub" id="kpi-followers-sub">Gained from posts</div>
     </div>
   </div>
 
   <!-- INSIGHT BOXES -->
-  <div class="insight-grid" id="insight-grid">
-    <div class="insight-box green">
-      <div class="insight-label">🏅 Top Post Type</div>
-      <div class="insight-value">IG image</div>
-      <div class="insight-desc">Avg 6.64% engagement rate</div>
-    </div>
-    <div class="insight-box purple">
-      <div class="insight-label">⭐ Best Single Post</div>
-      <div class="insight-value">10.22%</div>
-      <div class="insight-desc">IG carousel · 03/31/2026 · 186 reach</div>
-      <a href="https://www.instagram.com/p/DWj-sebDJd-/" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>
-    </div>
-    
-    <div class="insight-box">
-      <div class="insight-label">📱 IG vs FB Engagement</div>
-      <div class="insight-value">IG 3.77%</div>
-      <div class="insight-desc">FB avg 1.12% · IG has higher avg ER</div>
-    </div>
-    <div class="insight-box orange">
-      <div class="insight-label">📅 Period</div>
-      <div class="insight-value">66 Posts</div>
-      <div class="insight-desc">33 IG · 33 FB</div>
-    </div>
-  </div>
+  <div class="insight-grid" id="insight-grid"></div>
 
   <!-- ROW 1: Reach Over Time + Content Mix -->
   <div class="charts-grid">
@@ -682,36 +685,16 @@
       <div class="chart-title">Reach Over Time</div>
       <div class="chart-sub">Weekly total reach by platform</div>
       <div class="chart-wrap" style="height:260px">
-        <canvas id="chart-reach-time" width="1530" height="520" style="display: block; box-sizing: border-box; height: 260px; width: 765px;"></canvas>
+        <canvas id="chart-reach-time"></canvas>
       </div>
     </div>
     <div class="chart-card col-4">
       <div class="chart-title">Content Mix</div>
       <div class="chart-sub">Posts published by type</div>
       <div class="chart-wrap" style="height:200px">
-        <canvas id="chart-mix" width="697" height="400" style="display: block; box-sizing: border-box; height: 200px; width: 348px;"></canvas>
+        <canvas id="chart-mix"></canvas>
       </div>
-      <div class="legend" id="legend-mix">
-    <div class="legend-item">
-      <div class="legend-dot" style="background:#f59e0b"></div>
-      IG carousel: <strong>17</strong>
-    </div>
-    <div class="legend-item">
-      <div class="legend-dot" style="background:#10b981"></div>
-      Photos: <strong>21</strong>
-    </div>
-    <div class="legend-item">
-      <div class="legend-dot" style="background:#8b5cf6"></div>
-      IG reel: <strong>14</strong>
-    </div>
-    <div class="legend-item">
-      <div class="legend-dot" style="background:#1877f2"></div>
-      Videos: <strong>12</strong>
-    </div>
-    <div class="legend-item">
-      <div class="legend-dot" style="background:#06b6d4"></div>
-      IG image: <strong>2</strong>
-    </div></div>
+      <div class="legend" id="legend-mix"></div>
     </div>
   </div>
 
@@ -721,14 +704,14 @@
       <div class="chart-title">Avg Engagement Rate by Post Type</div>
       <div class="chart-sub">IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
       <div class="chart-wrap" style="height:240px">
-        <canvas id="chart-eng-type" width="1114" height="480" style="display: block; box-sizing: border-box; height: 240px; width: 557px;"></canvas>
+        <canvas id="chart-eng-type"></canvas>
       </div>
     </div>
     <div class="chart-card col-6">
       <div class="chart-title">Avg Reach by Post Type</div>
       <div class="chart-sub">Average unique accounts reached per post</div>
       <div class="chart-wrap" style="height:240px">
-        <canvas id="chart-reach-type" width="1114" height="480" style="display: block; box-sizing: border-box; height: 240px; width: 557px;"></canvas>
+        <canvas id="chart-reach-type"></canvas>
       </div>
     </div>
   </div>
@@ -739,14 +722,14 @@
       <div class="chart-title">Engagement Breakdown by Post Type</div>
       <div class="chart-sub">Avg interactions per post — what kind of engagement each format drives</div>
       <div class="chart-wrap" style="height:240px">
-        <canvas id="chart-eng-breakdown" width="1322" height="480" style="display: block; box-sizing: border-box; height: 240px; width: 661px;"></canvas>
+        <canvas id="chart-eng-breakdown"></canvas>
       </div>
     </div>
     <div class="chart-card col-5">
       <div class="chart-title">Best Time to Post</div>
       <div class="chart-sub">Avg engagement rate by day &amp; time — darker = higher</div>
       <div class="heatmap-wrap">
-        <div id="heatmap-grid"><table class="heatmap-table"><thead><tr><th></th><th>6–9am</th><th>9–12pm</th><th>12–3pm</th><th>3–6pm</th><th>6pm+</th></tr></thead><tbody><tr><td class="day-label">Sun</td><td style="background:rgb(96,147,155); color:#fff" title="Sun 6–9am: 3.61% avg ER (2 posts)">3.61%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Mon</td><td style="background:rgb(117,161,167); color:#1e3a5f" title="Mon 6–9am: 2.89% avg ER (4 posts)">2.89%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(105,153,160); color:#1e3a5f" title="Mon 12–3pm: 3.31% avg ER (4 posts)">3.31%</td><td style="background:rgb(13,90,108); color:#fff" title="Mon 3–6pm: 6.46% avg ER (2 posts)">6.46%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Tue</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(189,209,207); color:#1e3a5f" title="Tue 9–12pm: 0.46% avg ER (1 post)">0.46%</td><td style="background:rgb(108,154,162); color:#1e3a5f" title="Tue 12–3pm: 3.22% avg ER (4 posts)">3.22%</td><td style="background:rgb(145,180,183); color:#1e3a5f" title="Tue 3–6pm: 1.94% avg ER (4 posts)">1.94%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Wed</td><td style="background:rgb(137,174,178); color:#1e3a5f" title="Wed 6–9am: 2.22% avg ER (2 posts)">2.22%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(134,172,176); color:#1e3a5f" title="Wed 12–3pm: 2.33% avg ER (4 posts)">2.33%</td><td style="background:rgb(160,190,191); color:#1e3a5f" title="Wed 3–6pm: 1.43% avg ER (2 posts)">1.43%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Thu</td><td style="background:rgb(122,164,169); color:#1e3a5f" title="Thu 6–9am: 2.75% avg ER (8 posts)">2.75%</td><td style="background:rgb(115,159,166); color:#1e3a5f" title="Thu 9–12pm: 2.96% avg ER (8 posts)">2.96%</td><td style="background:rgb(190,210,208); color:#1e3a5f" title="Thu 12–3pm: 0.41% avg ER (2 posts)">0.41%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Fri</td><td style="background:rgb(125,166,171); color:#1e3a5f" title="Fri 6–9am: 2.65% avg ER (5 posts)">2.65%</td><td style="background:rgb(178,202,201); color:#1e3a5f" title="Fri 9–12pm: 0.81% avg ER (4 posts)">0.81%</td><td style="background:rgb(182,205,204); color:#1e3a5f" title="Fri 12–3pm: 0.67% avg ER (4 posts)">0.67%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Sat</td><td style="background:rgb(86,139,149); color:#fff" title="Sat 6–9am: 3.98% avg ER (2 posts)">3.98%</td><td style="background:rgb(143,178,182); color:#1e3a5f" title="Sat 9–12pm: 2.00% avg ER (2 posts)">2.00%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(185,207,205); color:#1e3a5f" title="Sat 3–6pm: 0.56% avg ER (2 posts)">0.56%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr></tbody></table></div>
+        <div id="heatmap-grid"></div>
       </div>
       <div class="heatmap-legend">
         <span>Low</span>
@@ -776,553 +759,13 @@
             <th>Link</th>
           </tr>
         </thead>
-        <tbody id="top-posts-body">
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">1</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/31/2026</td>
-      <td><div class="post-caption" title="We’re truly grateful to see the continued support from the Exuma community, as highlighted in the Tribune article. The voices of local residents reflect a shared belief in the meaningful opportunities this project can create, from new jobs to long-term economic growth for Bahamians.  Community remains at the heart of this project, and we are committed to delivering Rosewood Exuma with care, responsibility, and deep respect. This milestone belongs to the people of Exuma we are proud to move forward together.  Progress for Exuma 🇧🇸  #YntegraGroup #RosewoodExuma #TheBahamas #SampsonCayProject #Environment #SustainableDevelopment">We’re truly grateful to see the continued support from the Exuma community, as highlighted in the Tribune article. The voices of local residents reflect a shared belief in the meaningful opportunities this project can create, from new jobs to long-term economic growth for Bahamians.  Community remains at the heart of this project, and we are committed to delivering Rosewood Exuma with care, responsibility, and deep respect. This milestone belongs to the people of Exuma we are proud to move forward together.  Progress for Exuma 🇧🇸  #YntegraGroup #RosewoodExuma #TheBahamas #SampsonCayProject #Environment #SustainableDevelopment</div></td>
-      <td style="font-weight:600">186</td>
-      <td style="color:var(--text-muted)">436</td>
-      <td style="color:var(--text-muted)">19</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:100%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">10.22%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DWj-sebDJd-/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">2</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag photo">Photos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/30/2026</td>
-      <td><div class="post-caption" title="We're proud to partner with ESS (Environmental Sustainable Solutions), a Bahamian environmental consultancy specializing in sustainable design, ecological restoration, and environmental planning, to bring a native plant nursery and habitat restoration program to the Sampson Cay Project.  Led by ESS, this initiative focuses on the propagation and preservation of native Bahamian plant species identified on-site at Rosewood Exuma — enhancing biodiversity, strengthening coastal ecosystems, and supporting the long-term ecological vitality of the Exumas.   At Yntegra Group, we're committed to setting a new benchmark for sustainable, responsible development in The Bahamas — one that honours the natural beauty of the Exumas for generations to come.  #RosewoodExuma #TheBahamas #Environment #YntegraGroup #SampsonCayProject #sustainabledesign">We're proud to partner with ESS (Environmental Sustainable Solutions), a Bahamian environmental consultancy specializing in sustainable design, ecological restoration, and environmental planning, to bring a native plant nursery and habitat restoration program to the Sampson Cay Project.  Led by ESS, this initiative focuses on the propagation and preservation of native Bahamian plant species identified on-site at Rosewood Exuma — enhancing biodiversity, strengthening coastal ecosystems, and supporting the long-term ecological vitality of the Exumas.   At Yntegra Group, we're committed to setting a new benchmark for sustainable, responsible development in The Bahamas — one that honours the natural beauty of the Exumas for generations to come.  #RosewoodExuma #TheBahamas #Environment #YntegraGroup #SampsonCayProject #sustainabledesign</div></td>
-      <td style="font-weight:600">841</td>
-      <td style="color:var(--text-muted)">1.6K</td>
-      <td style="color:var(--text-muted)">68</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:79.15388947994244%; background:#10b981"></div></div>
-          <span class="eng-num" style="color:#10b981">8.09%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/permalink.php?story_fbid=pfbid02YVXpZmyBLnNGurS6odrCPsTKapTp8QtshjgRrPZzGMkbC6afQh3Yng2xCrvFQoRml&amp;id=61576886210445" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">3</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/05/2026</td>
-      <td><div class="post-caption" title="Yntegra Group is proud to be partnering with Valin Bodie and the team at Environmental Sustainable Solutions (ESS) on one of the most exciting aspects of Rosewood Exuma — a dedicated native plant nursery and habitat restoration programme, woven directly into the fabric of the Sampson Cay Project.  Valin and the ESS team bring deep expertise and a genuine passion for the Bahamian environment, and we could not be more excited about what this collaboration will mean for the long-term ecological health of the Exumas.  The natural environment of the Exumas is the foundation on which Rosewood Exuma is being built. Working with ESS, we intend to make sure that foundation only gets stronger.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #ESS #ValinBodie #NativePlants #HabitatRestoration #EnvironmentalStewardship">Yntegra Group is proud to be partnering with Valin Bodie and the team at Environmental Sustainable Solutions (ESS) on one of the most exciting aspects of Rosewood Exuma — a dedicated native plant nursery and habitat restoration programme, woven directly into the fabric of the Sampson Cay Project.  Valin and the ESS team bring deep expertise and a genuine passion for the Bahamian environment, and we could not be more excited about what this collaboration will mean for the long-term ecological health of the Exumas.  The natural environment of the Exumas is the foundation on which Rosewood Exuma is being built. Working with ESS, we intend to make sure that foundation only gets stronger.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #ESS #ValinBodie #NativePlants #HabitatRestoration #EnvironmentalStewardship</div></td>
-      <td style="font-weight:600">99</td>
-      <td style="color:var(--text-muted)">190</td>
-      <td style="color:var(--text-muted)">8</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:79.10685805422648%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">8.08%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DVge2yEjByd/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">4</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/07/2026</td>
-      <td><div class="post-caption" title="'Rosewood Exuma, developed by Yntegra Group, is designed to create meaningful, long-term careers for the people of Exuma — not temporary placements, but real professional pathways with the backing of a world-class hospitality brand.  The Sampson Cay Project will open opportunities across hospitality, executive role, senior leadership, marine operations, landscaping, food and beverage, maintenance, engineering, and administration — each role supported by Rosewood's global standards and training programmes. A minimum of 80% Bahamian employment is not simply a target; it is a requirement embedded in the Heads of Agreement, and a commitment Yntegra Group takes seriously at every level of the organisation.  As CEO Felipe MacLean has put it: ''We want to create real, long-term careers — not just jobs.'' That ambition is built into the project from the ground up.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #BahamianCareers #LocalFirst #ExumaJobs #80PercentBahamian'">"Rosewood Exuma, developed by Yntegra Group, is designed to create meaningful, long-term careers for the people of Exuma — not temporary placements, but real professional pathways with the backing of a world-class hospitality brand.  The Sampson Cay Project will open opportunities across hospitality, executive role, senior leadership, marine operations, landscaping, food and beverage, maintenance, engineering, and administration — each role supported by Rosewood's global standards and training programmes. A minimum of 80% Bahamian employment is not simply a target; it is a requirement embedded in the Heads of Agreement, and a commitment Yntegra Group takes seriously at every level of the organisation.  As CEO Felipe MacLean has put it: ""We want to create real, long-term careers — not just jobs."" That ambition is built into the project from the ground up.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #BahamianCareers #LocalFirst #ExumaJobs #80PercentBahamian"</div></td>
-      <td style="font-weight:600">130</td>
-      <td style="color:var(--text-muted)">251</td>
-      <td style="color:var(--text-muted)">10</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:75.30364372469636%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">7.69%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DVlqQ3ME-lx/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">5</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/26/2026</td>
-      <td><div class="post-caption" title="The preliminary support for our site plan application from the Town Planning Committee marks an important milestone for the Sampson Cay Project in Exuma, Bahamas.  This decision follows extensive consultation, dialogue, and engagement with stakeholders and the local community. At Yntegra Group, we are encouraged by the continued support and the open, transparent process that has shaped the project to date.  Residents of the Exuma Cays have made it clear they are seeking progress and greater economic opportunity. We remain committed to advancing responsible development that delivers long-term benefits, while protecting the environment and preserving the natural beauty that defines Exuma.  As planning continues for Rosewood Exuma, our focus remains on transparency, collaboration, and building lasting value for the Bahamas: grounded in community partnership and long-term sustainability.  #YntegraGroup #SampsonCay #RosewoodExuma #Exuma #Bahamas #EconomicOpportunity #CommunityImpact #ResponsibleDevelopment #EnvironmentalStewardship">The preliminary support for our site plan application from the Town Planning Committee marks an important milestone for the Sampson Cay Project in Exuma, Bahamas.  This decision follows extensive consultation, dialogue, and engagement with stakeholders and the local community. At Yntegra Group, we are encouraged by the continued support and the open, transparent process that has shaped the project to date.  Residents of the Exuma Cays have made it clear they are seeking progress and greater economic opportunity. We remain committed to advancing responsible development that delivers long-term benefits, while protecting the environment and preserving the natural beauty that defines Exuma.  As planning continues for Rosewood Exuma, our focus remains on transparency, collaboration, and building lasting value for the Bahamas: grounded in community partnership and long-term sustainability.  #YntegraGroup #SampsonCay #RosewoodExuma #Exuma #Bahamas #EconomicOpportunity #CommunityImpact #ResponsibleDevelopment #EnvironmentalStewardship</div></td>
-      <td style="font-weight:600">130</td>
-      <td style="color:var(--text-muted)">277</td>
-      <td style="color:var(--text-muted)">10</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:75.30364372469636%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">7.69%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DWWwiyeFISR/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">6</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/15/2026</td>
-      <td><div class="post-caption" title="Yntegra Group has always understood that a development of this scale carries responsibility not just to its guests, but to the broader community it calls home. Boat charters, fishing guides, local artisans, food and beverage suppliers, construction contractors, marine service operators, event services — the project is designed to grow the Exuma economy at every level, creating direct employment within the resort and meaningful indirect opportunity for local businesses across the island. Real investment in a community means more than what gets built. It means who benefits from the building — and for Rosewood Exuma, that answer has always been Exuma.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #ExumaEconomy #SupportLocal #EconomicOpportunity #ExumaBusinesses'">Yntegra Group has always understood that a development of this scale carries responsibility not just to its guests, but to the broader community it calls home. Boat charters, fishing guides, local artisans, food and beverage suppliers, construction contractors, marine service operators, event services — the project is designed to grow the Exuma economy at every level, creating direct employment within the resort and meaningful indirect opportunity for local businesses across the island. Real investment in a community means more than what gets built. It means who benefits from the building — and for Rosewood Exuma, that answer has always been Exuma.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #ExumaEconomy #SupportLocal #EconomicOpportunity #ExumaBusinesses"</div></td>
-      <td style="font-weight:600">97</td>
-      <td style="color:var(--text-muted)">177</td>
-      <td style="color:var(--text-muted)">7</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:70.6456863809007%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">7.22%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DV6QDyICDoU/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">7</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag image">IG image</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/12/2026</td>
-      <td><div class="post-caption" title="We are incredibly proud to share that our proposal to support the construction of the Black Point Community Center has officially been approved by the Black Point Community Development &amp; Regatta Association.  This is more than a building — it’s an investment in the heart, strength, and future of Black Point. It represents opportunity, resilience, and a space where families can gather, children can grow, and the community can come together for generations to come.  Through this commitment, we will support local employment, provide construction equipment to help move the project forward efficiently, and ensure the center is designed to serve as a safe and resilient hurricane shelter for residents when it matters most.  We are honored to stand alongside the people of Black Point as this vision becomes reality.  Progress for Exuma. Stronger together.  #SampsonCayProject #YntegraGroup #RosewoodExuma #BlackPoint #Exuma #Bahamas #CommunityFirst #ProgressForExuma">We are incredibly proud to share that our proposal to support the construction of the Black Point Community Center has officially been approved by the Black Point Community Development &amp; Regatta Association.  This is more than a building — it’s an investment in the heart, strength, and future of Black Point. It represents opportunity, resilience, and a space where families can gather, children can grow, and the community can come together for generations to come.  Through this commitment, we will support local employment, provide construction equipment to help move the project forward efficiently, and ensure the center is designed to serve as a safe and resilient hurricane shelter for residents when it matters most.  We are honored to stand alongside the people of Black Point as this vision becomes reality.  Progress for Exuma. Stronger together.  #SampsonCayProject #YntegraGroup #RosewoodExuma #BlackPoint #Exuma #Bahamas #CommunityFirst #ProgressForExuma</div></td>
-      <td style="font-weight:600">128</td>
-      <td style="color:var(--text-muted)">215</td>
-      <td style="color:var(--text-muted)">9</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:68.83223684210526%; background:#06b6d4"></div></div>
-          <span class="eng-num" style="color:#06b6d4">7.03%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DUqavcRlqg0/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">8</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/13/2026</td>
-      <td><div class="post-caption" title="The Sampson Cay Project will only succeed if it’s built alongside the people of Exuma. That’s why community input is central to our decisions. From the very beginning, our approach has been rooted in collaboration: showing up consistently, listening carefully, and communicating clearly.  As progress continues for the Rosewood Exuma project by Yntegra Group, we’ll keep working closely with the community and sharing updates as the project evolves. Real progress is shared, grounded, and respectful, and the trust earned over time becomes the foundation for long-term success that benefits Bahamian families and future generations.  #YntegraGroup #SampsonCayProject #RosewoodExuma #Exuma #Bahamas #CommunityFirst #BuildingTogether">The Sampson Cay Project will only succeed if it’s built alongside the people of Exuma. That’s why community input is central to our decisions. From the very beginning, our approach has been rooted in collaboration: showing up consistently, listening carefully, and communicating clearly.  As progress continues for the Rosewood Exuma project by Yntegra Group, we’ll keep working closely with the community and sharing updates as the project evolves. Real progress is shared, grounded, and respectful, and the trust earned over time becomes the foundation for long-term success that benefits Bahamian families and future generations.  #YntegraGroup #SampsonCayProject #RosewoodExuma #Exuma #Bahamas #CommunityFirst #BuildingTogether</div></td>
-      <td style="font-weight:600">177</td>
-      <td style="color:var(--text-muted)">246</td>
-      <td style="color:var(--text-muted)">12</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:66.36931311329171%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">6.78%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DUtHs7GiEpB/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">9</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag image">IG image</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/02/2026</td>
-      <td><div class="post-caption" title="We invite you to join us on Thursday, February 5th, at 6:00 PM at the Black Point Exuma All-Age School, as well as Friday Feb 20th, at 6:00 PM at LN Coakley High School, Moss Town for a Town Hall Meeting to discuss the refined site plan for the Sampson Cay Project.  At Yntegra Group, we believe the strongest projects are built through partnership. As part of an open and ongoing process, we have submitted a refined site plan for the Rosewood Exuma development, shaped by constructive dialogue with the local community and insights from technical experts. These updates reflect our commitment to listening, transparency, and continuous improvement.  We look forward to seeing you there and sharing the next steps of this exciting project!  #RosewoodExuma #SampsonCay #YntegraGroup #Bahamas">We invite you to join us on Thursday, February 5th, at 6:00 PM at the Black Point Exuma All-Age School, as well as Friday Feb 20th, at 6:00 PM at LN Coakley High School, Moss Town for a Town Hall Meeting to discuss the refined site plan for the Sampson Cay Project.  At Yntegra Group, we believe the strongest projects are built through partnership. As part of an open and ongoing process, we have submitted a refined site plan for the Rosewood Exuma development, shaped by constructive dialogue with the local community and insights from technical experts. These updates reflect our commitment to listening, transparency, and continuous improvement.  We look forward to seeing you there and sharing the next steps of this exciting project!  #RosewoodExuma #SampsonCay #YntegraGroup #Bahamas</div></td>
-      <td style="font-weight:600">128</td>
-      <td style="color:var(--text-muted)">708</td>
-      <td style="color:var(--text-muted)">8</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:61.18421052631579%; background:#06b6d4"></div></div>
-          <span class="eng-num" style="color:#06b6d4">6.25%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DURQL86AI5r/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">10</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/16/2026</td>
-      <td><div class="post-caption" title="Yntegra Group's approach to the Sampson Cay Project has always been to let the environment guide the design. Every decision, including this one, reflects that principle.  The location of Rosewood Exuma's service dock is determined by engineering requirements, environmental constraints, and the practical realities for safe resort operations.  The selected location is the only site that satisfies all terrain, safety, operational requirements simultaneously, and is most environmentally responsible. Flat, stable terrain is essential for the management of fuel storage, waste systems, generators, and logistics infrastructure. Elevated or sandy zones introduce risks: ground instability, potential for erosion and runoff into the ocean, and the need for extensive excavation that causes far greater environmental disruption.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #EnvironmentalDesign #EngineeringFirst #ResponsibleDevelopment'">Yntegra Group's approach to the Sampson Cay Project has always been to let the environment guide the design. Every decision, including this one, reflects that principle.  The location of Rosewood Exuma's service dock is determined by engineering requirements, environmental constraints, and the practical realities for safe resort operations.  The selected location is the only site that satisfies all terrain, safety, operational requirements simultaneously, and is most environmentally responsible. Flat, stable terrain is essential for the management of fuel storage, waste systems, generators, and logistics infrastructure. Elevated or sandy zones introduce risks: ground instability, potential for erosion and runoff into the ocean, and the need for extensive excavation that causes far greater environmental disruption.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #EnvironmentalDesign #EngineeringFirst #ResponsibleDevelopment"</div></td>
-      <td style="font-weight:600">113</td>
-      <td style="color:var(--text-muted)">253</td>
-      <td style="color:var(--text-muted)">7</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:60.64275733581742%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">6.19%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DV801VwDN8B/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">11</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">04/13/2026</td>
-      <td><div class="post-caption" title="From the beginning, Yntegra Group has approached the development of Rosewood Exuma with a genuine commitment to dialogue, and our approach to the service dock is a clear reflection of that.  Three formal redesigns were completed in response to feedback, our latest reducing the environmental and physical footprint of the structure. Across those revisions, dredging volume was reduced by 20%, the seawall by 47%, the dock by 29%, and the floating dock by 45%. The distance from the neighbouring property increased by 140%. These were not minor adjustments. They represent significant investment, redesign, and goodwill from a team committed to finding workable solutions.  The Sampson Cay Project moves forward shaped by that process, and Yntegra Group remains as committed as ever to responsible, collaborative development in the Exumas.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #CollaborativeDevelopment  #MarineDesign">From the beginning, Yntegra Group has approached the development of Rosewood Exuma with a genuine commitment to dialogue, and our approach to the service dock is a clear reflection of that.  Three formal redesigns were completed in response to feedback, our latest reducing the environmental and physical footprint of the structure. Across those revisions, dredging volume was reduced by 20%, the seawall by 47%, the dock by 29%, and the floating dock by 45%. The distance from the neighbouring property increased by 140%. These were not minor adjustments. They represent significant investment, redesign, and goodwill from a team committed to finding workable solutions.  The Sampson Cay Project moves forward shaped by that process, and Yntegra Group remains as committed as ever to responsible, collaborative development in the Exumas.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #CollaborativeDevelopment  #MarineDesign</div></td>
-      <td style="font-weight:600">122</td>
-      <td style="color:var(--text-muted)">211</td>
-      <td style="color:var(--text-muted)">7</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:56.169111302847284%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">5.74%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DXFYGKeDnx0/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">12</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/23/2026</td>
-      <td><div class="post-caption" title="The waters around Sampson Cay have been navigated safely by local boat captains for generations — and the Sampson Cay Project has been designed to keep it that way.  Rosewood Exuma’s waterway route benefits from natural protection provided by the existing rock formation, several access routes, and the use of shallow-draft vessels suited for the local conditions. The route has been reviewed and confirmed by licensed Exumian captains who know these waters best, professionals whose expertise has supported our planning from the very beginning.  Yntegra Group is committed to building a project that works with the Exumas, not around it. Local knowledge is not a formality in that process — it is foundational to it.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas">The waters around Sampson Cay have been navigated safely by local boat captains for generations — and the Sampson Cay Project has been designed to keep it that way.  Rosewood Exuma’s waterway route benefits from natural protection provided by the existing rock formation, several access routes, and the use of shallow-draft vessels suited for the local conditions. The route has been reviewed and confirmed by licensed Exumian captains who know these waters best, professionals whose expertise has supported our planning from the very beginning.  Yntegra Group is committed to building a project that works with the Exumas, not around it. Local knowledge is not a formality in that process — it is foundational to it.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas</div></td>
-      <td style="font-weight:600">112</td>
-      <td style="color:var(--text-muted)">216</td>
-      <td style="color:var(--text-muted)">6</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:52.443609022556394%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">5.36%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DWO1DtVgJW7/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">13</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/13/2026</td>
-      <td><div class="post-caption" title="Rosewood Exuma’s marine components have been carefully designed to minimize environmental disturbance and protect the natural beauty that makes The Exumas unique.   When compared with established Family Island developments, the Sampson Cay Project’s dredging footprint remains among the smallest. This reflects a consistent design philosophy centered on responsible coastal development and adherence to regulatory guidance - ensuring thoughtful progress that respects the natural environment.   Yntegra Group is committed to working alongside leading Bahamian experts to help ensure a safe, carefully planned approach with a minimal environmental footprint - grounded in local expertise and shaped by a deep respect for the Exumas and the people who call these islands home.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #EnvironmentalStewardship #ResponsibleDevelopment">Rosewood Exuma’s marine components have been carefully designed to minimize environmental disturbance and protect the natural beauty that makes The Exumas unique.   When compared with established Family Island developments, the Sampson Cay Project’s dredging footprint remains among the smallest. This reflects a consistent design philosophy centered on responsible coastal development and adherence to regulatory guidance - ensuring thoughtful progress that respects the natural environment.   Yntegra Group is committed to working alongside leading Bahamian experts to help ensure a safe, carefully planned approach with a minimal environmental footprint - grounded in local expertise and shaped by a deep respect for the Exumas and the people who call these islands home.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #EnvironmentalStewardship #ResponsibleDevelopment</div></td>
-      <td style="font-weight:600">115</td>
-      <td style="color:var(--text-muted)">221</td>
-      <td style="color:var(--text-muted)">6</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:51.07551487414188%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">5.22%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DV0-VDMkRPj/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">14</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/25/2026</td>
-      <td><div class="post-caption" title="Responsible development begins with responsible planning, and for Yntegra Group, that principle has guided every decision made for the Sampson Cay Project.  The total dredging area across the entire Rosewood Exuma project is 2.28 acres. No offshore access channel is being dredged. Both marinas are designed around existing inland ponds, keeping the open seabed undisturbed and minimising impact on the surrounding marine environment. Every revision to the plan has been the result of ongoing collaboration with environmental regulators, engineers, and marine specialists who share our commitment to getting it right.  The Exumas deserve development that takes the environment as seriously as it takes the opportunity. That is the standard Yntegra Group has set for Rosewood Exuma, and it is the standard we intend to keep.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #MarineConservation #EnvironmentalStewardship #ResponsibleDevelopment">Responsible development begins with responsible planning, and for Yntegra Group, that principle has guided every decision made for the Sampson Cay Project.  The total dredging area across the entire Rosewood Exuma project is 2.28 acres. No offshore access channel is being dredged. Both marinas are designed around existing inland ponds, keeping the open seabed undisturbed and minimising impact on the surrounding marine environment. Every revision to the plan has been the result of ongoing collaboration with environmental regulators, engineers, and marine specialists who share our commitment to getting it right.  The Exumas deserve development that takes the environment as seriously as it takes the opportunity. That is the standard Yntegra Group has set for Rosewood Exuma, and it is the standard we intend to keep.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #MarineConservation #EnvironmentalStewardship #ResponsibleDevelopment</div></td>
-      <td style="font-weight:600">120</td>
-      <td style="color:var(--text-muted)">218</td>
-      <td style="color:var(--text-muted)">6</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:48.94736842105264%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">5.00%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DWUg516DO_f/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">15</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag carousel">IG carousel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/30/2026</td>
-      <td><div class="post-caption" title="We're proud to partner with ESS (Environmental Sustainable Solutions), a Bahamian environmental consultancy specializing in sustainable design, ecological restoration, and environmental planning, to bring a native plant nursery and habitat restoration program to the Sampson Cay Project.  Led by ESS, this initiative focuses on the propagation and preservation of native Bahamian plant species identified on-site at Rosewood Exuma — enhancing biodiversity, strengthening coastal ecosystems, and supporting the long-term ecological vitality of the Exumas.   At Yntegra Group, we're committed to setting a new benchmark for sustainable, responsible development in The Bahamas — one that honours the natural beauty of the Exumas for generations to come.  #RosewoodExuma #TheBahamas #Environment #YntegraGroup #SampsonCayProject #sustainabledesign">We're proud to partner with ESS (Environmental Sustainable Solutions), a Bahamian environmental consultancy specializing in sustainable design, ecological restoration, and environmental planning, to bring a native plant nursery and habitat restoration program to the Sampson Cay Project.  Led by ESS, this initiative focuses on the propagation and preservation of native Bahamian plant species identified on-site at Rosewood Exuma — enhancing biodiversity, strengthening coastal ecosystems, and supporting the long-term ecological vitality of the Exumas.   At Yntegra Group, we're committed to setting a new benchmark for sustainable, responsible development in The Bahamas — one that honours the natural beauty of the Exumas for generations to come.  #RosewoodExuma #TheBahamas #Environment #YntegraGroup #SampsonCayProject #sustainabledesign</div></td>
-      <td style="font-weight:600">124</td>
-      <td style="color:var(--text-muted)">217</td>
-      <td style="color:var(--text-muted)">6</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:47.36842105263158%; background:#f59e0b"></div></div>
-          <span class="eng-num" style="color:#f59e0b">4.84%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/p/DWhn5FWj4V0/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">16</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">04/02/2026</td>
-      <td><div class="post-caption" title="At Yntegra Group, we believe long-term opportunities are the foundation of a sustainable future.  Our vision for Rosewood Exuma goes beyond job creation—it’s about building long-term careers through training, mentorship, and real pathways to leadership.  As we move forward at Sampson Cay, we’re focused on creating partnerships that open doors for Bahamians through internships, global exposure, and meaningful career growth.  By investing in people and place, we remain committed to responsible development, ensuring Exuma thrives for generations to come.  #Yntegragroup #RosewoodExuma #Environment #Sampsoncayproject #careers  #TheBahamas">At Yntegra Group, we believe long-term opportunities are the foundation of a sustainable future.  Our vision for Rosewood Exuma goes beyond job creation—it’s about building long-term careers through training, mentorship, and real pathways to leadership.  As we move forward at Sampson Cay, we’re focused on creating partnerships that open doors for Bahamians through internships, global exposure, and meaningful career growth.  By investing in people and place, we remain committed to responsible development, ensuring Exuma thrives for generations to come.  #Yntegragroup #RosewoodExuma #Environment #Sampsoncayproject #careers  #TheBahamas</div></td>
-      <td style="font-weight:600">250</td>
-      <td style="color:var(--text-muted)">315</td>
-      <td style="color:var(--text-muted)">11</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:43.07368421052632%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">4.40%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DWo1z6RFco6/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">17</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/10/2026</td>
-      <td><div class="post-caption" title="'We're ready to start. We're ready to go and that's all that matters'  Across the Exumas we continue to hear from the community about how eager they are to get to work and start on the path to progress and a brighter future. We are truly humbled by the outpouring of support from the locals of Black Point as they share their enthusiasm and optimism around what the Sampson Cay Project means to them and their loved ones. We do not take our responsibility lightly and continue to honor the trust the community has shown us by consulting directly with them as well as with local and international experts. Success for the people of Exuma starts with ensuring the steps they take together with Yntegra Group toward economic progress and environment stewardship are guided by the highest global standards. Standards worthy of the people who call the Bahamas 'home' and reflected in our approach to the development of the world-class Rosewood Exuma.  #YntegraGroup #SampsonCay #RosewoodExuma #Bahamas #Community'">"We're ready to start. We're ready to go and that's all that matters"  Across the Exumas we continue to hear from the community about how eager they are to get to work and start on the path to progress and a brighter future. We are truly humbled by the outpouring of support from the locals of Black Point as they share their enthusiasm and optimism around what the Sampson Cay Project means to them and their loved ones. We do not take our responsibility lightly and continue to honor the trust the community has shown us by consulting directly with them as well as with local and international experts. Success for the people of Exuma starts with ensuring the steps they take together with Yntegra Group toward economic progress and environment stewardship are guided by the highest global standards. Standards worthy of the people who call the Bahamas 'home' and reflected in our approach to the development of the world-class Rosewood Exuma.  #YntegraGroup #SampsonCay #RosewoodExuma #Bahamas #Community"</div></td>
-      <td style="font-weight:600">277</td>
-      <td style="color:var(--text-muted)">373</td>
-      <td style="color:var(--text-muted)">12</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:42.409272278168345%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">4.33%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DUmGTeZD6Va/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">18</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">04/23/2026</td>
-      <td><div class="post-caption" title="Across the Cays, locals are calling for meaningful career opportunities and long-term development that can help build the community up, creating lasting career paths while welcoming more visitors whose spending can support local livelihoods, businesses, and families.   At Yntegra Group, we are committed to helping bring that vision to life by upholding the highest global standards for responsible development through ongoing dialogue, active listening, and close consultation with environmental experts. Through the Sampson Cay project and the upcoming Rosewood Exuma, we are working to protect Exuma’s natural beauty and unique character while helping to build a strong, sustainable local economy.   By putting local voices first, we are helping to ensure that development supports a thriving future for the people who call the Exumas home.   #Yntegra #SampsonCay #RosewoodExuma #TheBahamas">Across the Cays, locals are calling for meaningful career opportunities and long-term development that can help build the community up, creating lasting career paths while welcoming more visitors whose spending can support local livelihoods, businesses, and families.   At Yntegra Group, we are committed to helping bring that vision to life by upholding the highest global standards for responsible development through ongoing dialogue, active listening, and close consultation with environmental experts. Through the Sampson Cay project and the upcoming Rosewood Exuma, we are working to protect Exuma’s natural beauty and unique character while helping to build a strong, sustainable local economy.   By putting local voices first, we are helping to ensure that development supports a thriving future for the people who call the Exumas home.   #Yntegra #SampsonCay #RosewoodExuma #TheBahamas</div></td>
-      <td style="font-weight:600">202</td>
-      <td style="color:var(--text-muted)">248</td>
-      <td style="color:var(--text-muted)">8</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:38.77019280875456%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">3.96%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DXeoxoZExVy/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">19</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag photo">Photos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">04/18/2026</td>
-      <td><div class="post-caption" title="We are honored to support the legacy, students, and staff of L.N. Coakley High School as the school celebrates its upcoming landmark 50th anniversary. Yntegra Group provided a new sign and materials to refresh six key buildings including the Administrative block, computer lab, and Home Economics buildings.     We were inspired to see the transformation led by Senior Master Elkino Dames, alongside a dedicated group of student and staff volunteers who worked together to bring this vision to life. At Yntegra Group, we believe that creating a vibrant environment for students to learn and grow is essential for the future of the islands. Initiatives like this are central to what the Sampson Cay Project and the upcoming Rosewood Exuma development stand for. We are deeply committed to ensuring that this development brings long-term social and economic uplift. By investing in educational infrastructure today, we are building a sustainable and prosperous tomorrow.    #Yntegra #PantherPride #Exuma #Bahamas #RosewoodExuma">We are honored to support the legacy, students, and staff of L.N. Coakley High School as the school celebrates its upcoming landmark 50th anniversary. Yntegra Group provided a new sign and materials to refresh six key buildings including the Administrative block, computer lab, and Home Economics buildings.     We were inspired to see the transformation led by Senior Master Elkino Dames, alongside a dedicated group of student and staff volunteers who worked together to bring this vision to life. At Yntegra Group, we believe that creating a vibrant environment for students to learn and grow is essential for the future of the islands. Initiatives like this are central to what the Sampson Cay Project and the upcoming Rosewood Exuma development stand for. We are deeply committed to ensuring that this development brings long-term social and economic uplift. By investing in educational infrastructure today, we are building a sustainable and prosperous tomorrow.    #Yntegra #PantherPride #Exuma #Bahamas #RosewoodExuma</div></td>
-      <td style="font-weight:600">155</td>
-      <td style="color:var(--text-muted)">292</td>
-      <td style="color:var(--text-muted)">6</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:37.89473684210527%; background:#10b981"></div></div>
-          <span class="eng-num" style="color:#10b981">3.87%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/permalink.php?story_fbid=pfbid02zo64xqrwjYxr71FVq129yVpbHk1twT46XSjyD1PXzkBPNEgubQSaqTgCDf9gvbepl&amp;id=61576886210445" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">20</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/11/2026</td>
-      <td><div class="post-caption" title="At the Sampson Cay Project, our commitment to the Exumas is at the center of everything we do. Yntegra Group is built on a development philosophy rooted in the deepest respect for the land, its people, and its future.  From day one, our goal has been to protect and elevate what makes the Exumas so incredibly special. That means holding ourselves to the highest environmental standards, engaging openly and honestly with the community at every step, and ensuring that the success of this project is felt by the people of Exuma and the Bahamas for generations to come.  As we look toward to the future, our mission remains clear: to act not just as developers, but as lifelong stewards of this incredible place through Rosewood Exuma.   #SampsonCayProject #YntegraGroup #Exuma #Bahamas #EnvironmentalStewardship #ResponsibleDevelopment">At the Sampson Cay Project, our commitment to the Exumas is at the center of everything we do. Yntegra Group is built on a development philosophy rooted in the deepest respect for the land, its people, and its future.  From day one, our goal has been to protect and elevate what makes the Exumas so incredibly special. That means holding ourselves to the highest environmental standards, engaging openly and honestly with the community at every step, and ensuring that the success of this project is felt by the people of Exuma and the Bahamas for generations to come.  As we look toward to the future, our mission remains clear: to act not just as developers, but as lifelong stewards of this incredible place through Rosewood Exuma.   #SampsonCayProject #YntegraGroup #Exuma #Bahamas #EnvironmentalStewardship #ResponsibleDevelopment</div></td>
-      <td style="font-weight:600">278</td>
-      <td style="color:var(--text-muted)">363</td>
-      <td style="color:var(--text-muted)">10</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:35.2139341158652%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">3.60%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DVv2zgWFbmm/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">21</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/19/2026</td>
-      <td><div class="post-caption" title="From our many conversations and meetings with the Black Point community, one thing is clear: Black Point is ready for progress.   Real, sustainable development begins with listening to the people who call The Bahamas home. For many residents of Black Point, Rosewood Exuma represents more than a resort — it represents improved infrastructure, long-term economic opportunity, and a future that moves forward instead of standing still.   Through the Sampson Cay Project by Yntegra Group, our commitment remains rooted in responsible development — focused on the needs of Exumians and guided by environmental stewardship. We are listening. And together, we are building a future that benefits everyone.   #RosewoodExuma #SampsonCayProject #YntegraGroup #BlackPoint #Exuma #Bahamas #SustainableDevelopment #CommunityFirst">From our many conversations and meetings with the Black Point community, one thing is clear: Black Point is ready for progress.   Real, sustainable development begins with listening to the people who call The Bahamas home. For many residents of Black Point, Rosewood Exuma represents more than a resort — it represents improved infrastructure, long-term economic opportunity, and a future that moves forward instead of standing still.   Through the Sampson Cay Project by Yntegra Group, our commitment remains rooted in responsible development — focused on the needs of Exumians and guided by environmental stewardship. We are listening. And together, we are building a future that benefits everyone.   #RosewoodExuma #SampsonCayProject #YntegraGroup #BlackPoint #Exuma #Bahamas #SustainableDevelopment #CommunityFirst</div></td>
-      <td style="font-weight:600">288</td>
-      <td style="color:var(--text-muted)">420</td>
-      <td style="color:var(--text-muted)">10</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:33.99122807017544%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">3.47%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DU87Tk8jhz_/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">22</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag photo">Photos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/26/2026</td>
-      <td><div class="post-caption" title="The preliminary support for our site plan application from the Town Planning Committee marks an important milestone for the Sampson Cay Project in Exuma, Bahamas.  This decision follows extensive consultation, dialogue, and engagement with stakeholders and the local community. At Yntegra Group, we are encouraged by the continued support and the open, transparent process that has shaped the project to date.  Residents of the Exuma Cays have made it clear they are seeking progress and greater economic opportunity. We remain committed to advancing responsible development that delivers long-term benefits, while protecting the environment and preserving the natural beauty that defines Exuma.  As planning continues for Rosewood Exuma, our focus remains on transparency, collaboration, and building lasting value for the Bahamas: grounded in community partnership and long-term sustainability.  #YntegraGroup #SampsonCay #RosewoodExuma #Exuma #Bahamas #EconomicOpportunity #CommunityImpact #ResponsibleDevelopment #EnvironmentalStewardship">The preliminary support for our site plan application from the Town Planning Committee marks an important milestone for the Sampson Cay Project in Exuma, Bahamas.  This decision follows extensive consultation, dialogue, and engagement with stakeholders and the local community. At Yntegra Group, we are encouraged by the continued support and the open, transparent process that has shaped the project to date.  Residents of the Exuma Cays have made it clear they are seeking progress and greater economic opportunity. We remain committed to advancing responsible development that delivers long-term benefits, while protecting the environment and preserving the natural beauty that defines Exuma.  As planning continues for Rosewood Exuma, our focus remains on transparency, collaboration, and building lasting value for the Bahamas: grounded in community partnership and long-term sustainability.  #YntegraGroup #SampsonCay #RosewoodExuma #Exuma #Bahamas #EconomicOpportunity #CommunityImpact #ResponsibleDevelopment #EnvironmentalStewardship</div></td>
-      <td style="font-weight:600">59</td>
-      <td style="color:var(--text-muted)">105</td>
-      <td style="color:var(--text-muted)">2</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:33.184656556645855%; background:#10b981"></div></div>
-          <span class="eng-num" style="color:#10b981">3.39%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/permalink.php?story_fbid=pfbid0sVu8dVXKto3XZkFnKtGEDw4i9CVfPG4FTgYGR3tswxjQKWWdv4jSoJanQP6nfEWTl&amp;id=61576886210445" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">23</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/12/2026</td>
-      <td><div class="post-caption" title="Exuma deserves to be experienced by the world, and the Sampson Cay Project is designed to make that happen in a way that puts Exumians first.  Rosewood Exuma will set the stage for new tourism that will support local restaurants, artisans, boat captains, dive operators, and beyond. The rising tide of responsible tourism flows through an entire community. That's why the Sampson Cay Project was designed with the local economy at its core. From a minimum 80% Bahamian employment requirement to approximately 500 jobs created across construction and long-term operations, as well as partnerships embedded in local businesses, Yntegra Group is committed to ensuring that the growth this project brings, stays in Exuma and grows with it.  More visitors. More opportunity. More growth for Exuma, and for Exumians to be proud of.  #YntegraGroup #SampsonCay #RosewoodExuma #Bahamas #SustainableDevelopment #CommunityFirst">Exuma deserves to be experienced by the world, and the Sampson Cay Project is designed to make that happen in a way that puts Exumians first.  Rosewood Exuma will set the stage for new tourism that will support local restaurants, artisans, boat captains, dive operators, and beyond. The rising tide of responsible tourism flows through an entire community. That's why the Sampson Cay Project was designed with the local economy at its core. From a minimum 80% Bahamian employment requirement to approximately 500 jobs created across construction and long-term operations, as well as partnerships embedded in local businesses, Yntegra Group is committed to ensuring that the growth this project brings, stays in Exuma and grows with it.  More visitors. More opportunity. More growth for Exuma, and for Exumians to be proud of.  #YntegraGroup #SampsonCay #RosewoodExuma #Bahamas #SustainableDevelopment #CommunityFirst</div></td>
-      <td style="font-weight:600">231</td>
-      <td style="color:var(--text-muted)">302</td>
-      <td style="color:var(--text-muted)">6</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:25.4272043745728%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">2.60%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DVyt6uKjtXi/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">24</td>
-      <td><span class="platform-tag ig">📸 IG</span></td>
-      <td><span class="type-tag reel">IG reel</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/04/2026</td>
-      <td><div class="post-caption" title="Yesterday, we had the pleasure of joining Beyond the Headlines, where Yntegra Group CEO Felipe MacLean shared updates on the Sampson Cay Project. In conversation with Shenique Miller, Felipe highlighted the growing interest and overwhelming local and national support behind the project — reflected in more than 400 job inquiries from Bahamians and over 50 Bahamian businesses expressing interest in collaborating on the Rosewood Exuma development.  Our commitment to listening to the community, and to meeting and exceeding the standards set by both local and international experts and authorities, ensures that we deliver on our promise to the people of Exuma: to safeguard the environment while strengthening the long-term economic future of the Cays.  We have listened. We have taken action. And now, alongside the people of Exuma, we look forward to taking the next steps toward the finish line and moving forward with the project.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #BeyondTheHeadlines #ResponsibleDevelopment #Environment">Yesterday, we had the pleasure of joining Beyond the Headlines, where Yntegra Group CEO Felipe MacLean shared updates on the Sampson Cay Project. In conversation with Shenique Miller, Felipe highlighted the growing interest and overwhelming local and national support behind the project — reflected in more than 400 job inquiries from Bahamians and over 50 Bahamian businesses expressing interest in collaborating on the Rosewood Exuma development.  Our commitment to listening to the community, and to meeting and exceeding the standards set by both local and international experts and authorities, ensures that we deliver on our promise to the people of Exuma: to safeguard the environment while strengthening the long-term economic future of the Cays.  We have listened. We have taken action. And now, alongside the people of Exuma, we look forward to taking the next steps toward the finish line and moving forward with the project.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #BeyondTheHeadlines #ResponsibleDevelopment #Environment</div></td>
-      <td style="font-weight:600">507</td>
-      <td style="color:var(--text-muted)">573</td>
-      <td style="color:var(--text-muted)">13</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:25.101214574898783%; background:#8b5cf6"></div></div>
-          <span class="eng-num" style="color:#8b5cf6">2.56%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.instagram.com/reel/DUWoXaSEoK5/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">25</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag video">Videos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">04/08/2026</td>
-      <td><div class="post-caption" title="Responsible development at Rosewood Exuma begins with respect for the natural environment and collaboration with the right experts.  Our ongoing partnership with Valin Bodie and Environmental Sustainable Solutions continues to help shape a project grounded in conservation, native planting, and sustainability—setting a new benchmark for responsible development in The Bahamas.  We are proud to help raise the standard for environmental stewardship, with a vision that reaches both locally and globally.  #sampsoncayproject #environment #TheBahamas #YntegraGroup">Responsible development at Rosewood Exuma begins with respect for the natural environment and collaboration with the right experts.  Our ongoing partnership with Valin Bodie and Environmental Sustainable Solutions continues to help shape a project grounded in conservation, native planting, and sustainability—setting a new benchmark for responsible development in The Bahamas.  We are proud to help raise the standard for environmental stewardship, with a vision that reaches both locally and globally.  #sampsoncayproject #environment #TheBahamas #YntegraGroup</div></td>
-      <td style="font-weight:600">469</td>
-      <td style="color:var(--text-muted)">681</td>
-      <td style="color:var(--text-muted)">9</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:18.785770396139608%; background:#1877f2"></div></div>
-          <span class="eng-num" style="color:#1877f2">1.92%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/reel/931542529699768/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">26</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag photo">Photos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/24/2026</td>
-      <td><div class="post-caption" title="Yntegra Group has appointed award-winning sustainability advisor XCO₂ to further advance environmental best practices at Rosewood Exuma. This partnership strengthens our commitment to building in a way that respects the natural beauty of Exuma while aligning with leading international sustainability standards.  From energy efficiency to long-term climate resilience, this collaboration reinforces our promise to protect what makes the Exuma Cays so special through responsible development at the Sampson Cay Project.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #SustainableDevelopment #Environment'">Yntegra Group has appointed award-winning sustainability advisor XCO₂ to further advance environmental best practices at Rosewood Exuma. This partnership strengthens our commitment to building in a way that respects the natural beauty of Exuma while aligning with leading international sustainability standards.  From energy efficiency to long-term climate resilience, this collaboration reinforces our promise to protect what makes the Exuma Cays so special through responsible development at the Sampson Cay Project.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #SustainableDevelopment #Environment"</div></td>
-      <td style="font-weight:600">166</td>
-      <td style="color:var(--text-muted)">300</td>
-      <td style="color:var(--text-muted)">3</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:17.691819911223842%; background:#10b981"></div></div>
-          <span class="eng-num" style="color:#10b981">1.81%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/permalink.php?story_fbid=pfbid02HUgzeU5CgWRznDmJ7pkKGpe9xLN3oNJPmET2n4WfaYT6wcFzRCdgqDuu6uF6JgMVl&amp;id=61576886210445" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">27</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag photo">Photos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/31/2026</td>
-      <td><div class="post-caption" title="We’re truly grateful to see the continued support from the Exuma community, as highlighted in the Tribune article. The voices of local residents reflect a shared belief in the meaningful opportunities this project can create, from new jobs to long-term economic growth for Bahamians.  Community remains at the heart of this project, and we are committed to delivering Rosewood Exuma with care, responsibility, and deep respect. This milestone belongs to the people of Exuma we are proud to move forward together.  Progress for Exuma 🇧🇸  #YntegraGroup #RosewoodExuma #TheBahamas #SampsonCayProject #Environment #SustainableDevelopment">We’re truly grateful to see the continued support from the Exuma community, as highlighted in the Tribune article. The voices of local residents reflect a shared belief in the meaningful opportunities this project can create, from new jobs to long-term economic growth for Bahamians.  Community remains at the heart of this project, and we are committed to delivering Rosewood Exuma with care, responsibility, and deep respect. This milestone belongs to the people of Exuma we are proud to move forward together.  Progress for Exuma 🇧🇸  #YntegraGroup #RosewoodExuma #TheBahamas #SampsonCayProject #Environment #SustainableDevelopment</div></td>
-      <td style="font-weight:600">224</td>
-      <td style="color:var(--text-muted)">331</td>
-      <td style="color:var(--text-muted)">4</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:17.481203007518797%; background:#10b981"></div></div>
-          <span class="eng-num" style="color:#10b981">1.79%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/permalink.php?story_fbid=pfbid02XXj2WyfF6tSetMBe9BUgCw86WgeLE35VVvmdkxqmKF15QGn6EvxJ1nrvFJXD7ye4l&amp;id=61576886210445" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">28</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag video">Videos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/04/2026</td>
-      <td><div class="post-caption" title="Yesterday, we had the pleasure of joining Beyond the Headlines, where Yntegra Group CEO Felipe MacLean shared updates on the Sampson Cay Project. In conversation with Shenique Miller, Felipe highlighted the growing interest and overwhelming local and national support behind the project — reflected in more than 400 job inquiries from Bahamians and over 50 Bahamian businesses expressing interest in collaborating on the Rosewood Exuma development.  Our commitment to listening to the community, and to meeting and exceeding the standards set by both local and international experts and authorities, ensures that we deliver on our promise to the people of Exuma: to safeguard the environment while strengthening the long-term economic future of the Cays.  We have listened. We have taken action. And now, alongside the people of Exuma, we look forward to taking the next steps toward the finish line and moving forward with the project.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #BeyondTheHeadlines #ResponsibleDevelopment #Environment">Yesterday, we had the pleasure of joining Beyond the Headlines, where Yntegra Group CEO Felipe MacLean shared updates on the Sampson Cay Project. In conversation with Shenique Miller, Felipe highlighted the growing interest and overwhelming local and national support behind the project — reflected in more than 400 job inquiries from Bahamians and over 50 Bahamian businesses expressing interest in collaborating on the Rosewood Exuma development.  Our commitment to listening to the community, and to meeting and exceeding the standards set by both local and international experts and authorities, ensures that we deliver on our promise to the people of Exuma: to safeguard the environment while strengthening the long-term economic future of the Cays.  We have listened. We have taken action. And now, alongside the people of Exuma, we look forward to taking the next steps toward the finish line and moving forward with the project.  #RosewoodExuma #SampsonCayProject #YntegraGroup #Exuma #Bahamas #BeyondTheHeadlines #ResponsibleDevelopment #Environment</div></td>
-      <td style="font-weight:600">229</td>
-      <td style="color:var(--text-muted)">367</td>
-      <td style="color:var(--text-muted)">4</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:17.099517352332796%; background:#1877f2"></div></div>
-          <span class="eng-num" style="color:#1877f2">1.75%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/reel/1649539446227409/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">29</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag video">Videos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">02/10/2026</td>
-      <td><div class="post-caption" title="'We're ready to start. We're ready to go and that's all that matters'  Across the Exumas we continue to hear from the community about how eager they are to get to work and start on the path to progress and a brighter future. We are truly humbled by the outpouring of support from the locals of Black Point as they share their enthusiasm and optimism around what the Sampson Cay Project means to them and their loved ones. We do not take our responsibility lightly and continue to honor the trust the community has shown us by consulting directly with them as well as with local and international experts. Success for the people of Exuma starts with ensuring the steps they take together with Yntegra Group toward economic progress and environment stewardship are guided by the highest global standards. Standards worthy of the people who call the Bahamas 'home' and reflected in our approach to the development of the world-class Rosewood Exuma.  #YntegraGroup #SampsonCay #RosewoodExuma #Bahamas #Community'">"We're ready to start. We're ready to go and that's all that matters"  Across the Exumas we continue to hear from the community about how eager they are to get to work and start on the path to progress and a brighter future. We are truly humbled by the outpouring of support from the locals of Black Point as they share their enthusiasm and optimism around what the Sampson Cay Project means to them and their loved ones. We do not take our responsibility lightly and continue to honor the trust the community has shown us by consulting directly with them as well as with local and international experts. Success for the people of Exuma starts with ensuring the steps they take together with Yntegra Group toward economic progress and environment stewardship are guided by the highest global standards. Standards worthy of the people who call the Bahamas 'home' and reflected in our approach to the development of the world-class Rosewood Exuma.  #YntegraGroup #SampsonCay #RosewoodExuma #Bahamas #Community"</div></td>
-      <td style="font-weight:600">423</td>
-      <td style="color:var(--text-muted)">598</td>
-      <td style="color:var(--text-muted)">6</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:13.885778275475925%; background:#1877f2"></div></div>
-          <span class="eng-num" style="color:#1877f2">1.42%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/reel/1270628794935917/" target="_blank">View ↗</a></td>
-    </tr>
-  
-    <tr>
-      <td style="font-weight:700; color:#94a3b8; font-size:12px">30</td>
-      <td><span class="platform-tag fb">🔵 FB</span></td>
-      <td><span class="type-tag photo">Photos</span></td>
-      <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">03/27/2026</td>
-      <td><div class="post-caption" title="We’re proud to sponsor The Bahamian Gathering, a regatta in Black Point that brings together sailors from Exuma and around the world to celebrate the heart, soul, and national sport of the Exumas.  Now in our fifth year as returning sponsors, it’s been incredible to watch this event continue to grow, welcoming more than 200 attendees this year.  Congratulations to Lady Eunice on winning Class C, and to the Class E youth sailors, whose passion and skill reflect Exuma’s enduring sailing tradition and the bright future of Bahamian sailing.  #ExumaSailing #RosewoodExuma #SampsonCay #Environment #YntegraGroup">We’re proud to sponsor The Bahamian Gathering, a regatta in Black Point that brings together sailors from Exuma and around the world to celebrate the heart, soul, and national sport of the Exumas.  Now in our fifth year as returning sponsors, it’s been incredible to watch this event continue to grow, welcoming more than 200 attendees this year.  Congratulations to Lady Eunice on winning Class C, and to the Class E youth sailors, whose passion and skill reflect Exuma’s enduring sailing tradition and the bright future of Bahamian sailing.  #ExumaSailing #RosewoodExuma #SampsonCay #Environment #YntegraGroup</div></td>
-      <td style="font-weight:600">74</td>
-      <td style="color:var(--text-muted)">135</td>
-      <td style="color:var(--text-muted)">1</td>
-      <td>
-        <div class="eng-bar-wrap">
-          <div class="eng-bar"><div class="eng-bar-fill" style="width:13.229018492176387%; background:#10b981"></div></div>
-          <span class="eng-num" style="color:#10b981">1.35%</span>
-        </div>
-      </td>
-      <td><a class="post-link" href="https://www.facebook.com/permalink.php?story_fbid=pfbid0xvXwvcZ8NMGg9Go7ZZ8hsEymDHuNDFSGiDLVNwhd95XiLz7Qj18Zk2ztG5dVUPkhl&amp;id=61576886210445" target="_blank">View ↗</a></td>
-    </tr>
-  </tbody>
+        <tbody id="top-posts-body"></tbody>
       </table>
     </div>
   </div>
 
   <!-- STRATEGY SECTION -->
-  <div class="strategy-section" id="strategy-section" style="display: block;">
+  <div class="strategy-section" id="strategy-section" style="display:none">
     <div class="strategy-header" style="justify-content:space-between">
       <h2>ONWRD's Recommendations</h2>
       <div style="display:flex;gap:8px">
@@ -1334,270 +777,49 @@
       ✏️ <span><strong>Edit mode on</strong> — click any text in the cards below to rewrite it. Your changes carry through to the shareable download.</span>
     </div>
     <div class="strategy-header-sub">Strategic recommendations for the Sampson Cay Project — next 90 days.</div>
-    <div class="strategy-grid" id="strategy-grid">
-    <div class="strategy-card">
-      <div class="strategy-card-header">
-        <div class="strategy-card-icon">🏗️</div>
-        <div>
-          <div class="strategy-card-title editable-field" contenteditable="false">On-Site Activities Overview Post</div>
-          <span class="strategy-card-timing" style="background:#2563eb">📅 <span class="editable-field" contenteditable="false">Publish ASAP</span></span>
-          <div class="format-chips" style="margin-top:10px">
-            <span class="format-chip chip-reel">IG Reel</span><span class="format-chip chip-video">FB Video</span><span class="format-chip chip-carousel">IG Carousel</span>
-          </div>
-        </div>
-      </div>
-      <div class="strategy-card-body">
-        
-          
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Lead format</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false"><strong>IG Reels are your strongest format for discovery</strong> — averaging <strong>2.62% engagement rate</strong> and <strong>5.6K reach</strong> per post. A 20–40 second reel showing active site work (machinery, team, progress markers) will outperform static content on IG every time. Pair it with a matching FB Video for cross-platform coverage.</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Support with carousel</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Follow up 24–48 hrs later with an <strong>IG Carousel</strong> breaking down what viewers will see on-site — project phases, activity zones, team roles. Carousels drive saves and return visits; your best carousel reached <strong>21.3K accounts</strong>.</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Caption strategy</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Open with a forward-looking hook — "For the first time, here's what's happening on the ground at Sampson Cay." Ground it in community benefit language. Keep it under 150 words on IG; FB can carry a longer narrative version.</div>
-          </div>
-        
-        <div class="data-callout">
-          <div class="data-callout-label">📊 From your data</div>
-          <div class="data-callout-text editable-field" contenteditable="false">Your Town Hall reel reached <strong>50.2K people on FB</strong> and drove <strong>32 new followers from a single IG reel</strong>. Visually engaging, event-tied content is your highest-reach format combination.</div>
-        </div>
-      </div>
-    </div>
-  
-    <div class="strategy-card">
-      <div class="strategy-card-header">
-        <div class="strategy-card-icon">💼</div>
-        <div>
-          <div class="strategy-card-title editable-field" contenteditable="false">Job Creation Announcement</div>
-          <span class="strategy-card-timing" style="background:#10b981">📅 <span class="editable-field" contenteditable="false">End of May</span></span>
-          <div class="format-chips" style="margin-top:10px">
-            <span class="format-chip chip-photo">FB Photo</span><span class="format-chip chip-carousel">IG Carousel</span><span class="format-chip chip-reel">IG Reel</span>
-          </div>
-        </div>
-      </div>
-      <div class="strategy-card-body">
-        
-          
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Lead with Facebook</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Your top-performing FB Photo posts (jobs/careers themes) averaged <strong>7.9K reach</strong> — and your "80% Bahamian employment" infographic-style post drove <strong>1,595 total clicks</strong>, the highest link click count in the period. For an announcement post with specific job numbers, a bold stat-forward graphic will perform best in the FB feed.</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">IG carousel for depth</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Use a <strong>5–7 slide IG Carousel</strong> to break down job categories: construction roles, hospitality, marine ops, senior leadership. Carousels let you tell the full story without losing people to caption length. End the last slide with a clear CTA ("Inquire at [link]").</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Timing precision</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Post <strong>Tuesday–Thursday between 9–11am</strong> for maximum organic reach. End-of-May is strong timing — it captures attention before summer news cycles fragment. Avoid Friday–Sunday for announcement content that requires action.</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Community framing</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Lead the caption with a number: "500+ jobs. Starting in Exuma." This account's highest-engagement posts anchor on a specific, tangible claim before the narrative. Avoid burying the headline in paragraph two.</div>
-          </div>
-        
-        <div class="data-callout">
-          <div class="data-callout-label">📊 From your data</div>
-          <div class="data-callout-text editable-field" contenteditable="false">The careers-focused FB photo posts averaged <strong>7.9K reach</strong> and up to <strong>1,595 link clicks</strong> — your strongest click-through driver. Job content resonates strongly with this audience and generates real downstream action.</div>
-        </div>
-      </div>
-    </div>
-  
-    <div class="strategy-card">
-      <div class="strategy-card-header">
-        <div class="strategy-card-icon">🤝</div>
-        <div>
-          <div class="strategy-card-title editable-field" contenteditable="false">Sponsorship Visibility Posts</div>
-          <span class="strategy-card-timing" style="background:#f59e0b">📅 <span class="editable-field" contenteditable="false">As details confirm</span></span>
-          <div class="format-chips" style="margin-top:10px">
-            <span class="format-chip chip-reel">IG Reel</span><span class="format-chip chip-carousel">IG Carousel</span><span class="format-chip chip-photo">FB Photo</span>
-          </div>
-        </div>
-      </div>
-      <div class="strategy-card-body">
-        
-          
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Visual-first, event-tied</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Your Bahamian Gathering regatta sponsorship post reached <strong>17.4K accounts on IG</strong>. The key signal: event-tied sponsorship content performs significantly above average when it has real imagery and is published on or just after the event day. Announce early, post visual recap same day.</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Partnership narrative frame</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Lead each post by naming the partner and explaining the "why" — your ESS partnership content was among the most-saved in this period. The IG Reel format for partner stories averages <strong>2.62% engagement</strong> and generates meaningful <strong>follower growth</strong>. Pair the reel with a carousel that shows the partner's actual work.</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Cross-platform approach</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">For high-profile sponsorships, use a <strong>3-post sequence</strong>: (1) announcement teaser on IG Stories + FB, (2) event-day IG Reel or photo recap, (3) follow-up IG Carousel with impact details. This sequence keeps the brand visible across multiple touchpoints without over-posting.</div>
-          </div>
-        
-          <div class="strategy-divider"></div>
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">Tag strategy</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">Tag the sponsored organization/event in every post. On IG especially, partner tags drive significant incremental reach when the partner reshares. This is a low-effort amplification lever that this account has used well.</div>
-          </div>
-        
-        <div class="data-callout">
-          <div class="data-callout-label">📊 From your data</div>
-          <div class="data-callout-text editable-field" contenteditable="false">Partnership content (ESS, XCO₂, Bahamian Gathering) drove some of your <strong>highest follower-gain moments</strong> on IG and <strong>strongest engagement rates</strong> on FB. Authentically tied community and expert partnerships consistently outperform promotional standalone posts.</div>
-        </div>
-      </div>
-    </div>
-  </div>
+    <div class="strategy-grid" id="strategy-grid"></div>
 
     <!-- CONTENT CALENDAR -->
     <div style="margin-top:28px">
       <div class="section-header" style="margin-bottom:4px">📅 Content Calendar</div>
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">2 unique pieces of content per week · published to both IG &amp; FB · 4 total posts per week</div>
-      <div id="content-calendar"><div class="cal-grid">
-    <div class="cal-week">
-      <div class="cal-week-header">
-        <span>Week 1 — May 5–9</span>
-        <span class="cal-dates">Mon + Thu</span>
-      </div>
-      
-        <div class="cal-slot">
-          <div class="cal-slot-num">Content Slot 1</div>
-          <div class="cal-slot-theme">On-Site Activities Overview</div>
-          <div class="cal-slot-detail">Reel/Video showcasing active site progress at Sampson Cay. Hook on visible momentum — machinery, team, groundwork. Community-benefit caption.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
-          </div>
-          <div class="cal-timing">📅 Mon · ⏰ 9–10am</div>
-        </div>
-      
-        <div class="cal-slot">
-          <div class="cal-slot-num">Content Slot 2</div>
-          <div class="cal-slot-theme">Environmental Stewardship</div>
-          <div class="cal-slot-detail">Carousel/Photo highlighting the native plant nursery or ESS partnership — positions project as responsible and community-rooted.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
-          </div>
-          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
-        </div>
-      
-    </div>
-  
-    <div class="cal-week">
-      <div class="cal-week-header">
-        <span>Week 2 — May 12–16</span>
-        <span class="cal-dates">Mon + Thu</span>
-      </div>
-      
-        <div class="cal-slot">
-          <div class="cal-slot-num">Content Slot 1</div>
-          <div class="cal-slot-theme">Community Voice</div>
-          <div class="cal-slot-detail">Quote-forward Reel or short video from a community member, local captain, or ESS partner. Authentic third-party voices drive the highest engagement on this account.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
-          </div>
-          <div class="cal-timing">📅 Mon · ⏰ 9–10am</div>
-        </div>
-      
-        <div class="cal-slot">
-          <div class="cal-slot-num">Content Slot 2</div>
-          <div class="cal-slot-theme">Know the Facts</div>
-          <div class="cal-slot-detail">Infographic Carousel addressing a common question about the development — dredging footprint, density stats, employment commitments. Data-forward content drives your highest link clicks.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
-          </div>
-          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
-        </div>
-      
-    </div>
-  
-    <div class="cal-week">
-      <div class="cal-week-header">
-        <span>Week 3 — May 19–23</span>
-        <span class="cal-dates">Mon + Thu</span>
-      </div>
-      
-        <div class="cal-slot">
-          <div class="cal-slot-num">Content Slot 1</div>
-          <div class="cal-slot-theme">Sponsorship Visibility</div>
-          <div class="cal-slot-detail">Event-tied Reel or photo recap for any confirmed sponsorship activity. Tag partner, lead with community impact, follow with a carousel of highlights 48hrs later.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
-          </div>
-          <div class="cal-timing">📅 Mon · ⏰ 9–10am</div>
-        </div>
-      
-        <div class="cal-slot">
-          <div class="cal-slot-num">Content Slot 2</div>
-          <div class="cal-slot-theme">Rosewood Exuma Vision</div>
-          <div class="cal-slot-detail">Brand-forward Carousel or Photo — render, aerial, or design detail. Luxury feel, grounded in Bahamian context. Keep caption concise and aspirational.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
-          </div>
-          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
-        </div>
-      
-    </div>
-  
-    <div class="cal-week">
-      <div class="cal-week-header">
-        <span>Week 4 — May 26–30 ⚡ Jobs Drop</span>
-        <span class="cal-dates">Mon + Thu</span>
-      </div>
-      
-        <div class="cal-slot cal-highlight">
-          <div class="cal-slot-num">Content Slot 1 — Priority</div>
-          <div class="cal-slot-theme">500+ Jobs · Job Creation Announcement</div>
-          <div class="cal-slot-detail">Lead with the number. Bold stat-forward graphic on FB, detailed Carousel on IG breaking down job categories across construction, hospitality, marine ops and senior leadership. End with a clear CTA.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
-          </div>
-          <div class="cal-timing">📅 Tue · ⏰ 9–10am</div>
-        </div>
-      
-        <div class="cal-slot">
-          <div class="cal-slot-num">Content Slot 2</div>
-          <div class="cal-slot-theme">Community Progress Update</div>
-          <div class="cal-slot-detail">Follow the jobs announcement with a community-focused video or quote post. Reinforce partnership and trust — round out the week on an authentic, people-first note.</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
-            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
-          </div>
-          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
-        </div>
-      
-    </div>
-  </div></div>
+      <div id="content-calendar"></div>
     </div>
   </div>
 
 </div><!-- /dashboard -->
 
-<div class="footer" id="footer" style="display: block;">
+<div class="footer" id="footer" style="display:none">
   Generated by your social media dashboard · Data processed locally · <button class="reload-btn" onclick="showUpload()">Load new data</button>
 </div>
 
 <!-- ══════════════════ GITHUB MODAL ══════════════════ -->
+<div class="modal-overlay" id="github-modal">
+  <div class="modal">
+    <h3>⬆ Push to GitHub</h3>
+    <p>This will publish <strong>report.html</strong> directly to your repo. Your client's URL updates automatically — no manual upload needed.</p>
 
+    <div class="push-status" id="push-status"></div>
+
+    <label>GitHub Personal Access Token</label>
+    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" oninput="saveGHSettings()" autocomplete="off">
+
+    <label>Repository (owner/repo)</label>
+    <input type="text" id="gh-repo" placeholder="juanxjuan82/sampson-cay-dashboard" oninput="saveGHSettings()">
+
+    <p style="margin-bottom:12px">
+      <a class="modal-link" href="https://github.com/settings/tokens/new?scopes=repo&amp;description=Social+Dashboard" target="_blank">
+        Generate a token on GitHub →
+      </a>
+      &nbsp;(check the <strong>repo</strong> scope, set expiration to your preference)
+    </p>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeGitHubModal()">Cancel</button>
+      <button class="btn btn-github btn-sm" id="btn-push-confirm" onclick="pushToGitHub()">⬆ Publish Now</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════ JAVASCRIPT ══════════════════ -->
 <script>
@@ -1608,7 +830,14 @@ let currentFilter = 'all';
 let charts = {};
 let embeddedData = null;
 let tableSortKey = 'engRate';
-let tableSortDir = 'desc'; // 'asc' | 'desc'
+let tableSortDir = 'desc';
+
+// Capture a clean page template before any charts or data are rendered.
+// We do this immediately at script load time so the HTML is small and fast to serialise.
+let _pageTemplate = null;
+window.addEventListener('DOMContentLoaded', () => {
+  _pageTemplate = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+});
 
 // ── Color map ──
 const TYPE_COLORS = {
@@ -2686,15 +1915,11 @@ function buildClientHTML() {
     strategyGridHTML,
   };
   const dataJSON = JSON.stringify(data);
-  // Build a lean version — strip upload screen and GitHub modal from DOM copy
-  const clone = document.documentElement.cloneNode(true);
-  ['upload-screen', 'github-modal'].forEach(id => {
-    const el = clone.querySelector('#' + id);
-    if (el) el.remove();
-  });
-  const currentHTML = clone.outerHTML;
+  // Use the template captured at page load (before charts rendered) — avoids cloning live DOM
+  const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
 
   const clientStyles = `<style>
+    #upload-screen, #github-modal,
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
@@ -2726,8 +1951,7 @@ window.addEventListener('DOMContentLoaded', function() {
   if (ss) ss.style.display = 'block';
 });
 <\/script>`;
-  return '<!DOCTYPE html>\n' +
-    currentHTML
+  return currentHTML
       .replace('</head>', clientStyles + '\n</head>')
       .replace('
 <script>
