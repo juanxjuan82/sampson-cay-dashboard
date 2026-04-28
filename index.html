@@ -1978,40 +1978,28 @@ function renderStrategy() {
   const cards = [
     {
       icon: '🏗️',
-      title: 'On-Site Activities Overview Post',
+      title: 'On-Site Activities Overview',
       timing: 'Publish ASAP',
       timingColor: '#2563eb',
       formats: [
-        { label: 'Slot 1 — IG Reel', cls: 'chip-reel' },
-        { label: 'Slot 1 — FB Video', cls: 'chip-video' },
-        { label: 'Slot 2 — IG Carousel', cls: 'chip-carousel' },
-        { label: 'Slot 2 — FB Photo', cls: 'chip-photo' },
+        { label: 'IG Reel', cls: 'chip-reel' },
+        { label: 'FB Video', cls: 'chip-video' },
+        { label: 'IG Carousel', cls: 'chip-carousel' },
+        { label: 'FB Photo', cls: 'chip-photo' },
       ],
       recs: [
         {
-          label: 'Two-post week structure',
-          content: `This week uses both posts: <strong>Slot 1</strong> = IG Reel + FB Video (discovery and reach). <strong>Slot 2</strong> = IG Carousel + FB Photo (depth, saves, and search indexing). These are a deliberate pair — the carousel is not an add-on posted 24–48hrs later, it is your second scheduled post for the week. Do not add a third post.`,
+          label: 'What\'s working',
+          content: `Reels and FB Videos are your strongest reach and discovery format — averaging <strong>${fmtPct(reelStats.avgEngRate||0)} engagement</strong> and <strong>${fmt(reelStats.avgReach||0)} reach</strong> per post. Progress content with visible activity (site work, team, milestones) consistently outperforms renders or static graphics.`,
         },
         {
-          label: 'Slot 1 — Lead with video',
-          content: `<strong>IG Reels are your strongest discovery format</strong> — averaging <strong>${fmtPct(reelStats.avgEngRate||0)} engagement rate</strong> and <strong>${fmt(reelStats.avgReach||0)} reach</strong> per post. A 20–40 second reel showing active site work (machinery, team, visible progress) drives reach and follower growth. Mirror it as a FB Video for cross-platform coverage.`,
-        },
-        {
-          label: 'Slot 2 — Carousel for depth and search',
-          content: `Your second post breaks down what is happening on-site — project phases, activity zones, community roles. Carousels drive saves and return visits; your best carousel reached <strong>${fmt(bestCarReach.reach||0)} accounts</strong>. This format also indexes well: each slide is a searchable content unit on both IG and FB.`,
-        },
-        {
-          label: 'Caption — 150–300 words + keyword integration',
-          content: `Both posts require 150–300 word captions. Instagram is the world's second most popular search engine — caption length and keyword presence directly determine search visibility. Naturally integrate all five priority terms: <strong>Yntegra Group · Sampson Cay · Rosewood Exuma · Bahamas · Environment</strong>. Open with a forward-looking hook ("Here's what's underway at Sampson Cay right now"), ground in community benefit, and close with a link to <strong>sampsoncayproject.com</strong>.`,
-        },
-        {
-          label: 'Alt text — required on every asset',
-          content: `Add descriptive alt text to all images and videos before posting. Both platforms and Google index alt text for search. Example: <em>"Sampson Cay Project Rosewood Exuma — construction progress in the Bahamas, showing [describe image content]."</em> Include at least two of the five priority keywords in every alt text field.`,
+          label: 'The opportunity',
+          content: `Use your two posts as a pair: <strong>Reel/Video</strong> for reach, <strong>Carousel/Photo</strong> for depth and saves — both within the same week. Your best carousel reached <strong>${fmt(bestCarReach.reach||0)} accounts</strong> and drove saves above the account average. Show what's happening on the ground, anchor the caption on community benefit.`,
         },
       ],
       callout: {
         label: '📊 From your data',
-        text: `Your Town Hall reel reached <strong>${fmt(bestFBReach.reach||0)} people on FB</strong> and drove <strong>${fmt(bestIGFollows.follows||0)} new followers from a single IG reel</strong>. Visually engaging, progress-tied content is your highest-reach format combination — and with keyword-optimised captions it also builds owned search visibility.`,
+        text: `Progress-tied content reached <strong>${fmt(bestFBReach.reach||0)} people on FB</strong> and generated <strong>${fmt(bestIGFollows.follows||0)} new followers from a single IG reel</strong>. This is your highest-reach content type.`,
       },
     },
     {
@@ -2020,34 +2008,26 @@ function renderStrategy() {
       timing: 'End of May',
       timingColor: '#10b981',
       formats: [
-        { label: 'Slot 1 — FB Photo', cls: 'chip-photo' },
-        { label: 'Slot 2 — IG Carousel', cls: 'chip-carousel' },
+        { label: 'FB Photo', cls: 'chip-photo' },
+        { label: 'IG Carousel', cls: 'chip-carousel' },
       ],
       recs: [
         {
-          label: 'Two-post week structure',
-          content: `<strong>Slot 1</strong> = FB Photo (bold stat-forward announcement graphic for reach and clicks). <strong>Slot 2</strong> = IG Carousel (5–7 slides breaking down job categories, roles, and how to apply). These are your two posts for this week. The IG Reel version of this story belongs to the following week's Slot 1 if momentum continues — do not add it to this week.`,
+          label: 'What\'s working',
+          content: `Jobs and employment content is your strongest click-through lane. The "80% Bahamian employment" post drove <strong>1,595 link clicks</strong> — the highest in the full period. Stat-forward graphics on Facebook outperform video for driving action on this topic.`,
         },
         {
-          label: 'Slot 1 — FB stat graphic',
-          content: `Your "80% Bahamian employment" post drove <strong>1,595 total clicks</strong> — the highest link click count in the full period. Lead the graphic with the headline number ("500+ jobs. Starting in Exuma.") and link the FB caption directly to a dedicated jobs/careers page on <strong>sampsoncayproject.com</strong>. Do not bury the URL. FB caption should run 150–300 words anchored on a specific, tangible claim.`,
+          label: 'What to watch',
+          content: `High-reach posts on this theme have lower engagement rates because the audience is broader — that's expected, not a failure. The metric that matters here is <strong>link clicks</strong>, not ER.`,
         },
         {
-          label: 'Slot 2 — IG carousel for depth',
-          content: `Use the carousel to break down job categories: construction, hospitality, marine operations, senior leadership. End the final slide with a clear CTA ("Inquire at [link in bio]"). Update your IG bio link to point directly to the jobs/careers page for the duration of announcement week. Carousels index as multi-page content — more searchable surface area than a single image.`,
-        },
-        {
-          label: 'Caption — 150–300 words + keyword integration',
-          content: `Both posts require 150–300 word captions integrating all five priority terms: <strong>Yntegra Group · Sampson Cay · Rosewood Exuma · Bahamas · Environment</strong>. Lead with the number, follow with community framing ("This is what responsible development in the Bahamas looks like"), close with the link. Avoid burying the headline in paragraph two — this account's highest-engagement posts open with the specific claim.`,
-        },
-        {
-          label: 'Alt text — announcement graphic',
-          content: `The FB infographic and each IG carousel slide must have descriptive alt text. Example for the lead graphic: <em>"Sampson Cay Project Rosewood Exuma — 500+ Bahamian jobs created through sustainable development in the Exumas, Bahamas."</em> Every slide gets unique alt text describing that slide's content.`,
+          label: 'The opportunity',
+          content: `Lead with the number. <strong>FB Photo</strong> (stat graphic, direct link) as your first post. <strong>IG Carousel</strong> (job categories, how to apply, CTA) as your second. Open the caption with the specific claim — "500+ jobs. Starting in Exuma." — not the narrative paragraph.`,
         },
       ],
       callout: {
         label: '📊 From your data',
-        text: `The careers-focused FB photo posts averaged <strong>${fmt(fbPhotoStats.avgReach||0)} reach</strong> and up to <strong>1,595 link clicks</strong> — your strongest click-through driver. Job content resonates with this audience and generates real downstream action. With keyword-optimised captions it also directly counters the "what are the community benefits?" search queries currently returning SEA campaign content.`,
+        text: `Careers-focused FB photos averaged <strong>${fmt(fbPhotoStats.avgReach||0)} reach</strong> and generated your highest click-through rate. This is the content type most likely to drive real downstream action from this audience.`,
       },
     },
     {
@@ -2056,36 +2036,27 @@ function renderStrategy() {
       timing: 'As details confirm',
       timingColor: '#f59e0b',
       formats: [
-        { label: 'Slot 1 — IG Reel / Photo', cls: 'chip-reel' },
-        { label: 'Slot 1 — FB Video / Photo', cls: 'chip-video' },
-        { label: 'Slot 2 — IG Carousel', cls: 'chip-carousel' },
-        { label: 'Slot 2 — FB Photo', cls: 'chip-photo' },
+        { label: 'IG Reel', cls: 'chip-reel' },
+        { label: 'IG Carousel', cls: 'chip-carousel' },
+        { label: 'FB Photo', cls: 'chip-photo' },
       ],
       recs: [
         {
-          label: 'Two-post week structure',
-          content: `Each partnership week uses both posts as a pair: <strong>Slot 1</strong> = event-tied visual (Reel or photo published on or same day as the event or announcement). <strong>Slot 2</strong> = impact carousel the same week, showing the partner's work, environmental credentials, or community outcomes. This is the complete week. There is no third post — no teaser and no additional follow-up outside of this pair.`,
+          label: 'What\'s working',
+          content: `Partnership content (ESS, XCO₂, Bahamian Gathering) drove your highest follower-gain moments on IG and strongest engagement rates on FB. Event-tied posts with real imagery significantly outperform standalone promotional content.`,
         },
         {
-          label: 'Frame partnerships as environmental counter-narrative',
-          content: `Partnership content serves a dual function: community engagement and SEO counter-narrative. Searches for "Rosewood Exuma development environmental impact" and "Rosewood Exuma project environmental concerns" are currently dominated by opposition content. Every post naming an environmental or community partner — ESS, XCO₂, local marine operators — directly occupies that search space with authoritative owned content. Lead the caption with the partner's environmental or community significance before the event detail.`,
+          label: 'What to watch',
+          content: `Sponsorship posts with weak community framing underperform. The regatta post had strong reach but <strong>0.14% ER</strong> — visibility without resonance. Posts that lead with the partner's community or environmental significance consistently do better than posts that lead with the event itself.`,
         },
         {
-          label: 'Caption — 150–300 words + keyword integration',
-          content: `Both posts require 150–300 word captions. Naturally integrate all five priority terms: <strong>Yntegra Group · Sampson Cay · Rosewood Exuma · Bahamas · Environment</strong>. For environmental partnership posts, also integrate: "sustainable development", "marine protection", "community engagement in the Bahamas", "Rosewood Exuma sustainability." These phrases directly counter the search terms being amplified by the opposition campaign. Close every caption with a link to the relevant page on <strong>sampsoncayproject.com</strong> (sustainability, community partnerships, or news).`,
-        },
-        {
-          label: 'Tag strategy',
-          content: `Tag the partner organisation in every post. On IG, partner tags drive incremental reach when the partner reshares — this is the primary organic amplification lever available at 2 posts/week. On FB, tag both the organisation's page and relevant community pages. Do not rely on tags as a substitute for keyword-optimised captions.`,
-        },
-        {
-          label: 'Alt text — environmental framing',
-          content: `Alt text on partnership content should describe both the visual and the environmental or community context. Example: <em>"ESS environmental science team working with the Sampson Cay Project Rosewood Exuma on marine protection in the Bahamas."</em> This alt text indexes for the exact search queries the opposition campaign is currently winning.`,
+          label: 'The opportunity',
+          content: `Each partnership week: <strong>Slot 1</strong> = event-tied visual on the day. <strong>Slot 2</strong> = impact carousel the same week showing what the partnership actually means for Exuma. Lead with the "why" — what does ESS do, why does the project work with them, what does it mean for the community. Tag the partner on both posts.`,
         },
       ],
       callout: {
         label: '📊 From your data',
-        text: `Partnership content (ESS, XCO₂, Bahamian Gathering) drove your <strong>highest follower-gain moments</strong> on IG and <strong>strongest engagement rates</strong> on FB. With keyword-optimised captions and alt text, these posts also become your most direct counter to opposition content ranking for environmental search queries about Rosewood Exuma.`,
+        text: `ESS and XCO₂ partnership posts were your most-saved content in the period. Community and environmental credibility content builds the strongest long-term case for this project.`,
       },
     },
   ];
