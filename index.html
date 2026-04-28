@@ -858,7 +858,7 @@
     <!-- CONTENT CALENDAR -->
     <div style="margin-top:28px">
       <div class="section-header" style="margin-bottom:4px">📅 Content Calendar</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">2 unique pieces of content per week · published to both IG &amp; FB · 4 total posts per week</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Recommended cadence · both platforms</div>
       <div id="content-calendar"></div>
     </div>
   </div>
@@ -2127,189 +2127,21 @@ function renderCalendar() {
   const el = document.getElementById('content-calendar');
   if (!el) return;
 
-  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-  // Time slots used for calendar time derivation (readable labels for calendar display)
-  const CAL_SLOTS = [
-    { label: '9–10am',  test: h => h >= 9  && h < 12 },
-    { label: '12–1pm',  test: h => h >= 12 && h < 15 },
-    { label: '3–4pm',   test: h => h >= 15 && h < 18 },
-    { label: '6–7pm',   test: h => h >= 18 },
+  const sentences = [
+    { label: 'May', text: 'Maintain a two-post weekly cadence, pairing a Reel or Video for reach with a Carousel or Photo for depth and saves — lead with on-site progress content and environmental stewardship to build momentum.' },
+    { label: 'End of May', text: 'Dedicate one full posting week to the job creation announcement: a stat-forward graphic on Facebook followed by a breakdown Carousel on Instagram within the same week.' },
+    { label: 'Ongoing', text: 'As partnerships confirm, pair an event-tied post on the day with an impact follow-up carousel within the same week, keeping community benefit and environmental credibility at the centre of both.' },
   ];
 
-  // Build a per-day per-slot engagement grid from all posts
-  const heatGrid = Array.from({length:7}, () => Array.from({length: CAL_SLOTS.length}, () => []));
-  allPosts.forEach(p => {
-    if (!p.date || p.hour === null || p.reach === 0) return;
-    const si = CAL_SLOTS.findIndex(s => s.test(p.hour));
-    if (si >= 0) heatGrid[p.date.getDay()][si].push(p.engRate);
-  });
-
-  // Return the best time label for a given day name, requiring ≥2 posts per cell
-  function bestTimeFor(dayName, fallback = '9–10am') {
-    const idx = DAYS.indexOf(dayName);
-    if (idx < 0) return fallback;
-    const cells = heatGrid[idx];
-    let best = null, bestER = -1;
-    // Prefer slots with ≥2 posts (more reliable)
-    cells.forEach((cell, si) => {
-      if (cell.length >= 2) {
-        const er = cell.reduce((a,b) => a+b, 0) / cell.length;
-        if (er > bestER) { bestER = er; best = si; }
-      }
-    });
-    // Fall back to any slot with at least 1 post
-    if (best === null) {
-      cells.forEach((cell, si) => {
-        if (cell.length > 0) {
-          const er = cell.reduce((a,b) => a+b, 0) / cell.length;
-          if (er > bestER) { bestER = er; best = si; }
-        }
-      });
-    }
-    return best !== null ? CAL_SLOTS[best].label : fallback;
-  }
-
-  // Rank weekdays by average engagement rate across all posts on that day
-  const dayEngMap = {};
-  allPosts.forEach(p => {
-    if (!p.date || p.reach === 0) return;
-    const d = DAYS[p.date.getDay()];
-    if (!dayEngMap[d]) dayEngMap[d] = [];
-    dayEngMap[d].push(p.engRate);
-  });
-  const avgArr = arr => arr && arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
-  const ranked = ['Mon','Tue','Wed','Thu','Fri']
-    .map(d => ({ d, avg: avgArr(dayEngMap[d]||[]) }))
-    .sort((a,b) => b.avg - a.avg);
-  const day1 = ranked[0]?.d || 'Tuesday';
-  const day2 = ranked[1]?.d || 'Thursday';
-  const time1 = bestTimeFor(day1);
-  const time2 = bestTimeFor(day2);
-
-  const weeks = [
-    {
-      label: 'Week 1 — May 5–9',
-      slots: [
-        {
-          num: 'Content Slot 1',
-          theme: 'On-Site Activities Overview',
-          detail: `Reel/Video showcasing active site progress at Sampson Cay. Hook on visible momentum — machinery, team, groundwork. Community-benefit caption.`,
-          ig: 'IG Reel',
-          fb: 'FB Video',
-          day: day1,
-          time: time1,
-          highlight: false,
-        },
-        {
-          num: 'Content Slot 2',
-          theme: 'Environmental Stewardship',
-          detail: 'Carousel/Photo highlighting the native plant nursery or ESS partnership — positions project as responsible and community-rooted.',
-          ig: 'IG Carousel',
-          fb: 'FB Photo',
-          day: day2,
-          time: time2,
-          highlight: false,
-        }
-      ]
-    },
-    {
-      label: 'Week 2 — May 12–16',
-      slots: [
-        {
-          num: 'Content Slot 1',
-          theme: 'Community Voice',
-          detail: 'Quote-forward Reel or short video from a community member, local captain, or ESS partner. Authentic third-party voices drive the highest engagement on this account.',
-          ig: 'IG Reel',
-          fb: 'FB Video',
-          day: day1,
-          time: time1,
-          highlight: false,
-        },
-        {
-          num: 'Content Slot 2',
-          theme: 'Know the Facts',
-          detail: 'Infographic Carousel addressing a common question about the development — dredging footprint, density stats, employment commitments. Data-forward content drives your highest link clicks.',
-          ig: 'IG Carousel',
-          fb: 'FB Photo',
-          day: day2,
-          time: time2,
-          highlight: false,
-        }
-      ]
-    },
-    {
-      label: 'Week 3 — May 19–23',
-      slots: [
-        {
-          num: 'Content Slot 1',
-          theme: 'Sponsorship Visibility',
-          detail: 'Event-tied Reel or photo recap for any confirmed sponsorship activity. Tag partner, lead with community impact, follow with a carousel of highlights 48hrs later.',
-          ig: 'IG Reel',
-          fb: 'FB Video',
-          day: day1,
-          time: time1,
-          highlight: false,
-        },
-        {
-          num: 'Content Slot 2',
-          theme: 'Rosewood Exuma Vision',
-          detail: 'Brand-forward Carousel or Photo — render, aerial, or design detail. Luxury feel, grounded in Bahamian context. Keep caption concise and aspirational.',
-          ig: 'IG Carousel',
-          fb: 'FB Photo',
-          day: day2,
-          time: time2,
-          highlight: false,
-        }
-      ]
-    },
-    {
-      label: 'Week 4 — May 26–30 ⚡ Jobs Drop',
-      slots: [
-        {
-          num: 'Content Slot 1 — Priority',
-          theme: '500+ Jobs · Job Creation Announcement',
-          detail: 'Lead with the number. Bold stat-forward graphic on FB, detailed Carousel on IG breaking down job categories across construction, hospitality, marine ops and senior leadership. End with a clear CTA.',
-          ig: 'IG Carousel',
-          fb: 'FB Photo',
-          day: 'Tue',
-          time: bestTimeFor('Tue'),
-          highlight: true,
-        },
-        {
-          num: 'Content Slot 2',
-          theme: 'Community Progress Update',
-          detail: 'Follow the jobs announcement with a community-focused video or quote post. Reinforce partnership and trust — round out the week on an authentic, people-first note.',
-          ig: 'IG Reel',
-          fb: 'FB Video',
-          day: 'Thu',
-          time: bestTimeFor('Thu'),
-          highlight: false,
-        }
-      ]
-    },
-  ];
-
-  el.innerHTML = `<div class="cal-grid">${weeks.map(w => `
-    <div class="cal-week">
-      <div class="cal-week-header">
-        <span>${w.label}</span>
-        <span class="cal-dates">${day1} + ${day2}</span>
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:12px;max-width:680px">
+    ${sentences.map(s => `
+      <div style="display:flex;gap:12px;align-items:baseline">
+        <span style="font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;min-width:80px">${s.label}</span>
+        <span class="editable-field" contenteditable="false" style="font-size:14px;line-height:1.65;color:var(--text)">${s.text}</span>
       </div>
-      ${w.slots.map(s => `
-        <div class="cal-slot${s.highlight ? ' cal-highlight' : ''}">
-          <div class="cal-slot-num">${s.num}</div>
-          <div class="cal-slot-theme">${s.theme}</div>
-          <div class="cal-slot-detail">${s.detail}</div>
-          <div class="cal-platforms">
-            <span class="cal-pill cal-pill-ig">📸 ${s.ig}</span>
-            <span class="cal-pill cal-pill-fb">🔵 ${s.fb}</span>
-          </div>
-          <div class="cal-timing">📅 ${s.day} · ⏰ ${s.time}</div>
-        </div>
-      `).join('')}
-    </div>
-  `).join('')}</div>`;
+    `).join('')}
+  </div>`;
+
 }
 
 // ── Edit mode for strategy recommendations ──
