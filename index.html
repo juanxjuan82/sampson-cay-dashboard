@@ -1932,48 +1932,79 @@ function renderTopPosts(posts) {
 
 // ── Strategy Section ──
 function renderStrategy() {
-  // Always show strategy based on ALL posts data (not filtered), for accuracy
   const all = allPosts;
   if (all.length === 0) return;
 
   document.getElementById('strategy-section').style.display = 'block';
 
-  // ── Compute metrics for each post type across all data ──
-  const byType = {};
-  all.forEach(p => {
-    if (!byType[p.type]) byType[p.type] = { engRates: [], reaches: [], follows: [], posts: [] };
-    byType[p.type].posts.push(p);
-    byType[p.type].reaches.push(p.reach);
-    if (p.reach > 0) byType[p.type].engRates.push(p.engRate);
-    byType[p.type].follows.push(p.follows || 0);
-  });
-
   const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
 
-  const typeStats = {};
-  Object.entries(byType).forEach(([t, v]) => {
-    typeStats[t] = {
-      avgEngRate: avg(v.engRates),
-      avgReach: avg(v.reaches),
-      avgFollows: avg(v.follows),
-      count: v.posts.length,
-      topPost: v.posts.filter(p=>p.reach>0).sort((a,b)=>b.engRate-a.engRate)[0],
-    };
+  // ── Separate organic vs boosted using same 4× median threshold as Analyst Notes ──
+  const medianReach = platform => {
+    const r = (platform === 'ig' ? igPosts : fbPosts)
+      .filter(p => p.reach > 0).map(p => p.reach).sort((a,b) => a-b);
+    if (!r.length) return 0;
+    const m = Math.floor(r.length / 2);
+    return r.length % 2 ? r[m] : (r[m-1] + r[m]) / 2;
+  };
+  const igMed = medianReach('ig');
+  const fbMed = medianReach('fb');
+  const isBoosted = p => p.reach > (p.platform === 'ig' ? igMed : fbMed) * 4;
+
+  // Build type stats split by organic / boosted
+  const byTypeOrg = {}, byTypeBoost = {};
+  all.forEach(p => {
+    const bucket = isBoosted(p) ? byTypeBoost : byTypeOrg;
+    if (!bucket[p.type]) bucket[p.type] = { engRates: [], reaches: [], follows: [], posts: [] };
+    bucket[p.type].posts.push(p);
+    bucket[p.type].reaches.push(p.reach);
+    if (p.reach > 0) bucket[p.type].engRates.push(p.engRate);
+    bucket[p.type].follows.push(p.follows || 0);
   });
 
-  // Key reference numbers to cite in recommendations
-  const reelStats   = typeStats['IG reel']     || {};
-  const carStats    = typeStats['IG carousel'] || {};
-  const imgStats    = typeStats['IG image']    || {};
-  const fbVidStats  = typeStats['Videos']      || {};
-  const fbPhotoStats= typeStats['Photos']      || {};
+  const makeStats = bucket => {
+    const s = {};
+    Object.entries(bucket).forEach(([t, v]) => {
+      s[t] = {
+        avgEngRate: avg(v.engRates),
+        avgReach:   Math.round(avg(v.reaches)),
+        count:      v.posts.length,
+        topPost:    v.posts.filter(p=>p.reach>0).sort((a,b)=>b.engRate-a.engRate)[0],
+      };
+    });
+    return s;
+  };
+  const orgStats   = makeStats(byTypeOrg);
+  const boostStats = makeStats(byTypeBoost);
 
-  // Best FB reach post (community event type)
-  const bestFBReach = fbPosts.sort((a,b)=>b.reach-a.reach)[0] || {};
-  // Best IG reel by follows
-  const bestIGFollows = igPosts.filter(p=>p.follows>0).sort((a,b)=>b.follows-a.follows)[0] || {};
-  // Best carousel by reach
-  const bestCarReach = igPosts.filter(p=>p.type==='IG carousel').sort((a,b)=>b.reach-a.reach)[0] || {};
+  // Helper: format "~X organic · ~Y when boosted" or just "~X organic"
+  const reachLabel = (type) => {
+    const o = orgStats[type],   oR = o?.avgReach   || 0;
+    const b = boostStats[type], bR = b?.avgReach   || 0;
+    if (oR && bR) return `~${fmt(oR)} organic reach · ~${fmt(bR)} when boosted`;
+    if (oR)       return `~${fmt(oR)} organic reach`;
+    if (bR)       return `~${fmt(bR)} reach (boosted only)`;
+    return 'limited data';
+  };
+  const erLabel = (type) => {
+    const o = orgStats[type];
+    const b = boostStats[type];
+    if (o?.avgEngRate && b?.avgEngRate)
+      return `${fmtPct(o.avgEngRate)} organic ER · ${fmtPct(b.avgEngRate)} when boosted`;
+    if (o?.avgEngRate) return `${fmtPct(o.avgEngRate)} avg ER (organic)`;
+    return fmtPct((orgStats[type]||boostStats[type])?.avgEngRate||0);
+  };
+
+  // Reference stats
+  const reelOrg    = orgStats['IG reel']    || {};
+  const fbPhotoOrg = orgStats['Photos']     || {};
+  const carOrg     = orgStats['IG carousel']|| {};
+
+  // Best organic posts for cited examples
+  const bestCarOrg   = [...(byTypeOrg['IG carousel']?.posts||[])].sort((a,b)=>b.reach-a.reach)[0] || {};
+  const bestReelFollows = [...(byTypeOrg['IG reel']?.posts||[])].filter(p=>p.follows>0).sort((a,b)=>b.follows-a.follows)[0] || {};
+  const bestFBOrg    = [...(byTypeOrg['Photos']?.posts||[])].sort((a,b)=>b.reach-a.reach)[0] || {};
+  const bestFBBoosted= [...(byTypeBoost['Photos']?.posts||[])].sort((a,b)=>b.reach-a.reach)[0] || {};
 
   const cards = [
     {
@@ -1990,16 +2021,16 @@ function renderStrategy() {
       recs: [
         {
           label: 'What\'s working',
-          content: `Reels and FB Videos are your strongest reach and discovery format — averaging <strong>${fmtPct(reelStats.avgEngRate||0)} engagement</strong> and <strong>${fmt(reelStats.avgReach||0)} reach</strong> per post. Progress content with visible activity (site work, team, milestones) consistently outperforms renders or static graphics.`,
+          content: `Reels and FB Videos are your strongest reach and discovery format — ${reachLabel('IG reel')} per post, ${erLabel('IG reel')}. Progress content with visible activity (site work, team, milestones) consistently outperforms renders or static graphics.`,
         },
         {
           label: 'The opportunity',
-          content: `Use your two posts as a pair: <strong>Reel/Video</strong> for reach, <strong>Carousel/Photo</strong> for depth and saves — both within the same week. Your best carousel reached <strong>${fmt(bestCarReach.reach||0)} accounts</strong> and drove saves above the account average. Show what's happening on the ground, anchor the caption on community benefit.`,
+          content: `Use your two posts as a pair: <strong>Reel/Video</strong> for reach, <strong>Carousel/Photo</strong> for depth and saves — both within the same week. Your best carousel reached <strong>${fmt(bestCarOrg.reach||0)} accounts organically</strong> and drove saves above the account average. Show what's happening on the ground, anchor the caption on community benefit.`,
         },
       ],
       callout: {
         label: '📊 From your data',
-        text: `Progress-tied content reached <strong>${fmt(bestFBReach.reach||0)} people on FB</strong> and generated <strong>${fmt(bestIGFollows.follows||0)} new followers from a single IG reel</strong>. This is your highest-reach content type.`,
+        text: `Progress-tied content reached <strong>${fmt(bestFBOrg.reach||0)} people organically on FB${bestFBBoosted.reach ? ` · ${fmt(bestFBBoosted.reach)} when boosted` : ''}</strong> and generated <strong>${fmt(bestReelFollows.follows||0)} new followers from a single IG reel</strong>. This is your highest-reach content type.`,
       },
     },
     {
@@ -2027,7 +2058,7 @@ function renderStrategy() {
       ],
       callout: {
         label: '📊 From your data',
-        text: `Careers-focused FB photos averaged <strong>${fmt(fbPhotoStats.avgReach||0)} reach</strong> and generated your highest click-through rate. This is the content type most likely to drive real downstream action from this audience.`,
+        text: `Careers-focused FB photos averaged <strong>${reachLabel('Photos')}</strong> and generated your highest click-through rate. This is the content type most likely to drive real downstream action from this audience.`,
       },
     },
     {
