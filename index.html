@@ -2011,8 +2011,50 @@ function renderCalendar() {
   const el = document.getElementById('content-calendar');
   if (!el) return;
 
-  // Derive best posting days/times from heatmap data
   const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Time slots used for calendar time derivation (readable labels for calendar display)
+  const CAL_SLOTS = [
+    { label: '9–10am',  test: h => h >= 9  && h < 12 },
+    { label: '12–1pm',  test: h => h >= 12 && h < 15 },
+    { label: '3–4pm',   test: h => h >= 15 && h < 18 },
+    { label: '6–7pm',   test: h => h >= 18 },
+  ];
+
+  // Build a per-day per-slot engagement grid from all posts
+  const heatGrid = Array.from({length:7}, () => Array.from({length: CAL_SLOTS.length}, () => []));
+  allPosts.forEach(p => {
+    if (!p.date || p.hour === null || p.reach === 0) return;
+    const si = CAL_SLOTS.findIndex(s => s.test(p.hour));
+    if (si >= 0) heatGrid[p.date.getDay()][si].push(p.engRate);
+  });
+
+  // Return the best time label for a given day name, requiring ≥2 posts per cell
+  function bestTimeFor(dayName, fallback = '9–10am') {
+    const idx = DAYS.indexOf(dayName);
+    if (idx < 0) return fallback;
+    const cells = heatGrid[idx];
+    let best = null, bestER = -1;
+    // Prefer slots with ≥2 posts (more reliable)
+    cells.forEach((cell, si) => {
+      if (cell.length >= 2) {
+        const er = cell.reduce((a,b) => a+b, 0) / cell.length;
+        if (er > bestER) { bestER = er; best = si; }
+      }
+    });
+    // Fall back to any slot with at least 1 post
+    if (best === null) {
+      cells.forEach((cell, si) => {
+        if (cell.length > 0) {
+          const er = cell.reduce((a,b) => a+b, 0) / cell.length;
+          if (er > bestER) { bestER = er; best = si; }
+        }
+      });
+    }
+    return best !== null ? CAL_SLOTS[best].label : fallback;
+  }
+
+  // Rank weekdays by average engagement rate across all posts on that day
   const dayEngMap = {};
   allPosts.forEach(p => {
     if (!p.date || p.reach === 0) return;
@@ -2020,13 +2062,14 @@ function renderCalendar() {
     if (!dayEngMap[d]) dayEngMap[d] = [];
     dayEngMap[d].push(p.engRate);
   });
-  const avg = arr => arr && arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : 0;
-  // Pick best two weekdays
+  const avgArr = arr => arr && arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
   const ranked = ['Mon','Tue','Wed','Thu','Fri']
-    .map(d => ({ d, avg: parseFloat(avg(dayEngMap[d]||[])) }))
+    .map(d => ({ d, avg: avgArr(dayEngMap[d]||[]) }))
     .sort((a,b) => b.avg - a.avg);
   const day1 = ranked[0]?.d || 'Tuesday';
   const day2 = ranked[1]?.d || 'Thursday';
+  const time1 = bestTimeFor(day1);
+  const time2 = bestTimeFor(day2);
 
   const weeks = [
     {
@@ -2039,7 +2082,7 @@ function renderCalendar() {
           ig: 'IG Reel',
           fb: 'FB Video',
           day: day1,
-          time: '9–10am',
+          time: time1,
           highlight: false,
         },
         {
@@ -2049,7 +2092,7 @@ function renderCalendar() {
           ig: 'IG Carousel',
           fb: 'FB Photo',
           day: day2,
-          time: '2–3pm',
+          time: time2,
           highlight: false,
         }
       ]
@@ -2064,7 +2107,7 @@ function renderCalendar() {
           ig: 'IG Reel',
           fb: 'FB Video',
           day: day1,
-          time: '9–10am',
+          time: time1,
           highlight: false,
         },
         {
@@ -2074,7 +2117,7 @@ function renderCalendar() {
           ig: 'IG Carousel',
           fb: 'FB Photo',
           day: day2,
-          time: '2–3pm',
+          time: time2,
           highlight: false,
         }
       ]
@@ -2089,7 +2132,7 @@ function renderCalendar() {
           ig: 'IG Reel',
           fb: 'FB Video',
           day: day1,
-          time: '9–10am',
+          time: time1,
           highlight: false,
         },
         {
@@ -2099,7 +2142,7 @@ function renderCalendar() {
           ig: 'IG Carousel',
           fb: 'FB Photo',
           day: day2,
-          time: '2–3pm',
+          time: time2,
           highlight: false,
         }
       ]
@@ -2114,7 +2157,7 @@ function renderCalendar() {
           ig: 'IG Carousel',
           fb: 'FB Photo',
           day: 'Tue',
-          time: '9–10am',
+          time: bestTimeFor('Tue'),
           highlight: true,
         },
         {
@@ -2124,7 +2167,7 @@ function renderCalendar() {
           ig: 'IG Reel',
           fb: 'FB Video',
           day: 'Thu',
-          time: '2–3pm',
+          time: bestTimeFor('Thu'),
           highlight: false,
         }
       ]
