@@ -505,7 +505,7 @@
     </div>
     <div class="toolbar-right">
       <button class="btn btn-outline btn-sm" onclick="showUpload()">↑ New Upload</button>
-      <button class="btn btn-success btn-sm" onclick="downloadShareable()">⬇ Download Shareable</button>
+      <button class="btn btn-success btn-sm" onclick="downloadShareable()">🚀 Publish Client Version</button>
     </div>
   </div>
 
@@ -1533,29 +1533,40 @@ function destroyChart(key) {
   if (charts[key]) { charts[key].destroy(); delete charts[key]; }
 }
 
-// ── Download Shareable ──
+// ── Publish Client Version ──
 function downloadShareable() {
-  // Serialize current data as JSON and bake into a standalone HTML
+  // Capture edited recommendation HTML before serialising
+  const strategyGridHTML = document.getElementById('strategy-grid')
+    ? document.getElementById('strategy-grid').innerHTML : '';
+
+  // Serialize post data
   const data = {
     igPosts: igPosts.map(p => ({...p, date: p.date ? p.date.toISOString() : null})),
     fbPosts: fbPosts.map(p => ({...p, date: p.date ? p.date.toISOString() : null})),
+    strategyGridHTML: strategyGridHTML,
   };
   const dataJSON = JSON.stringify(data);
 
-  // Build a version of this page with data pre-loaded
   const currentHTML = document.documentElement.outerHTML;
 
-  // Insert a script tag that auto-loads data before </body>
+  // Client-only CSS: hide all editing UI
+  const clientStyles = `<style>
+    #btn-edit-recs, #btn-done-recs, #edit-banner,
+    .btn-outline, .toolbar-right { display: none !important; }
+    .editable-field { cursor: default !important; }
+  </style>`;
+
   const autoloadScript = `
 <script>
 window.addEventListener('DOMContentLoaded', function() {
   var embedded = ${dataJSON};
-  igPosts = embedded.igPosts.map(function(p){ return {...p, date: p.date ? new Date(p.date) : null}; });
-  fbPosts = embedded.fbPosts.map(function(p){ return {...p, date: p.date ? new Date(p.date) : null}; });
-  allPosts = [...igPosts, ...fbPosts].sort(function(a,b){ return (a.date||0) - (b.date||0); });
+  igPosts = embedded.igPosts.map(function(p){ return Object.assign({}, p, {date: p.date ? new Date(p.date) : null}); });
+  fbPosts = embedded.fbPosts.map(function(p){ return Object.assign({}, p, {date: p.date ? new Date(p.date) : null}); });
+  allPosts = igPosts.concat(fbPosts).sort(function(a,b){ return ((a.date&&a.date.getTime())||0) - ((b.date&&b.date.getTime())||0); });
 
-  var minDate = new Date(Math.min(...allPosts.filter(p=>p.date).map(p=>p.date)));
-  var maxDate = new Date(Math.max(...allPosts.filter(p=>p.date).map(p=>p.date)));
+  var validDates = allPosts.filter(function(p){return p.date;}).map(function(p){return p.date.getTime();});
+  var minDate = new Date(Math.min.apply(null, validDates));
+  var maxDate = new Date(Math.max.apply(null, validDates));
   var fmt2 = function(d){ return d.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}); };
   document.getElementById('header-period').textContent = 'Social Media Performance · ' + fmt2(minDate) + ' – ' + fmt2(maxDate);
   document.getElementById('header-badges').innerHTML =
@@ -1567,16 +1578,27 @@ window.addEventListener('DOMContentLoaded', function() {
   document.getElementById('footer').style.display = 'block';
   currentFilter = 'all';
   renderAll();
+
+  // Restore edited strategy content
+  if (embedded.strategyGridHTML && document.getElementById('strategy-grid')) {
+    document.getElementById('strategy-grid').innerHTML = embedded.strategyGridHTML;
+  }
+  // Show strategy section
+  var ss = document.getElementById('strategy-section');
+  if (ss) ss.style.display = 'block';
 });
 <\/script>`;
 
-  const shareableHTML = '<!DOCTYPE html>\n' + currentHTML.replace('</body>', autoloadScript + '\n</body>');
+  const clientHTML = '<!DOCTYPE html>\n' +
+    currentHTML
+      .replace('</head>', clientStyles + '\n</head>')
+      .replace('</body>', autoloadScript + '\n</body>');
 
-  const blob = new Blob([shareableHTML], { type: 'text/html' });
+  const blob = new Blob([clientHTML], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'sampson-cay-social-dashboard.html';
+  a.download = 'client.html';
   a.click();
   URL.revokeObjectURL(url);
 }
