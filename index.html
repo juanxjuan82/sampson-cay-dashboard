@@ -852,6 +852,7 @@
       ✏️ <span><strong>Edit mode on</strong> — click any text in the cards below to rewrite it. Your changes carry through to the shareable download.</span>
     </div>
     <div class="strategy-header-sub">Strategic recommendations for the Sampson Cay Project — next 90 days.</div>
+    <div id="boost-caveat-note" style="display:none; align-items:flex-start; gap:10px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:13px 16px; margin-bottom:18px; font-size:12.5px; color:#0369a1; line-height:1.55"></div>
     <div class="strategy-grid" id="strategy-grid"></div>
 
     <!-- CONTENT CALENDAR -->
@@ -917,6 +918,7 @@ let charts = {};
 let embeddedData = null;
 let tableSortKey = 'engRate';
 let tableSortDir = 'desc';
+let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1239,12 +1241,57 @@ function renderAnalystNotes(posts) {
     ? weakCells.map(c => `<div class="audit-item">⚠️ ${c} — <span class="aflag">treat as exploratory, not a firm timing rec</span></div>`).join('')
     : `<div class="audit-item"><span class="aok">✓ No high-ER cells with &lt;3 posts found. Heatmap is directionally reliable.</span></div>`;
 
-  // ── 4. Data reconciliation ──
+  // ── 4. Boost / reach outlier detection ──
+  // Separate per-platform medians so IG and FB organic baselines don't cross-contaminate
+  function platformMedian(platform) {
+    const reaches = posts.filter(p => p.platform === platform && p.reach > 0)
+      .map(p => p.reach).sort((a,b) => a - b);
+    if (!reaches.length) return 0;
+    const mid = Math.floor(reaches.length / 2);
+    return reaches.length % 2 ? reaches[mid] : (reaches[mid-1] + reaches[mid]) / 2;
+  }
+  const igMedian = platformMedian('ig');
+  const fbMedian = platformMedian('fb');
+  const BOOST_MULT = 4; // posts with reach > 4× platform median are flagged
+  const igBoostThreshold = igMedian * BOOST_MULT;
+  const fbBoostThreshold = fbMedian * BOOST_MULT;
+  // Set the module-level threshold for renderTopPosts (use lower of the two for mixed views)
+  boostThreshold = Math.min(igBoostThreshold || Infinity, fbBoostThreshold || Infinity);
+
+  const likelyBoosted = posts.filter(p =>
+    (p.platform === 'ig' && p.reach > igBoostThreshold) ||
+    (p.platform === 'fb' && p.reach > fbBoostThreshold)
+  ).sort((a,b) => b.reach - a.reach);
+
+  // Update client-facing boost caveat note in recommendations section
+  const caveatEl = document.getElementById('boost-caveat-note');
+  if (caveatEl) {
+    if (likelyBoosted.length > 0) {
+      caveatEl.style.display = 'flex';
+      caveatEl.innerHTML = `<span style="font-size:16px;flex-shrink:0">ℹ️</span><span><strong>Context on reach figures:</strong> ${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} in this period generated significantly above-average reach, consistent with paid promotion. Those posts are noted with ⚡ in the performance table. Reach and engagement rate figures for boosted posts reflect a paid audience — organic performance baselines are lower. Recommendations below are designed to build on both organic resonance and targeted paid distribution.</span>`;
+    } else {
+      caveatEl.style.display = 'none';
+    }
+  }
+
+  const boostRows = likelyBoosted.length
+    ? likelyBoosted.map(p => {
+        const med = p.platform === 'ig' ? igMedian : fbMedian;
+        const mult = med > 0 ? (p.reach / med).toFixed(1) : '—';
+        return `<div class="audit-item">⚡ <strong>${p.dateStr}</strong> · ${p.type} · ${fmt(p.reach)} reach
+          <span class="aflag">(${mult}× ${p.platform.toUpperCase()} median)</span>
+          · ER ${fmtPct(p.engRate)} — <span style="color:var(--text-muted);font-size:11px">interpret ER relative to paid audience, not organic</span>
+        </div>`;
+      }).join('')
+    : `<div class="audit-item"><span class="aok">✓ No statistical reach outliers detected.</span></div>`;
+
+  const boostSummary = likelyBoosted.length
+    ? `${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} flagged · IG baseline ~${fmt(Math.round(igMedian))} reach · FB baseline ~${fmt(Math.round(fbMedian))} reach`
+    : '';
+
+  // ── 5. Data reconciliation ──
   const igCt = posts.filter(p=>p.platform==='ig').length;
   const fbCt = posts.filter(p=>p.platform==='fb').length;
-  const igRawCt = igPosts.length;
-  const fbRawCt = fbPosts.length;
-  const crosspostsExcluded = fbRawCt - fbCt; // only relevant if using a non-all filter
   const totalLoadedReach = posts.reduce((s,p)=>s+p.reach,0);
 
   document.getElementById('analyst-notes-body').innerHTML = `
@@ -1259,19 +1306,25 @@ function renderAnalystNotes(posts) {
       <div class="audit-item"><strong>Weighted ER</strong> (total engagements ÷ total reach) = <strong>${fmtPct(weightedER)}</strong><br>${erGapNote}</div>
       <div class="audit-item awarn">→ Relabel KPI card: <strong>"Avg Post Engagement Rate"</strong><br><span style="font-size:11px;font-weight:400;color:var(--text-muted)">"Avg Engagement Rate" implies account-level weighted ER, which reads as ${fmtPct(weightedER)}</span></div>
     </div>
+    <div class="audit-card" style="grid-column: 1 / -1">
+      <div class="audit-card-title">⚡ Reach Outlier Detection — Likely Boosted Posts</div>
+      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:4px">Posts with reach &gt; ${BOOST_MULT}× their platform's median are flagged. Boosted posts have outsized reach by design — their engagement rate reflects a paid audience, not organic resonance. ${boostSummary ? `<strong style="color:#0d5a6c">${boostSummary}</strong>` : ''}</div>
+      ${boostRows}
+      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">⚡ icon also appears in the top posts table. Before including a boosted post in reach-based recommendations, note it was paid distribution.</div>
+    </div>
     <div class="audit-card">
       <div class="audit-card-title">🕐 Heatmap Reliability</div>
       <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:2px">Flagging cells in top 65% of ER performance with &lt;3 posts — too thin for firm timing recommendations.</div>
       ${heatmapRows}
-      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">Recommendation: treat best-time data as a testing guide. Require 5–8 posts per slot before calling it a conclusion.</div>
+      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">Treat best-time data as a testing guide. Require 5–8 posts per slot before calling it a conclusion.</div>
     </div>
     <div class="audit-card">
       <div class="audit-card-title">🔢 Data Reconciliation</div>
-      <div class="audit-item"><strong>Loaded:</strong> ${igCt} IG posts · ${fbCt} FB posts · ${igCt+fbCt} total<br><span style="font-size:11px;color:var(--text-muted)">FB crossposts excluded via <em>Is crosspost ≠ '1'</em> filter</span></div>
+      <div class="audit-item"><strong>Loaded:</strong> ${igCt} IG · ${fbCt} FB · ${igCt+fbCt} total posts<br><span style="font-size:11px;color:var(--text-muted)">FB crossposts excluded via <em>Is crosspost ≠ '1'</em> filter</span></div>
       <div class="audit-item"><strong>Total reach in this view:</strong> ${fmt(totalLoadedReach)}<br>
-        <span style="font-size:11px;color:var(--text-muted)">If client audits raw CSV and finds higher totals, add: <em>"Totals exclude duplicate/cross-posted rows."</em></span>
+        <span style="font-size:11px;color:var(--text-muted)">If client audits raw CSV and finds higher totals, note: <em>"Totals exclude duplicate/cross-posted rows."</em></span>
       </div>
-      <div class="audit-item"><strong>Reach/Views split:</strong> IG ${fmt(igPosts.reduce((s,p)=>s+p.reach,0))} reach · FB ${fmt(fbPosts.reduce((s,p)=>s+p.reach,0))} reach</div>
+      <div class="audit-item"><strong>Reach split:</strong> IG ${fmt(igPosts.reduce((s,p)=>s+p.reach,0))} · FB ${fmt(fbPosts.reduce((s,p)=>s+p.reach,0))}</div>
     </div>
   `;
 }
@@ -1766,7 +1819,7 @@ function renderTopPosts(posts) {
       <td><span class="type-tag ${typeClass(p.type)}">${p.type}</span></td>
       <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">${p.dateStr}</td>
       <td><div class="post-caption" title="${p.caption.replace(/"/g,"'")}">${p.caption || '—'}</div></td>
-      <td style="font-weight:600">${fmt(p.reach)}</td>
+      <td style="font-weight:600">${fmt(p.reach)}${p.reach > boostThreshold ? ' <span title="Reach is 4× above median — likely boosted" style="cursor:help;font-size:11px">⚡</span>' : ''}</td>
       <td style="color:var(--text-muted)">${p.views > 0 ? fmt(p.views) : '—'}</td>
       <td style="color:var(--text-muted)">${fmt(p.interactions)}</td>
       <td>
