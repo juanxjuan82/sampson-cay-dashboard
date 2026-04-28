@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><script src="chrome-extension://fgddmllnllkalaagkghckoinaemmogpe/src/scripts/content/location-spoofing.js"></script>
+<html lang="en"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Social Media Performance Dashboard</title>
@@ -7,17 +7,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #f4f6fb;
+    --bg: #f2f6f7;
     --surface: #ffffff;
-    --border: #e2e8f0;
+    --border: #dde6e8;
     --text: #1a202c;
-    --text-muted: #718096;
-    --accent: #2563eb;
+    --text-muted: #707373;
+    --accent: #0d5a6c;
+    --accent-hover: #0a4a59;
+    --accent-light: #bed2d0;
+    --accent-lighter: #b6dfe4;
     --ig-grad: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
     --fb: #1877f2;
     --ig: #e1306c;
     --reel: #8b5cf6;
-    --image: #06b6d4;
+    --image: #0d5a6c;
     --carousel: #f59e0b;
     --video: #1877f2;
     --photo: #10b981;
@@ -36,7 +39,7 @@
 
   /* ── HEADER ── */
   .header {
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    background: linear-gradient(135deg, #0a2a30 0%, #0d5a6c 100%);
     color: #fff;
     padding: 28px 40px;
     display: flex;
@@ -129,7 +132,7 @@
     text-decoration: none;
   }
   .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:hover { background: #0a4a59; }
   .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
   .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
   .btn-outline:hover { background: var(--bg); }
@@ -340,7 +343,7 @@
   }
   .heatmap-legend-bar {
     flex: 1; height: 8px; border-radius: 4px;
-    background: linear-gradient(to right, #e0e7ff, #2563eb);
+    background: linear-gradient(to right, #bed2d0, #0d5a6c);
   }
 
   /* ── STRATEGY SECTION ── */
@@ -411,6 +414,84 @@
 
   .strategy-divider { height: 1px; background: var(--border); margin: 14px 0; }
 
+  /* ── CONTENT CALENDAR ── */
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .cal-week {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .cal-week-header {
+    background: var(--accent);
+    color: #fff;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cal-week-header .cal-dates {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: .8;
+  }
+  .cal-slot {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cal-slot:last-child { border-bottom: none; }
+  .cal-slot-num {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .cal-slot-theme {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .cal-slot-detail {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin-bottom: 8px;
+  }
+  .cal-platforms {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .cal-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .cal-pill-ig { background: rgba(225,48,108,.1); color: var(--ig); }
+  .cal-pill-fb { background: rgba(24,119,242,.1); color: var(--fb); }
+  .cal-timing {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+  .cal-highlight {
+    background: #fff8ed;
+    border-left: 3px solid var(--carousel);
+  }
+
   /* ── EDIT MODE ── */
   .editable-field[contenteditable="true"] {
     outline: none;
@@ -418,7 +499,7 @@
     padding: 6px 8px;
     margin: -6px -8px;
     background: #f0f7ff;
-    border: 1.5px solid #93c5fd;
+    border: 1.5px solid #bed2d0;
     cursor: text;
     transition: background .15s, border .15s;
     min-height: 1em;
@@ -427,25 +508,25 @@
   .editable-field[contenteditable="true"]:focus {
     background: #fff;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    box-shadow: 0 0 0 3px rgba(13,90,108,.1);
   }
   .edit-mode-banner {
     display: none;
     align-items: center;
     gap: 10px;
-    background: #eff6ff;
-    border: 1.5px solid #93c5fd;
+    background: #edf5f6;
+    border: 1.5px solid #bed2d0;
     border-radius: 8px;
     padding: 10px 16px;
     margin-bottom: 16px;
     font-size: 13px;
-    color: #1d4ed8;
+    color: #0a4a59;
   }
   .edit-mode-banner.visible { display: flex; }
-  .btn-edit { background: #eff6ff; color: var(--accent); border: 1.5px solid #93c5fd; }
-  .btn-edit:hover { background: #dbeafe; }
+  .btn-edit { background: #edf5f6; color: var(--accent); border: 1.5px solid #bed2d0; }
+  .btn-edit:hover { background: #c8e0e4; }
   .btn-done { background: var(--accent); color: #fff; border: none; }
-  .btn-done:hover { background: #1d4ed8; }
+  .btn-done:hover { background: #0a4a59; }
 
   /* ── GITHUB MODAL ── */
   .modal-overlay {
@@ -468,7 +549,7 @@
     outline: none; transition: border .15s;
     font-family: monospace;
   }
-  .modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  .modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,90,108,.1); }
   .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
   .modal-link { font-size: 12px; color: var(--accent); text-decoration: none; }
   .modal-link:hover { text-decoration: underline; }
@@ -480,7 +561,7 @@
     margin-bottom: 12px; font-weight: 500;
   }
   .push-status.visible { display: flex; }
-  .push-status.loading { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
+  .push-status.loading { background: #edf5f6; color: #0a4a59; border: 1px solid #bed2d0; }
   .push-status.success { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
   .push-status.error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
   .spinner {
@@ -493,7 +574,7 @@
   .btn-github:hover { background: #3d444d; }
   .btn-github:disabled { background: #94a3b8; cursor: not-allowed; }
 </style>
-<style>.keyword-info-container{box-sizing:border-box;width:92%;margin-bottom:20px;font-size:12px;border-bottom:1px solid #dee1e5;border:1px solid #f1f3f4;margin:14px 16px;border-radius:2px;padding:20px;position:relative;-webkit-font-smoothing:antialiased}body[data-dt="1"] .keyword-info-container,html[dark] .keyword-info-container{border-color:#3d4042}.keyword-info-container .title{color:#26282d;font-size:16px;font-weight:bold}.keyword-info-container .tabs{list-style:none;display:flex;justify-content:flex-start;border-bottom:1px solid #dee1e5;margin-top:-10px;padding:0px 16px;align-items:center}.keyword-info-container .tabs.tip{border-color:#f8b199 !important;border-radius:2px;border:1px solid}.keyword-info-container .tabs li{padding:8px;padding-left:0;color:#000;cursor:pointer;font-size:12px}.keyword-info-container .tabs li.small{font-size:10px}.keyword-info-container .tabs li:last-child{overflow:hidden}.keyword-info-container .tabs li.active{color:#4285f4;margin:20px 0}table.keyword-info-table{border-collapse:collapse;width:100%;color:#000;font-size:12px;position:relative}.keyword-info-table thead{height:50px}.keyword-info-table th{padding:10px;padding-left:0;font-weight:bold;color:#000;font-size:12px}.keyword-info-table th:first-child{padding-left:16px}.keyword-info-table th:last-child{padding-right:0px}.keyword-info-table td{border-bottom:1px solid #f1f3f4;padding:10px;padding-left:0;height:50px;box-sizing:border-box}.keyword-info-table tr{border-bottom:1px solid #f1f3f4}body[data-dt="1"] .keyword-info-table td,html[dark] .keyword-info-table td{border-color:#3d4042}body[data-dt="1"] .keyword-info-table tr,html[dark] .keyword-info-table tr{border-color:#3d4042}body[data-dt="1"] .keyword-info-table tfoot tr,body[data-dt="1"] .keyword-info-table tfoot td,html[dark] .keyword-info-table tfoot tr,html[dark] .keyword-info-table tfoot td{border:none}.keyword-info-table td:first-child{padding-left:16px}.keyword-info-table td:last-child{padding-right:0px}.keyword-info-table tfoot tr,.keyword-info-table tfoot td{border:none}.ubersuggest-button{color:#0086f7;font-family:Figtree;font-size:14px;font-weight:bold;line-height:29px;padding:8px 30px;border:1px solid #0086f7;background-color:#fff;border-radius:2px;outline:none;border:none;cursor:pointer;margin:4px}.ubersuggest-logo-wrapper{display:flex;align-items:center;justify-content:flex-end;margin:10px 10px 0 0;font-weight:bold;color:#26282d}.ubersuggest-logo{width:182px;height:33px;cursor:pointer}.keyword-info-container .row{display:flex;justify-content:space-between;align-items:center;margin:0;padding:20px 16px}.header h2{color:#000;font-family:Figtree;font-size:24px;font-weight:500}html[dark] .keyword-info-container .title{color:#fff}html[dark] table.keyword-info-table{color:#fff}html[dark] .keyword-info-table th{color:#fff}html[dark] .keyword-info-table tfoot tr:last-child td .button-arrow{border-color:#fff}body[data-dt="1"] .keyword-info-container .title{color:#fff}body[data-dt="1"] .keyword-info-container .tabs{border-color:rgba(255,255,255,.0509803922)}body[data-dt="1"] table.keyword-info-table{color:#fff}body[data-dt="1"] .keyword-info-table th{color:#fff}</style><style>.tippy-box[data-theme~=tip-dark] .tippy-content,.tippy-box[data-theme~=tip-light] .tippy-content{padding:0}.tippy-box[data-theme~=tip-dark]>.tippy-backdrop{background-color:#fff}.tippy-box[data-theme~=tip-dark]>.tippy-arrow:after{border-color:#fff;border-style:solid}.tippy-box[data-theme~=tip-dark][data-placement^=top]>.tippy-arrow:before{border-top-color:#fff}.tippy-box[data-theme~=tip-dark][data-placement^=top]>.tippy-arrow:after{border-top-color:#fff}.tippy-box[data-theme~=tip-dark][data-placement^=bottom]>.tippy-arrow:before{border-bottom-color:#fff;bottom:16px}.tippy-box[data-theme~=tip-dark][data-placement^=bottom]>.tippy-arrow:after{border-bottom-color:#fff}.tippy-box[data-theme~=tip-dark][data-placement^=left]>.tippy-arrow:before{border-left-color:#fff}.tippy-box[data-theme~=tip-dark][data-placement^=left]>.tippy-arrow:after{border-left-color:#fff}.tippy-box[data-theme~=tip-dark][data-placement^=right]>.tippy-arrow:before{border-right-color:#fff}.tippy-box[data-theme~=tip-dark][data-placement^=right]>.tippy-arrow:after{border-right-color:#fff}.tippy-box[data-theme~=tip-dark]>.tippy-svg-arrow{fill:#fff}.tippy-box[data-theme~=tip-light]>.tippy-backdrop{background-color:#202020}.tippy-box[data-theme~=tip-light]>.tippy-arrow:after{border-color:#202020;border-style:solid}.tippy-box[data-theme~=tip-light][data-placement^=top]>.tippy-arrow:before{border-top-color:#202020}.tippy-box[data-theme~=tip-light][data-placement^=top]>.tippy-arrow:after{border-top-color:#202020}.tippy-box[data-theme~=tip-light][data-placement^=bottom]>.tippy-arrow:before{border-bottom-color:#202020;bottom:16px}.tippy-box[data-theme~=tip-light][data-placement^=bottom]>.tippy-arrow:after{border-bottom-color:#202020}.tippy-box[data-theme~=tip-light][data-placement^=left]>.tippy-arrow:before{border-left-color:#202020}.tippy-box[data-theme~=tip-light][data-placement^=left]>.tippy-arrow:after{border-left-color:#202020}.tippy-box[data-theme~=tip-light][data-placement^=right]>.tippy-arrow:before{border-right-color:#202020}.tippy-box[data-theme~=tip-light][data-placement^=right]>.tippy-arrow:after{border-right-color:#202020}.tippy-box[data-theme~=tip-light]>.tippy-svg-arrow{fill:#202020}</style><style>.tippy-box[data-animation=fade][data-state=hidden]{opacity:0}[data-tippy-root]{max-width:calc(100vw - 10px)}.tippy-box{position:relative;background-color:#333;color:#fff;border-radius:4px;font-size:14px;line-height:1.4;white-space:normal;outline:0;transition-property:transform,visibility,opacity}.tippy-box[data-placement^=top]>.tippy-arrow{bottom:0}.tippy-box[data-placement^=top]>.tippy-arrow:before{bottom:-7px;left:0;border-width:8px 8px 0;border-top-color:initial;transform-origin:center top}.tippy-box[data-placement^=bottom]>.tippy-arrow{top:0}.tippy-box[data-placement^=bottom]>.tippy-arrow:before{top:-7px;left:0;border-width:0 8px 8px;border-bottom-color:initial;transform-origin:center bottom}.tippy-box[data-placement^=left]>.tippy-arrow{right:0}.tippy-box[data-placement^=left]>.tippy-arrow:before{border-width:8px 0 8px 8px;border-left-color:initial;right:-7px;transform-origin:center left}.tippy-box[data-placement^=right]>.tippy-arrow{left:0}.tippy-box[data-placement^=right]>.tippy-arrow:before{left:-7px;border-width:8px 8px 8px 0;border-right-color:initial;transform-origin:center right}.tippy-box[data-inertia][data-state=visible]{transition-timing-function:cubic-bezier(0.54, 1.5, 0.38, 1.11)}.tippy-arrow{width:16px;height:16px;color:#333}.tippy-arrow:before{content:"";position:absolute;border-color:rgba(0,0,0,0);border-style:solid}.tippy-content{position:relative;padding:5px 9px;z-index:1}</style><style>.tippy-box[data-theme~=light]{color:#26323d;box-shadow:0 0 20px 4px rgba(154,161,177,.15),0 4px 80px -8px rgba(36,40,47,.25),0 4px 4px -2px rgba(91,94,105,.15);background-color:#fff}.tippy-box[data-theme~=light][data-placement^=top]>.tippy-arrow:before{border-top-color:#fff}.tippy-box[data-theme~=light][data-placement^=bottom]>.tippy-arrow:before{border-bottom-color:#fff}.tippy-box[data-theme~=light][data-placement^=left]>.tippy-arrow:before{border-left-color:#fff}.tippy-box[data-theme~=light][data-placement^=right]>.tippy-arrow:before{border-right-color:#fff}.tippy-box[data-theme~=light]>.tippy-backdrop{background-color:#fff}.tippy-box[data-theme~=light]>.tippy-svg-arrow{fill:#fff}</style><style id="_goober"> @keyframes go2264125279{from{transform:scale(0) rotate(45deg);opacity:0;}to{transform:scale(1) rotate(45deg);opacity:1;}}@keyframes go3020080000{from{transform:scale(0);opacity:0;}to{transform:scale(1);opacity:1;}}@keyframes go463499852{from{transform:scale(0) rotate(90deg);opacity:0;}to{transform:scale(1) rotate(90deg);opacity:1;}}@keyframes go1268368563{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}@keyframes go1310225428{from{transform:scale(0) rotate(45deg);opacity:0;}to{transform:scale(1) rotate(45deg);opacity:1;}}@keyframes go651618207{0%{height:0;width:0;opacity:0;}40%{height:0;width:6px;opacity:1;}100%{opacity:1;height:10px;}}@keyframes go901347462{from{transform:scale(0.6);opacity:0.4;}to{transform:scale(1);opacity:1;}}.go4109123758{z-index:9999;}.go4109123758 > *{pointer-events:auto;}</style><style>.ubersuggest-header-container{box-sizing:border-box;width:100%;font-size:12px;-webkit-font-smoothing:antialiased}@keyframes slideInFromLeft{from{transform:translateX(100%);opacity:0}to{transform:translateX(-4%);opacity:1}}.ubersuggest-header-container .toast-container{animation:slideInFromLeft .5s ease forwards}.ubersuggest-header-container .row{margin:0;padding:15px 16px 15px 16px;display:flex;justify-content:space-between;align-items:center;min-height:30px}.ubersuggest-header-container .row>div{display:flex;flex-wrap:wrap;gap:8px}.ubersuggest-header-container .row>div:first-child>div{flex-wrap:wrap;align-content:space-around}.ue-enable{display:block}.ue-disable,.ue-enable.hide-settings{display:none !important}.ue-disable.hide-settings{display:flex !important}.ubersuggest-header-container .settings{display:flex;align-items:center}.ubersuggest-header-container .settings-label{margin-right:21px}.ubersuggest-header-container .settings-icon{width:21px;height:21px;margin-right:7px}</style><style>.rr--group{display:flex;width:100%;position:relative}.rr--box{display:flex;width:100%;flex-grow:1;-webkit-tap-highlight-color:rgba(0,0,0,0)}.rr--svg{display:flex;aspect-ratio:1;width:100%;flex-grow:1;overflow:clip;pointer-events:none}@supports not (overflow: clip){.rr--svg{overflow:auto}}.rr--box:focus,.rr--box:focus-visible,.rr-reset:focus-visible,.rr-reset:focus{outline:none;box-shadow:none}.rr--focus-reset{outline:6px double #0079ff}.rr--box:focus-visible .rr--svg{outline:6px double #0079ff;isolation:isolate}.rr--reset{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0, 0, 0, 0);white-space:nowrap;border:0;right:0;bottom:50%}[dir=rtl] .rr--reset{left:0;right:auto}.rr--dir-y .rr--reset{bottom:0;right:50%}.rr--disabled{opacity:.5;cursor:not-allowed}.rr--disabled .rr--svg{pointer-events:none}.rr--pointer .rr--box{cursor:pointer}.rr--dir-x{flex-direction:row}.rr--dir-y{flex-direction:column}.rr--space-sm .rr--svg{padding:8%}.rr--space-md .rr--svg{padding:12.5%}.rr--space-lg .rr--svg{padding:17.5%}.rr--dir-x.rr--gap-sm .rr--svg{margin:0 6.25%}.rr--dir-x.rr--gap-sm .rr--box:focus-visible:after{width:87.5%;left:6.25%}.rr--dir-x.rr--gap-md .rr--svg{margin:0 12.5%}.rr--dir-x.rr--gap-md .rr--box:focus-visible:after{width:75%;left:12.5%}.rr--dir-x.rr--gap-lg .rr--svg{margin:0 25%}.rr--dir-x.rr--gap-lg .rr--box:focus-visible:after{width:50%;left:25%}.rr--dir-y.rr--gap-sm .rr--svg{margin:6.25% 0}.rr--dir-y.rr--gap-md .rr--svg{margin:12.5% 0}.rr--dir-y.rr--gap-lg .rr--svg{margin:25% 0}.rr--rx-sm .rr--svg{border-radius:5%}.rr--rx-md .rr--svg{border-radius:15%}.rr--rx-lg .rr--svg{border-radius:20%}.rr--rx-full .rr--svg{border-radius:100%}.rr--has-stroke .rr--svg{stroke-linecap:round;stroke-linejoin:round}.rr--has-border .rr--svg{border-width:var(--rr--border-width);border-style:solid}.rr--on .rr--svg{fill:var(--rr--fill-on-color, none)}.rr--off .rr--svg{fill:var(--rr--fill-off-color, none)}.rr--has-stroke .rr--on .rr--svg{stroke:var(--rr--stroke-on-color, currentColor)}.rr--has-stroke .rr--off .rr--svg{stroke:var(--rr--stroke-off-color, currentColor)}.rr--on .rr--svg{background-color:var(--rr--box-on-color, none)}.rr--off .rr--svg{background-color:var(--rr--box-off-color, none)}.rr--has-border .rr--off .rr--svg{border-color:var(--rr--border-off-color, currentColor)}.rr--has-border .rr--on .rr--svg{border-color:var(--rr--border-on-color, currentColor)}.rr--fx-colors{--rr--easing: .2s cubic-bezier(.61, 1, .88, 1)}.rr--fx-colors .rr--svg{transition-duration:.2s;transition-timing-function:var(--rr--easing);transition-property:background-color,border-color,fill,stroke}.rr--fx-opacity .rr--off{opacity:.35;transition:opacity var(--rr--easing)}.rr--fx-opacity .rr--on{opacity:1}@media(hover: hover){.rr--fx-opacity .rr--box:hover{opacity:1}}@media(hover: hover){.rr--fx-zoom .rr--box{transition:transform var(--rr--easing);transform:scale(1)}.rr--fx-zoom .rr--box:hover{transform:scale(1.2)}}@media(hover: hover)and (prefers-reduced-motion){.rr--fx-zoom .rr--box:hover{transform:scale(1)}}@media(hover: hover){.rr--fx-position .rr--box{transition:transform var(--rr--easing);transform:translateY(0)}.rr--fx-position .rr--box:hover{transform:translateY(-15%)}}@media(hover: hover)and (prefers-reduced-motion){.rr--fx-position .rr--box:hover{transform:translateY(0)}}.rr--svg-stop-1{stop-color:var(--rr--fill-on-color, rgba(0, 0, 0, 0))}[dir=rtl] .rr--svg-stop-1,.rr--svg-stop-2{stop-color:var(--rr--fill-off-color, rgba(0, 0, 0, 0))}[dir=rtl] .rr--svg-stop-2{stop-color:var(--rr--fill-on-color, rgba(0, 0, 0, 0))}.rr--hf-svg-on{fill:var(--rr--fill-on-color, none)}.rr--hf-svg-off{fill:var(--rr--fill-off-color, none)}.rr--has-stroke .rr--hf-svg-on{stroke:var(--rr--stroke-on-color, currentColor)}.rr--has-stroke .rr--hf-svg-off{stroke:var(--rr--stroke-off-color, currentColor)}.rr--hf-svg-on .rr--svg,.rr--hf-svg-off .rr--svg{background-color:var(--rr--box-off-color, none)}.rr--has-border .rr--hf-svg-on .rr--svg{border-color:var(--rr--border-on-color, currentColor)}.rr--has-border .rr--hf-svg-off .rr--svg{border-color:var(--rr--border-off-color, currentColor)}.rr--dir-x .rr--hf-box-int .rr--svg{background:linear-gradient(to right, var(--rr--box-on-color, none) 50%, var(--rr--box-off-color, none) 50%)}[dir=rtl] .rr--dir-x .rr--hf-box-int .rr--svg{background:linear-gradient(to left, var(--rr--box-on-color, none) 50%, var(--rr--box-off-color, none) 50%)}.rr--dir-y .rr--hf-box-int .rr--svg{background:linear-gradient(to bottom, var(--rr--box-on-color, none) 50%, var(--rr--box-off-color, none) 50%)}.rr--hf-box-on .rr--svg{background-color:var(--rr--box-on-color, none)}.rr--hf-box-off .rr--svg{background-color:var(--rr--box-off-color, none)}.rr--hf-box-on .rr--svg,.rr--hf-box-off .rr--svg,.rr--hf-box-int .rr--svg{fill:var(--rr--fill-off-color, none)}.rr--has-stroke .rr--hf-box-on .rr--svg,.rr--has-stroke .rr--hf-box-off .rr--svg,.rr--has-stroke .rr--hf-box-int .rr--svg{stroke:var(--rr--stroke-off-color, currentColor)}.rr--has-border .rr--hf-box-on .rr--svg,.rr--has-border .rr--hf-box-int .rr--svg{border-color:var(--rr--border-on-color, currentColor)}.rr--has-border .rr--hf-box-off .rr--svg{border-color:var(--rr--border-off-color, currentColor)}</style><style>.keyword-info-section{color:#26282d;font-family:Figtree;font-size:12px;height:100%;display:flex;align-items:center;-webkit-font-smoothing:antialiased}.keyword-info-section img{max-width:none}.keyword-info-section>li{font-weight:600;position:relative;display:flex;align-items:center;gap:6px}.keyword-info-section>li:first-child::after{content:"";width:6px;height:6px;background-color:#e8ebec;border-radius:50%;margin:0px 10px 0px 4px}body[data-dt="1"] .keyword-info-section>li:first-child::after{background-color:#636363}.keyword-info-section.hidden{display:none}.keyword-info-section.google{background-color:rgba(0,0,0,0)}.keyword-info-section.youtube{margin-right:15px;padding:0 0 0 10px;height:100%;background-color:#fff}.keyword-info-section.amazon{padding:13px 0;background-color:#fff}</style><style>.kw-overview-container{box-sizing:border-box;width:673px;padding:0;margin:0;margin-top:14px;font-size:12px;font-family:Figtree;-webkit-font-smoothing:antialiased}.kw-overview-container.youtube{box-sizing:border-box;width:645px;padding:0;margin:0;font-size:12px}</style><style>.bl-info-container{box-sizing:border-box;width:100%;padding:0;margin:0;font-size:12px;font-family:"Figtree";-webkit-font-smoothing:antialiased}.bl-info-header{display:flex;min-height:24px;width:100%;padding:0;justify-content:space-between;box-sizing:border-box;margin-bottom:5px}.bl-info-header .row{display:flex;margin:0;width:100%;justify-content:space-between}.bl-info-header .row.youtube{justify-content:flex-start}.bl-info-content,.kw-info-content{width:97%;display:flex;flex-direction:column;border:1px solid #dee1e5;border-radius:4px;padding-block:16px 10px;justify-items:center;align-items:center;margin-bottom:16px;position:relative}body[data-dt="1"] .kw-info-content,body[data-dt="1"] .bl-info-content{background:rgba(0,0,0,0);border-color:#292929}.bl-info-content img.loading{width:50px;margin:0 auto;margin-bottom:10px}.kw-info-content img.loading{width:50px;margin:0 auto;margin-top:10px;margin-bottom:10px}table.bl-info-table,table.kw-info-table{border-collapse:collapse;width:calc(100% - 32px);color:#808185;font-size:12px}body[data-dt="1"] table.bl-info-table,body[data-dt="1"] table.kw-info-table{color:#fff}.bl-info-table thead,.kw-info-table thead{height:50px;background:#f6f7f7}body[data-dt="1"] table.bl-info-table thead,body[data-dt="1"] table.kw-info-table thead{background:#36373a}.bl-info-table tr,.kw-info-table tr{width:100%;max-width:600px}.bl-info-table th,.kw-info-table th{padding:10px;padding-left:0;font-weight:600;color:#000;font-size:12px;border-bottom:1px solid #f6f7f7}body[data-dt="1"] .bl-info-table th,body[data-dt="1"] .kw-info-table th{color:#fff;border-color:#3d4043}.bl-info-table th:first-child,.kw-info-table th:first-child{padding-left:16px}.bl-info-table th:last-child,.kw-info-table th:last-child{border-right:none;padding-right:16px}.bl-info-table td,.kw-info-table td{border-bottom:1px solid #dee1e5;padding:10px;padding-left:0;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#000}body[data-dt="1"] .bl-info-table td,body[data-dt="1"] .kw-info-table td{color:#fff;border-color:#3d4043}.bl-info-table td:first-child,.kw-info-table td:first-child{border-left:none;padding-left:16px}.bl-info-table tfoot td:first-child,.kw-info-table tfoot td:first-child{padding-left:0;padding-top:12px}.bl-info-table tfoot td:last-child,.kw-info-table tfoot td:last-child{padding-right:0;padding-top:12px}.bl-info-table td:last-child,.kw-info-table td:last-child{border-right:none;padding-right:16px}.bl-info-table tfoot tr:last-child td,.kw-info-table tfoot tr:last-child td{border-bottom:none}.bl-info-container .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap}.bl-info-container .row.start{justify-content:flex-start;gap:10px}.bl-info-container .row.start.tip{border:1px solid #f8b199;border-radius:2px;width:fit-content;padding-right:10px}</style><style>.statistics-graph-container{box-sizing:border-box;width:92%;font-size:12px;border-bottom:1px solid #dee1e5;border:1px solid #f1f3f4;margin:24px 16px;border-radius:2px;padding:20px;padding-bottom:10px;position:relative;-webkit-font-smoothing:antialiased}body[data-dt="1"] .statistics-graph-container{border-color:#3d4042}.statistics-graph-container.tip{border:1px solid #f8b199;border-radius:2px}.statistics-graph-container .row{display:flex;justify-content:space-between;align-items:center;margin:0 0 20px 0}.statistics-graph-container .row.closed{margin-bottom:10px}.statistics-graph-container .row .title{color:#26282d;font-size:16px;font-weight:bold}body[data-dt="1"] .statistics-graph-container .row .title{color:#fff}body[data-dt="1"] .statistics-graph-container .tabs{border-bottom:1px solid #dee1e5}body[data-dt="1"] .statistics-graph-container .tabs li{color:#fff}body[data-dt="1"] .statistics-graph-container .tabs li.active{color:#fff;border-bottom:3px solid #fff}</style><script src="chrome-extension://liecbddmkiiihnedobmlmillhodjkdmb/js/recordConsoleEvents.js"></script><style>
+<style>
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
@@ -591,9 +672,9 @@
     </div>
     <div class="kpi-card followers">
       <div class="kpi-icon">➕</div>
-      <div class="kpi-label">New IG Followers</div>
+      <div class="kpi-label" id="kpi-followers-label">New IG Followers</div>
       <div class="kpi-value" id="kpi-followers">170</div>
-      <div class="kpi-sub">Gained from posts</div>
+      <div class="kpi-sub" id="kpi-followers-sub">FB followers not in export</div>
     </div>
   </div>
 
@@ -608,6 +689,7 @@
       <div class="insight-label">⭐ Best Single Post</div>
       <div class="insight-value">10.22%</div>
       <div class="insight-desc">IG carousel · 03/31/2026 · 186 reach</div>
+      <a href="https://www.instagram.com/p/DWj-sebDJd-/" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>
     </div>
     
     <div class="insight-box">
@@ -692,7 +774,7 @@
       <div class="chart-title">Best Time to Post</div>
       <div class="chart-sub">Avg engagement rate by day &amp; time — darker = higher</div>
       <div class="heatmap-wrap">
-        <div id="heatmap-grid"><table class="heatmap-table"><thead><tr><th></th><th>6–9am</th><th>9–12pm</th><th>12–3pm</th><th>3–6pm</th><th>6pm+</th></tr></thead><tbody><tr><td class="day-label">Sun</td><td style="background:rgb(125,161,244); color:#fff" title="Sun 6–9am: 3.61% avg ER (2 posts)">3.61%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Mon</td><td style="background:rgb(147,177,247); color:#1e3a5f" title="Mon 6–9am: 2.89% avg ER (4 posts)">2.89%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(134,168,245); color:#1e3a5f" title="Mon 12–3pm: 3.31% avg ER (4 posts)">3.31%</td><td style="background:rgb(37,99,235); color:#fff" title="Mon 3–6pm: 6.46% avg ER (2 posts)">6.46%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Tue</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(222,230,255); color:#1e3a5f" title="Tue 9–12pm: 0.46% avg ER (1 post)">0.46%</td><td style="background:rgb(137,170,246); color:#1e3a5f" title="Tue 12–3pm: 3.22% avg ER (4 posts)">3.22%</td><td style="background:rgb(177,198,250); color:#1e3a5f" title="Tue 3–6pm: 1.94% avg ER (4 posts)">1.94%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Wed</td><td style="background:rgb(168,191,249); color:#1e3a5f" title="Wed 6–9am: 2.22% avg ER (2 posts)">2.22%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(165,189,249); color:#1e3a5f" title="Wed 12–3pm: 2.33% avg ER (4 posts)">2.33%</td><td style="background:rgb(193,209,252); color:#1e3a5f" title="Wed 3–6pm: 1.43% avg ER (2 posts)">1.43%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Thu</td><td style="background:rgb(152,180,247); color:#1e3a5f" title="Thu 6–9am: 2.75% avg ER (8 posts)">2.75%</td><td style="background:rgb(145,175,247); color:#1e3a5f" title="Thu 9–12pm: 2.96% avg ER (8 posts)">2.96%</td><td style="background:rgb(224,231,255); color:#1e3a5f" title="Thu 12–3pm: 0.41% avg ER (2 posts)">0.41%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Fri</td><td style="background:rgb(155,182,248); color:#1e3a5f" title="Fri 6–9am: 2.65% avg ER (5 posts)">2.65%</td><td style="background:rgb(211,222,254); color:#1e3a5f" title="Fri 9–12pm: 0.81% avg ER (4 posts)">0.81%</td><td style="background:rgb(216,225,254); color:#1e3a5f" title="Fri 12–3pm: 0.67% avg ER (4 posts)">0.67%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Sat</td><td style="background:rgb(114,153,243); color:#fff" title="Sat 6–9am: 3.98% avg ER (2 posts)">3.98%</td><td style="background:rgb(175,196,250); color:#1e3a5f" title="Sat 9–12pm: 2.00% avg ER (2 posts)">2.00%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(219,228,254); color:#1e3a5f" title="Sat 3–6pm: 0.56% avg ER (2 posts)">0.56%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr></tbody></table></div>
+        <div id="heatmap-grid"><table class="heatmap-table"><thead><tr><th></th><th>6–9am</th><th>9–12pm</th><th>12–3pm</th><th>3–6pm</th><th>6pm+</th></tr></thead><tbody><tr><td class="day-label">Sun</td><td style="background:rgb(96,147,155); color:#fff" title="Sun 6–9am: 3.61% avg ER (2 posts)">3.61%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Mon</td><td style="background:rgb(117,161,167); color:#1e3a5f" title="Mon 6–9am: 2.89% avg ER (4 posts)">2.89%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(105,153,160); color:#1e3a5f" title="Mon 12–3pm: 3.31% avg ER (4 posts)">3.31%</td><td style="background:rgb(13,90,108); color:#fff" title="Mon 3–6pm: 6.46% avg ER (2 posts)">6.46%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Tue</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(189,209,207); color:#1e3a5f" title="Tue 9–12pm: 0.46% avg ER (1 post)">0.46%</td><td style="background:rgb(108,154,162); color:#1e3a5f" title="Tue 12–3pm: 3.22% avg ER (4 posts)">3.22%</td><td style="background:rgb(145,180,183); color:#1e3a5f" title="Tue 3–6pm: 1.94% avg ER (4 posts)">1.94%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Wed</td><td style="background:rgb(137,174,178); color:#1e3a5f" title="Wed 6–9am: 2.22% avg ER (2 posts)">2.22%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(134,172,176); color:#1e3a5f" title="Wed 12–3pm: 2.33% avg ER (4 posts)">2.33%</td><td style="background:rgb(160,190,191); color:#1e3a5f" title="Wed 3–6pm: 1.43% avg ER (2 posts)">1.43%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Thu</td><td style="background:rgb(122,164,169); color:#1e3a5f" title="Thu 6–9am: 2.75% avg ER (8 posts)">2.75%</td><td style="background:rgb(115,159,166); color:#1e3a5f" title="Thu 9–12pm: 2.96% avg ER (8 posts)">2.96%</td><td style="background:rgb(190,210,208); color:#1e3a5f" title="Thu 12–3pm: 0.41% avg ER (2 posts)">0.41%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Fri</td><td style="background:rgb(125,166,171); color:#1e3a5f" title="Fri 6–9am: 2.65% avg ER (5 posts)">2.65%</td><td style="background:rgb(178,202,201); color:#1e3a5f" title="Fri 9–12pm: 0.81% avg ER (4 posts)">0.81%</td><td style="background:rgb(182,205,204); color:#1e3a5f" title="Fri 12–3pm: 0.67% avg ER (4 posts)">0.67%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr><tr><td class="day-label">Sat</td><td style="background:rgb(86,139,149); color:#fff" title="Sat 6–9am: 3.98% avg ER (2 posts)">3.98%</td><td style="background:rgb(143,178,182); color:#1e3a5f" title="Sat 9–12pm: 2.00% avg ER (2 posts)">2.00%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td><td style="background:rgb(185,207,205); color:#1e3a5f" title="Sat 3–6pm: 0.56% avg ER (2 posts)">0.56%</td><td style="background:#f1f5f9; color:#cbd5e1" title="No posts"></td></tr></tbody></table></div>
       </div>
       <div class="heatmap-legend">
         <span>Low</span>
@@ -1000,7 +1082,7 @@
   <!-- STRATEGY SECTION -->
   <div class="strategy-section" id="strategy-section" style="display: block;">
     <div class="strategy-header" style="justify-content:space-between">
-      <h2>🗓 Next 90 Days — Content Strategy</h2>
+      <h2>ONWRD's Recommendations</h2>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit Recommendations</button>
         <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done Editing</button>
@@ -1009,7 +1091,7 @@
     <div class="edit-mode-banner" id="edit-banner">
       ✏️ <span><strong>Edit mode on</strong> — click any text in the cards below to rewrite it. Your changes carry through to the shareable download.</span>
     </div>
-    <div class="strategy-header-sub">Data-backed execution recommendations for your upcoming content calendar, based on this account's performance patterns.</div>
+    <div class="strategy-header-sub">Strategic recommendations for the Sampson Cay Project — next 90 days.</div>
     <div class="strategy-grid" id="strategy-grid">
     <div class="strategy-card">
       <div class="strategy-card-header">
@@ -1137,6 +1219,133 @@
       </div>
     </div>
   </div>
+
+    <!-- CONTENT CALENDAR -->
+    <div style="margin-top:28px">
+      <div class="section-header" style="margin-bottom:4px">📅 Content Calendar</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">2 unique pieces of content per week · published to both IG &amp; FB · 4 total posts per week</div>
+      <div id="content-calendar"><div class="cal-grid">
+    <div class="cal-week">
+      <div class="cal-week-header">
+        <span>Week 1 — May 5–9</span>
+        <span class="cal-dates">Mon + Thu</span>
+      </div>
+      
+        <div class="cal-slot">
+          <div class="cal-slot-num">Content Slot 1</div>
+          <div class="cal-slot-theme">On-Site Activities Overview</div>
+          <div class="cal-slot-detail">Reel/Video showcasing active site progress at Sampson Cay. Hook on visible momentum — machinery, team, groundwork. Community-benefit caption.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
+          </div>
+          <div class="cal-timing">📅 Mon · ⏰ 9–10am</div>
+        </div>
+      
+        <div class="cal-slot">
+          <div class="cal-slot-num">Content Slot 2</div>
+          <div class="cal-slot-theme">Environmental Stewardship</div>
+          <div class="cal-slot-detail">Carousel/Photo highlighting the native plant nursery or ESS partnership — positions project as responsible and community-rooted.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
+          </div>
+          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
+        </div>
+      
+    </div>
+  
+    <div class="cal-week">
+      <div class="cal-week-header">
+        <span>Week 2 — May 12–16</span>
+        <span class="cal-dates">Mon + Thu</span>
+      </div>
+      
+        <div class="cal-slot">
+          <div class="cal-slot-num">Content Slot 1</div>
+          <div class="cal-slot-theme">Community Voice</div>
+          <div class="cal-slot-detail">Quote-forward Reel or short video from a community member, local captain, or ESS partner. Authentic third-party voices drive the highest engagement on this account.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
+          </div>
+          <div class="cal-timing">📅 Mon · ⏰ 9–10am</div>
+        </div>
+      
+        <div class="cal-slot">
+          <div class="cal-slot-num">Content Slot 2</div>
+          <div class="cal-slot-theme">Know the Facts</div>
+          <div class="cal-slot-detail">Infographic Carousel addressing a common question about the development — dredging footprint, density stats, employment commitments. Data-forward content drives your highest link clicks.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
+          </div>
+          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
+        </div>
+      
+    </div>
+  
+    <div class="cal-week">
+      <div class="cal-week-header">
+        <span>Week 3 — May 19–23</span>
+        <span class="cal-dates">Mon + Thu</span>
+      </div>
+      
+        <div class="cal-slot">
+          <div class="cal-slot-num">Content Slot 1</div>
+          <div class="cal-slot-theme">Sponsorship Visibility</div>
+          <div class="cal-slot-detail">Event-tied Reel or photo recap for any confirmed sponsorship activity. Tag partner, lead with community impact, follow with a carousel of highlights 48hrs later.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
+          </div>
+          <div class="cal-timing">📅 Mon · ⏰ 9–10am</div>
+        </div>
+      
+        <div class="cal-slot">
+          <div class="cal-slot-num">Content Slot 2</div>
+          <div class="cal-slot-theme">Rosewood Exuma Vision</div>
+          <div class="cal-slot-detail">Brand-forward Carousel or Photo — render, aerial, or design detail. Luxury feel, grounded in Bahamian context. Keep caption concise and aspirational.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
+          </div>
+          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
+        </div>
+      
+    </div>
+  
+    <div class="cal-week">
+      <div class="cal-week-header">
+        <span>Week 4 — May 26–30 ⚡ Jobs Drop</span>
+        <span class="cal-dates">Mon + Thu</span>
+      </div>
+      
+        <div class="cal-slot cal-highlight">
+          <div class="cal-slot-num">Content Slot 1 — Priority</div>
+          <div class="cal-slot-theme">500+ Jobs · Job Creation Announcement</div>
+          <div class="cal-slot-detail">Lead with the number. Bold stat-forward graphic on FB, detailed Carousel on IG breaking down job categories across construction, hospitality, marine ops and senior leadership. End with a clear CTA.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Carousel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Photo</span>
+          </div>
+          <div class="cal-timing">📅 Tue · ⏰ 9–10am</div>
+        </div>
+      
+        <div class="cal-slot">
+          <div class="cal-slot-num">Content Slot 2</div>
+          <div class="cal-slot-theme">Community Progress Update</div>
+          <div class="cal-slot-detail">Follow the jobs announcement with a community-focused video or quote post. Reinforce partnership and trust — round out the week on an authentic, people-first note.</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 IG Reel</span>
+            <span class="cal-pill cal-pill-fb">🔵 FB Video</span>
+          </div>
+          <div class="cal-timing">📅 Thu · ⏰ 2–3pm</div>
+        </div>
+      
+    </div>
+  </div></div>
+    </div>
   </div>
 
 </div><!-- /dashboard -->
@@ -1403,6 +1612,21 @@ function renderKPIs(posts) {
   document.getElementById('kpi-posts').textContent = posts.length;
   document.getElementById('kpi-followers').textContent = fmt(totalFollowers);
 
+  // Followers card label by filter
+  const followerLabel = document.getElementById('kpi-followers-label');
+  const followerSub   = document.getElementById('kpi-followers-sub');
+  if (currentFilter === 'fb') {
+    followerLabel.textContent = 'New FB Followers';
+    followerSub.textContent = 'Not tracked in FB export';
+    document.getElementById('kpi-followers').textContent = 'N/A';
+  } else if (currentFilter === 'ig') {
+    followerLabel.textContent = 'New IG Followers';
+    followerSub.textContent = 'Gained from posts';
+  } else {
+    followerLabel.textContent = 'New IG Followers';
+    followerSub.textContent = 'FB followers not in export';
+  }
+
   const ig = posts.filter(p=>p.platform==='ig');
   const fb = posts.filter(p=>p.platform==='fb');
   let sub = '';
@@ -1451,6 +1675,7 @@ function renderInsights(posts) {
       <div class="insight-label">⭐ Best Single Post</div>
       <div class="insight-value">${fmtPct(best.engRate)}</div>
       <div class="insight-desc">${best.type} · ${best.dateStr} · ${fmt(best.reach)} reach</div>
+      ${best.permalink ? `<a href="${best.permalink}" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>` : ''}
     </div>
     ${igPosts2.length && fbPosts2.length ? `
     <div class="insight-box">
@@ -1764,9 +1989,9 @@ function renderHeatmap(posts) {
     if (val === null) return '#f1f5f9';
     const t = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 0;
     // Interpolate: white → accent blue
-    const r = Math.round(224 - t * (224 - 37));
-    const g = Math.round(231 - t * (231 - 99));
-    const b = Math.round(255 - t * (255 - 235));
+    const r = Math.round(190 - t * (190 - 13));
+    const g = Math.round(210 - t * (210 - 90));
+    const b = Math.round(208 - t * (208 - 108));
     return `rgb(${r},${g},${b})`;
   }
   function textColor(val) {
@@ -2004,6 +2229,7 @@ function renderStrategy() {
     },
   ];
 
+  renderCalendar();
   document.getElementById('strategy-grid').innerHTML = cards.map(card => `
     <div class="strategy-card">
       <div class="strategy-card-header">
@@ -2031,6 +2257,153 @@ function renderStrategy() {
       </div>
     </div>
   `).join('');
+}
+
+// ── Content Calendar ──
+function renderCalendar() {
+  const el = document.getElementById('content-calendar');
+  if (!el) return;
+
+  // Derive best posting days/times from heatmap data
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dayEngMap = {};
+  allPosts.forEach(p => {
+    if (!p.date || p.reach === 0) return;
+    const d = DAYS[p.date.getDay()];
+    if (!dayEngMap[d]) dayEngMap[d] = [];
+    dayEngMap[d].push(p.engRate);
+  });
+  const avg = arr => arr && arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : 0;
+  // Pick best two weekdays
+  const ranked = ['Mon','Tue','Wed','Thu','Fri']
+    .map(d => ({ d, avg: parseFloat(avg(dayEngMap[d]||[])) }))
+    .sort((a,b) => b.avg - a.avg);
+  const day1 = ranked[0]?.d || 'Tuesday';
+  const day2 = ranked[1]?.d || 'Thursday';
+
+  const weeks = [
+    {
+      label: 'Week 1 — May 5–9',
+      slots: [
+        {
+          num: 'Content Slot 1',
+          theme: 'On-Site Activities Overview',
+          detail: `Reel/Video showcasing active site progress at Sampson Cay. Hook on visible momentum — machinery, team, groundwork. Community-benefit caption.`,
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: day1,
+          time: '9–10am',
+          highlight: false,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Environmental Stewardship',
+          detail: 'Carousel/Photo highlighting the native plant nursery or ESS partnership — positions project as responsible and community-rooted.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: day2,
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+    {
+      label: 'Week 2 — May 12–16',
+      slots: [
+        {
+          num: 'Content Slot 1',
+          theme: 'Community Voice',
+          detail: 'Quote-forward Reel or short video from a community member, local captain, or ESS partner. Authentic third-party voices drive the highest engagement on this account.',
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: day1,
+          time: '9–10am',
+          highlight: false,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Know the Facts',
+          detail: 'Infographic Carousel addressing a common question about the development — dredging footprint, density stats, employment commitments. Data-forward content drives your highest link clicks.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: day2,
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+    {
+      label: 'Week 3 — May 19–23',
+      slots: [
+        {
+          num: 'Content Slot 1',
+          theme: 'Sponsorship Visibility',
+          detail: 'Event-tied Reel or photo recap for any confirmed sponsorship activity. Tag partner, lead with community impact, follow with a carousel of highlights 48hrs later.',
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: day1,
+          time: '9–10am',
+          highlight: false,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Rosewood Exuma Vision',
+          detail: 'Brand-forward Carousel or Photo — render, aerial, or design detail. Luxury feel, grounded in Bahamian context. Keep caption concise and aspirational.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: day2,
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+    {
+      label: 'Week 4 — May 26–30 ⚡ Jobs Drop',
+      slots: [
+        {
+          num: 'Content Slot 1 — Priority',
+          theme: '500+ Jobs · Job Creation Announcement',
+          detail: 'Lead with the number. Bold stat-forward graphic on FB, detailed Carousel on IG breaking down job categories across construction, hospitality, marine ops and senior leadership. End with a clear CTA.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: 'Tue',
+          time: '9–10am',
+          highlight: true,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Community Progress Update',
+          detail: 'Follow the jobs announcement with a community-focused video or quote post. Reinforce partnership and trust — round out the week on an authentic, people-first note.',
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: 'Thu',
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+  ];
+
+  el.innerHTML = `<div class="cal-grid">${weeks.map(w => `
+    <div class="cal-week">
+      <div class="cal-week-header">
+        <span>${w.label}</span>
+        <span class="cal-dates">${day1} + ${day2}</span>
+      </div>
+      ${w.slots.map(s => `
+        <div class="cal-slot${s.highlight ? ' cal-highlight' : ''}">
+          <div class="cal-slot-num">${s.num}</div>
+          <div class="cal-slot-theme">${s.theme}</div>
+          <div class="cal-slot-detail">${s.detail}</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 ${s.ig}</span>
+            <span class="cal-pill cal-pill-fb">🔵 ${s.fb}</span>
+          </div>
+          <div class="cal-timing">📅 ${s.day} · ⏰ ${s.time}</div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('')}</div>`;
 }
 
 // ── Edit mode for strategy recommendations ──
@@ -2186,8 +2559,22 @@ async function pushToGitHub() {
   document.getElementById('btn-push-confirm').disabled = true;
   setPushStatus('loading', 'Building client version…');
 
-  const clientHTML = buildClientHTML();
-  const content = btoa(unescape(encodeURIComponent(clientHTML))); // base64 encode (UTF-8 safe)
+  // Yield to browser so the status message renders before heavy work
+  await new Promise(r => setTimeout(r, 80));
+
+  let clientHTML, content;
+  try {
+    clientHTML = buildClientHTML();
+    // UTF-8 safe base64 encode
+    const bytes = new TextEncoder().encode(clientHTML);
+    let binary = '';
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    content = btoa(binary);
+  } catch(e) {
+    setPushStatus('error', 'Failed to build client file: ' + e.message);
+    document.getElementById('btn-push-confirm').disabled = false;
+    return;
+  }
 
   // Step 1: get existing SHA (needed if file already exists)
   setPushStatus('loading', 'Checking existing file…');
@@ -2255,4 +2642,4 @@ function downloadShareable() {
 
 
 
-<div class="ue-sidebar-container"><iframe srcdoc="&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;&lt;/head&gt;&lt;body&gt;&lt;div class=&quot;frame-root&quot;&gt;&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div><div class="glasp-extension-toaster" style="display: block; width: 320px; margin: unset; padding: unset; border: unset; border-radius: unset; outline: unset; background-color: unset; box-shadow: unset; position: fixed; top: 40px; right: 24px; z-index: 9999;"></div><div class="calendly-lifecycle-optibutton_singleton"></div><div class="calendly-frame-tag" manager_id="710d3169-d861-49c3-a520-9c6c0abf4265" id="710d3169-d861-49c3-a520-9c6c0abf4265" style="height: 0px; width: 0px; visibility: hidden;"></div></body><div class="glasp-extension" style="display: block; width: unset; margin: unset; padding: unset; border: unset; border-radius: unset; outline: unset; background-color: unset; box-shadow: unset; position: fixed; bottom: 16px; right: 16px; z-index: 9999;"><div class="glasp-extension" style="font-family: inherit;"></div></div></html>
+</body></html>
