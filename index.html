@@ -1905,7 +1905,14 @@ function buildClientHTML() {
     strategyGridHTML,
   };
   const dataJSON = JSON.stringify(data);
-  const currentHTML = document.documentElement.outerHTML;
+  // Build a lean version — strip upload screen and GitHub modal from DOM copy
+  const clone = document.documentElement.cloneNode(true);
+  ['upload-screen', 'github-modal'].forEach(id => {
+    const el = clone.querySelector('#' + id);
+    if (el) el.remove();
+  });
+  const currentHTML = clone.outerHTML;
+
   const clientStyles = `<style>
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
@@ -1974,13 +1981,20 @@ async function pushToGitHub() {
   let clientHTML, content;
   try {
     clientHTML = buildClientHTML();
-    // UTF-8 safe base64 encode
-    const bytes = new TextEncoder().encode(clientHTML);
-    let binary = '';
-    bytes.forEach(b => binary += String.fromCharCode(b));
-    content = btoa(binary);
   } catch(e) {
-    setPushStatus('error', 'Failed to build client file: ' + e.message);
+    setPushStatus('error', 'Failed to build report: ' + e.message);
+    document.getElementById('btn-push-confirm').disabled = false;
+    return;
+  }
+
+  setPushStatus('loading', 'Encoding file…');
+  await new Promise(r => setTimeout(r, 80));
+
+  try {
+    // Fast UTF-8 safe base64 — avoids byte-by-byte loop that stalls on large files
+    content = btoa(unescape(encodeURIComponent(clientHTML)));
+  } catch(e) {
+    setPushStatus('error', 'Encoding failed: ' + e.message);
     document.getElementById('btn-push-confirm').disabled = false;
     return;
   }
@@ -2033,7 +2047,7 @@ function destroyChart(key) {
 }
 
 // ── Download Client Version (uses shared buildClientHTML) ──
-function downloadShareable() {
+async function downloadShareable() {
   if (igPosts.length === 0 && fbPosts.length === 0) {
     alert('No data loaded yet — upload your CSVs first.');
     return;
