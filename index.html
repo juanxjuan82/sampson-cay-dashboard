@@ -8,17 +8,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #f4f6fb;
+    --bg: #f2f6f7;
     --surface: #ffffff;
-    --border: #e2e8f0;
+    --border: #dde6e8;
     --text: #1a202c;
-    --text-muted: #718096;
-    --accent: #2563eb;
+    --text-muted: #707373;
+    --accent: #0d5a6c;
+    --accent-hover: #0a4a59;
+    --accent-light: #bed2d0;
+    --accent-lighter: #b6dfe4;
     --ig-grad: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
     --fb: #1877f2;
     --ig: #e1306c;
     --reel: #8b5cf6;
-    --image: #06b6d4;
+    --image: #0d5a6c;
     --carousel: #f59e0b;
     --video: #1877f2;
     --photo: #10b981;
@@ -37,7 +40,7 @@
 
   /* ── HEADER ── */
   .header {
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    background: linear-gradient(135deg, #0a2a30 0%, #0d5a6c 100%);
     color: #fff;
     padding: 28px 40px;
     display: flex;
@@ -130,7 +133,7 @@
     text-decoration: none;
   }
   .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:hover { background: #0a4a59; }
   .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
   .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
   .btn-outline:hover { background: var(--bg); }
@@ -341,7 +344,7 @@
   }
   .heatmap-legend-bar {
     flex: 1; height: 8px; border-radius: 4px;
-    background: linear-gradient(to right, #e0e7ff, #2563eb);
+    background: linear-gradient(to right, #bed2d0, #0d5a6c);
   }
 
   /* ── STRATEGY SECTION ── */
@@ -412,6 +415,84 @@
 
   .strategy-divider { height: 1px; background: var(--border); margin: 14px 0; }
 
+  /* ── CONTENT CALENDAR ── */
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .cal-week {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .cal-week-header {
+    background: var(--accent);
+    color: #fff;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cal-week-header .cal-dates {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: .8;
+  }
+  .cal-slot {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cal-slot:last-child { border-bottom: none; }
+  .cal-slot-num {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .cal-slot-theme {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .cal-slot-detail {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin-bottom: 8px;
+  }
+  .cal-platforms {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .cal-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .cal-pill-ig { background: rgba(225,48,108,.1); color: var(--ig); }
+  .cal-pill-fb { background: rgba(24,119,242,.1); color: var(--fb); }
+  .cal-timing {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+  .cal-highlight {
+    background: #fff8ed;
+    border-left: 3px solid var(--carousel);
+  }
+
   /* ── EDIT MODE ── */
   .editable-field[contenteditable="true"] {
     outline: none;
@@ -419,7 +500,7 @@
     padding: 6px 8px;
     margin: -6px -8px;
     background: #f0f7ff;
-    border: 1.5px solid #93c5fd;
+    border: 1.5px solid #bed2d0;
     cursor: text;
     transition: background .15s, border .15s;
     min-height: 1em;
@@ -428,25 +509,25 @@
   .editable-field[contenteditable="true"]:focus {
     background: #fff;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    box-shadow: 0 0 0 3px rgba(13,90,108,.1);
   }
   .edit-mode-banner {
     display: none;
     align-items: center;
     gap: 10px;
-    background: #eff6ff;
-    border: 1.5px solid #93c5fd;
+    background: #edf5f6;
+    border: 1.5px solid #bed2d0;
     border-radius: 8px;
     padding: 10px 16px;
     margin-bottom: 16px;
     font-size: 13px;
-    color: #1d4ed8;
+    color: #0a4a59;
   }
   .edit-mode-banner.visible { display: flex; }
-  .btn-edit { background: #eff6ff; color: var(--accent); border: 1.5px solid #93c5fd; }
-  .btn-edit:hover { background: #dbeafe; }
+  .btn-edit { background: #edf5f6; color: var(--accent); border: 1.5px solid #bed2d0; }
+  .btn-edit:hover { background: #c8e0e4; }
   .btn-done { background: var(--accent); color: #fff; border: none; }
-  .btn-done:hover { background: #1d4ed8; }
+  .btn-done:hover { background: #0a4a59; }
 
   /* ── GITHUB MODAL ── */
   .modal-overlay {
@@ -469,7 +550,7 @@
     outline: none; transition: border .15s;
     font-family: monospace;
   }
-  .modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  .modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,90,108,.1); }
   .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
   .modal-link { font-size: 12px; color: var(--accent); text-decoration: none; }
   .modal-link:hover { text-decoration: underline; }
@@ -481,7 +562,7 @@
     margin-bottom: 12px; font-weight: 500;
   }
   .push-status.visible { display: flex; }
-  .push-status.loading { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
+  .push-status.loading { background: #edf5f6; color: #0a4a59; border: 1px solid #bed2d0; }
   .push-status.success { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
   .push-status.error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
   .spinner {
@@ -584,9 +665,9 @@
     </div>
     <div class="kpi-card followers">
       <div class="kpi-icon">➕</div>
-      <div class="kpi-label">New IG Followers</div>
+      <div class="kpi-label" id="kpi-followers-label">New Followers</div>
       <div class="kpi-value" id="kpi-followers">—</div>
-      <div class="kpi-sub">Gained from posts</div>
+      <div class="kpi-sub" id="kpi-followers-sub">Gained from posts</div>
     </div>
   </div>
 
@@ -681,7 +762,7 @@
   <!-- STRATEGY SECTION -->
   <div class="strategy-section" id="strategy-section" style="display:none">
     <div class="strategy-header" style="justify-content:space-between">
-      <h2>🗓 Next 90 Days — Content Strategy</h2>
+      <h2>ONWRD's Recommendations</h2>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit Recommendations</button>
         <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done Editing</button>
@@ -690,8 +771,15 @@
     <div class="edit-mode-banner" id="edit-banner">
       ✏️ <span><strong>Edit mode on</strong> — click any text in the cards below to rewrite it. Your changes carry through to the shareable download.</span>
     </div>
-    <div class="strategy-header-sub">Data-backed execution recommendations for your upcoming content calendar, based on this account's performance patterns.</div>
+    <div class="strategy-header-sub">Strategic recommendations for the Sampson Cay Project — next 90 days.</div>
     <div class="strategy-grid" id="strategy-grid"></div>
+
+    <!-- CONTENT CALENDAR -->
+    <div style="margin-top:28px">
+      <div class="section-header" style="margin-bottom:4px">📅 Content Calendar</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">2 unique pieces of content per week · published to both IG &amp; FB · 4 total posts per week</div>
+      <div id="content-calendar"></div>
+    </div>
   </div>
 
 </div><!-- /dashboard -->
@@ -704,7 +792,7 @@
 <div class="modal-overlay" id="github-modal">
   <div class="modal">
     <h3>⬆ Push to GitHub</h3>
-    <p>This will publish <strong>client.html</strong> directly to your repo. Your client's URL updates automatically — no manual upload needed.</p>
+    <p>This will publish <strong>report.html</strong> directly to your repo. Your client's URL updates automatically — no manual upload needed.</p>
 
     <div class="push-status" id="push-status"></div>
 
@@ -960,6 +1048,21 @@ function renderKPIs(posts) {
   document.getElementById('kpi-posts').textContent = posts.length;
   document.getElementById('kpi-followers').textContent = fmt(totalFollowers);
 
+  // Followers card label by filter
+  const followerLabel = document.getElementById('kpi-followers-label');
+  const followerSub   = document.getElementById('kpi-followers-sub');
+  if (currentFilter === 'fb') {
+    followerLabel.textContent = 'New FB Followers';
+    followerSub.textContent = 'Not tracked in FB export';
+    document.getElementById('kpi-followers').textContent = 'N/A';
+  } else if (currentFilter === 'ig') {
+    followerLabel.textContent = 'New IG Followers';
+    followerSub.textContent = 'Gained from posts';
+  } else {
+    followerLabel.textContent = 'New IG Followers';
+    followerSub.textContent = 'FB followers not in export';
+  }
+
   const ig = posts.filter(p=>p.platform==='ig');
   const fb = posts.filter(p=>p.platform==='fb');
   let sub = '';
@@ -1008,6 +1111,7 @@ function renderInsights(posts) {
       <div class="insight-label">⭐ Best Single Post</div>
       <div class="insight-value">${fmtPct(best.engRate)}</div>
       <div class="insight-desc">${best.type} · ${best.dateStr} · ${fmt(best.reach)} reach</div>
+      ${best.permalink ? `<a href="${best.permalink}" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>` : ''}
     </div>
     ${igPosts2.length && fbPosts2.length ? `
     <div class="insight-box">
@@ -1321,9 +1425,9 @@ function renderHeatmap(posts) {
     if (val === null) return '#f1f5f9';
     const t = maxVal > minVal ? (val - minVal) / (maxVal - minVal) : 0;
     // Interpolate: white → accent blue
-    const r = Math.round(224 - t * (224 - 37));
-    const g = Math.round(231 - t * (231 - 99));
-    const b = Math.round(255 - t * (255 - 235));
+    const r = Math.round(190 - t * (190 - 13));
+    const g = Math.round(210 - t * (210 - 90));
+    const b = Math.round(208 - t * (208 - 108));
     return `rgb(${r},${g},${b})`;
   }
   function textColor(val) {
@@ -1385,7 +1489,7 @@ function renderTopPosts(posts) {
     if (tableSortKey === 'date') { va = a.date ? a.date.getTime() : 0; vb = b.date ? b.date.getTime() : 0; }
     return tableSortDir === 'desc' ? vb - va : va - vb;
   });
-  const sorted = validPosts.slice(0, 15);
+  const sorted = validPosts.slice(0, 30);
   const maxEng = sorted.length > 0 ? sorted[0].engRate : 1;
   const tbody = document.getElementById('top-posts-body');
 
@@ -1561,6 +1665,7 @@ function renderStrategy() {
     },
   ];
 
+  renderCalendar();
   document.getElementById('strategy-grid').innerHTML = cards.map(card => `
     <div class="strategy-card">
       <div class="strategy-card-header">
@@ -1588,6 +1693,153 @@ function renderStrategy() {
       </div>
     </div>
   `).join('');
+}
+
+// ── Content Calendar ──
+function renderCalendar() {
+  const el = document.getElementById('content-calendar');
+  if (!el) return;
+
+  // Derive best posting days/times from heatmap data
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dayEngMap = {};
+  allPosts.forEach(p => {
+    if (!p.date || p.reach === 0) return;
+    const d = DAYS[p.date.getDay()];
+    if (!dayEngMap[d]) dayEngMap[d] = [];
+    dayEngMap[d].push(p.engRate);
+  });
+  const avg = arr => arr && arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : 0;
+  // Pick best two weekdays
+  const ranked = ['Mon','Tue','Wed','Thu','Fri']
+    .map(d => ({ d, avg: parseFloat(avg(dayEngMap[d]||[])) }))
+    .sort((a,b) => b.avg - a.avg);
+  const day1 = ranked[0]?.d || 'Tuesday';
+  const day2 = ranked[1]?.d || 'Thursday';
+
+  const weeks = [
+    {
+      label: 'Week 1 — May 5–9',
+      slots: [
+        {
+          num: 'Content Slot 1',
+          theme: 'On-Site Activities Overview',
+          detail: `Reel/Video showcasing active site progress at Sampson Cay. Hook on visible momentum — machinery, team, groundwork. Community-benefit caption.`,
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: day1,
+          time: '9–10am',
+          highlight: false,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Environmental Stewardship',
+          detail: 'Carousel/Photo highlighting the native plant nursery or ESS partnership — positions project as responsible and community-rooted.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: day2,
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+    {
+      label: 'Week 2 — May 12–16',
+      slots: [
+        {
+          num: 'Content Slot 1',
+          theme: 'Community Voice',
+          detail: 'Quote-forward Reel or short video from a community member, local captain, or ESS partner. Authentic third-party voices drive the highest engagement on this account.',
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: day1,
+          time: '9–10am',
+          highlight: false,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Know the Facts',
+          detail: 'Infographic Carousel addressing a common question about the development — dredging footprint, density stats, employment commitments. Data-forward content drives your highest link clicks.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: day2,
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+    {
+      label: 'Week 3 — May 19–23',
+      slots: [
+        {
+          num: 'Content Slot 1',
+          theme: 'Sponsorship Visibility',
+          detail: 'Event-tied Reel or photo recap for any confirmed sponsorship activity. Tag partner, lead with community impact, follow with a carousel of highlights 48hrs later.',
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: day1,
+          time: '9–10am',
+          highlight: false,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Rosewood Exuma Vision',
+          detail: 'Brand-forward Carousel or Photo — render, aerial, or design detail. Luxury feel, grounded in Bahamian context. Keep caption concise and aspirational.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: day2,
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+    {
+      label: 'Week 4 — May 26–30 ⚡ Jobs Drop',
+      slots: [
+        {
+          num: 'Content Slot 1 — Priority',
+          theme: '500+ Jobs · Job Creation Announcement',
+          detail: 'Lead with the number. Bold stat-forward graphic on FB, detailed Carousel on IG breaking down job categories across construction, hospitality, marine ops and senior leadership. End with a clear CTA.',
+          ig: 'IG Carousel',
+          fb: 'FB Photo',
+          day: 'Tue',
+          time: '9–10am',
+          highlight: true,
+        },
+        {
+          num: 'Content Slot 2',
+          theme: 'Community Progress Update',
+          detail: 'Follow the jobs announcement with a community-focused video or quote post. Reinforce partnership and trust — round out the week on an authentic, people-first note.',
+          ig: 'IG Reel',
+          fb: 'FB Video',
+          day: 'Thu',
+          time: '2–3pm',
+          highlight: false,
+        }
+      ]
+    },
+  ];
+
+  el.innerHTML = `<div class="cal-grid">${weeks.map(w => `
+    <div class="cal-week">
+      <div class="cal-week-header">
+        <span>${w.label}</span>
+        <span class="cal-dates">${day1} + ${day2}</span>
+      </div>
+      ${w.slots.map(s => `
+        <div class="cal-slot${s.highlight ? ' cal-highlight' : ''}">
+          <div class="cal-slot-num">${s.num}</div>
+          <div class="cal-slot-theme">${s.theme}</div>
+          <div class="cal-slot-detail">${s.detail}</div>
+          <div class="cal-platforms">
+            <span class="cal-pill cal-pill-ig">📸 ${s.ig}</span>
+            <span class="cal-pill cal-pill-fb">🔵 ${s.fb}</span>
+          </div>
+          <div class="cal-timing">📅 ${s.day} · ⏰ ${s.time}</div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('')}</div>`;
 }
 
 // ── Edit mode for strategy recommendations ──
@@ -1705,7 +1957,7 @@ async function pushToGitHub() {
   }
 
   const [owner, repo] = repoFull.split('/');
-  const path = 'client.html';
+  const path = 'report.html';
   const apiBase = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
   const headers = {
     'Authorization': `Bearer ${token}`,
@@ -1761,7 +2013,7 @@ async function pushToGitHub() {
       const err = await putRes.json();
       throw new Error(err.message || putRes.statusText);
     }
-    setPushStatus('success', `Published! Your client URL will update in ~30 seconds: <a href="https://${owner}.github.io/${repo}/client.html" target="_blank" style="color:#15803d;font-weight:700">View live →</a>`);
+    setPushStatus('success', `Published! Your client URL will update in ~30 seconds: <a href="https://${owner}.github.io/${repo}/report.html" target="_blank" style="color:#15803d;font-weight:700">View live →</a>`);
     document.getElementById('btn-push-confirm').disabled = false;
   } catch(e) {
     setPushStatus('error', `Push failed: ${e.message}. Check your token has repo access.`);
@@ -1791,7 +2043,7 @@ function downloadShareable() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'client.html';
+  a.download = 'report.html';
   a.click();
   URL.revokeObjectURL(url);
 }
