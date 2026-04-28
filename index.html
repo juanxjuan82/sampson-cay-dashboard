@@ -411,6 +411,42 @@
   .data-callout-text strong { color: var(--text); }
 
   .strategy-divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+  /* ── EDIT MODE ── */
+  .editable-field[contenteditable="true"] {
+    outline: none;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin: -6px -8px;
+    background: #f0f7ff;
+    border: 1.5px solid #93c5fd;
+    cursor: text;
+    transition: background .15s, border .15s;
+    min-height: 1em;
+    display: block;
+  }
+  .editable-field[contenteditable="true"]:focus {
+    background: #fff;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+  }
+  .edit-mode-banner {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: #eff6ff;
+    border: 1.5px solid #93c5fd;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #1d4ed8;
+  }
+  .edit-mode-banner.visible { display: flex; }
+  .btn-edit { background: #eff6ff; color: var(--accent); border: 1.5px solid #93c5fd; }
+  .btn-edit:hover { background: #dbeafe; }
+  .btn-done { background: var(--accent); color: #fff; border: none; }
+  .btn-done:hover { background: #1d4ed8; }
 </style>
 </head>
 <body>
@@ -597,8 +633,15 @@
 
   <!-- STRATEGY SECTION -->
   <div class="strategy-section" id="strategy-section" style="display:none">
-    <div class="strategy-header">
+    <div class="strategy-header" style="justify-content:space-between">
       <h2>🗓 Next 90 Days — Content Strategy</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit Recommendations</button>
+        <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done Editing</button>
+      </div>
+    </div>
+    <div class="edit-mode-banner" id="edit-banner">
+      ✏️ <span><strong>Edit mode on</strong> — click any text in the cards below to rewrite it. Your changes carry through to the shareable download.</span>
     </div>
     <div class="strategy-header-sub">Data-backed execution recommendations for your upcoming content calendar, based on this account's performance patterns.</div>
     <div class="strategy-grid" id="strategy-grid"></div>
@@ -1446,8 +1489,8 @@ function renderStrategy() {
       <div class="strategy-card-header">
         <div class="strategy-card-icon">${card.icon}</div>
         <div>
-          <div class="strategy-card-title">${card.title}</div>
-          <span class="strategy-card-timing" style="background:${card.timingColor}">📅 ${card.timing}</span>
+          <div class="strategy-card-title editable-field" contenteditable="false">${card.title}</div>
+          <span class="strategy-card-timing" style="background:${card.timingColor}">📅 <span class="editable-field" contenteditable="false">${card.timing}</span></span>
           <div class="format-chips" style="margin-top:10px">
             ${card.formats.map(f => `<span class="format-chip ${f.cls}">${f.label}</span>`).join('')}
           </div>
@@ -1457,17 +1500,32 @@ function renderStrategy() {
         ${card.recs.map((r, i) => `
           ${i > 0 ? '<div class="strategy-divider"></div>' : ''}
           <div class="strategy-rec">
-            <div class="strategy-rec-label">${r.label}</div>
-            <div class="strategy-rec-content">${r.content}</div>
+            <div class="strategy-rec-label editable-field" contenteditable="false">${r.label}</div>
+            <div class="strategy-rec-content editable-field" contenteditable="false">${r.content}</div>
           </div>
         `).join('')}
         <div class="data-callout">
           <div class="data-callout-label">${card.callout.label}</div>
-          <div class="data-callout-text">${card.callout.text}</div>
+          <div class="data-callout-text editable-field" contenteditable="false">${card.callout.text}</div>
         </div>
       </div>
     </div>
   `).join('');
+}
+
+// ── Edit mode for strategy recommendations ──
+function toggleEditMode(on) {
+  document.querySelectorAll('.editable-field').forEach(el => {
+    el.contentEditable = on ? 'true' : 'false';
+  });
+  document.getElementById('btn-edit-recs').style.display = on ? 'none' : 'inline-flex';
+  document.getElementById('btn-done-recs').style.display = on ? 'inline-flex' : 'none';
+  document.getElementById('edit-banner').classList.toggle('visible', on);
+  // Focus the first editable field when entering edit mode
+  if (on) {
+    const first = document.querySelector('.editable-field[contenteditable="true"]');
+    if (first) first.focus();
+  }
 }
 
 // ── Chart cleanup ──
