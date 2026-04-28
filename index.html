@@ -1716,8 +1716,22 @@ async function pushToGitHub() {
   document.getElementById('btn-push-confirm').disabled = true;
   setPushStatus('loading', 'Building client version…');
 
-  const clientHTML = buildClientHTML();
-  const content = btoa(unescape(encodeURIComponent(clientHTML))); // base64 encode (UTF-8 safe)
+  // Yield to browser so the status message renders before heavy work
+  await new Promise(r => setTimeout(r, 80));
+
+  let clientHTML, content;
+  try {
+    clientHTML = buildClientHTML();
+    // UTF-8 safe base64 encode
+    const bytes = new TextEncoder().encode(clientHTML);
+    let binary = '';
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    content = btoa(binary);
+  } catch(e) {
+    setPushStatus('error', 'Failed to build client file: ' + e.message);
+    document.getElementById('btn-push-confirm').disabled = false;
+    return;
+  }
 
   // Step 1: get existing SHA (needed if file already exists)
   setPushStatus('loading', 'Checking existing file…');
