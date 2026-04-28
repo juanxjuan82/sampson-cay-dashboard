@@ -827,7 +827,14 @@ let currentFilter = 'all';
 let charts = {};
 let embeddedData = null;
 let tableSortKey = 'engRate';
-let tableSortDir = 'desc'; // 'asc' | 'desc'
+let tableSortDir = 'desc';
+
+// Capture a clean page template before any charts or data are rendered.
+// We do this immediately at script load time so the HTML is small and fast to serialise.
+let _pageTemplate = null;
+window.addEventListener('DOMContentLoaded', () => {
+  _pageTemplate = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+});
 
 // ── Color map ──
 const TYPE_COLORS = {
@@ -1905,15 +1912,11 @@ function buildClientHTML() {
     strategyGridHTML,
   };
   const dataJSON = JSON.stringify(data);
-  // Build a lean version — strip upload screen and GitHub modal from DOM copy
-  const clone = document.documentElement.cloneNode(true);
-  ['upload-screen', 'github-modal'].forEach(id => {
-    const el = clone.querySelector('#' + id);
-    if (el) el.remove();
-  });
-  const currentHTML = clone.outerHTML;
+  // Use the template captured at page load (before charts rendered) — avoids cloning live DOM
+  const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
 
   const clientStyles = `<style>
+    #upload-screen, #github-modal,
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
@@ -1945,8 +1948,7 @@ window.addEventListener('DOMContentLoaded', function() {
   if (ss) ss.style.display = 'block';
 });
 <\/script>`;
-  return '<!DOCTYPE html>\n' +
-    currentHTML
+  return currentHTML
       .replace('</head>', clientStyles + '\n</head>')
       .replace('</body>', autoloadScript + '\n</body>');
 }
