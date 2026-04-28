@@ -595,35 +595,7 @@
 </div>
 
 <!-- ══════════════════ UPLOAD SCREEN ══════════════════ -->
-<div id="upload-screen" style="display: none;">
-  <div class="upload-card">
-    <h2>📊 Upload Your Data</h2>
-    <p>Upload the Facebook and Instagram CSV exports from Meta Business Suite. Both files are required to generate the full dashboard.</p>
 
-    <div class="upload-zones">
-      <div class="upload-zone loaded" id="zone-fb">
-        <input type="file" accept=".csv" id="file-fb" onchange="handleFile('fb', this)">
-        <div class="icon">🔵</div>
-        <div class="label" id="label-fb">✓ Jan-28-2026_Apr-27-2026_1484886846347427.csv</div>
-        <div class="sub">Post insights export</div>
-      </div>
-      <div class="upload-zone loaded" id="zone-ig">
-        <input type="file" accept=".csv" id="file-ig" onchange="handleFile('ig', this)">
-        <div class="icon">📸</div>
-        <div class="label" id="label-ig">✓ Jan-28-2026_Apr-27-2026_3107157009672955.csv</div>
-        <div class="sub">Post insights export</div>
-      </div>
-    </div>
-
-    <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()">
-      Generate Dashboard →
-    </button>
-
-    <p style="margin-top:16px; font-size:12px; color:#94a3b8;">
-      Data is processed locally in your browser — nothing is uploaded to any server.
-    </p>
-  </div>
-</div>
 
 <!-- ══════════════════ DASHBOARD ══════════════════ -->
 <div id="dashboard" style="display: block;">
@@ -1625,32 +1597,7 @@
 </div>
 
 <!-- ══════════════════ GITHUB MODAL ══════════════════ -->
-<div class="modal-overlay open" id="github-modal">
-  <div class="modal">
-    <h3>⬆ Push to GitHub</h3>
-    <p>This will publish <strong>report.html</strong> directly to your repo. Your client's URL updates automatically — no manual upload needed.</p>
 
-    <div class="push-status visible loading" id="push-status"><div class="spinner"></div> Building client version…</div>
-
-    <label>GitHub Personal Access Token</label>
-    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" oninput="saveGHSettings()" autocomplete="off">
-
-    <label>Repository (owner/repo)</label>
-    <input type="text" id="gh-repo" placeholder="juanxjuan82/sampson-cay-dashboard" oninput="saveGHSettings()">
-
-    <p style="margin-bottom:12px">
-      <a class="modal-link" href="https://github.com/settings/tokens/new?scopes=repo&amp;description=Social+Dashboard" target="_blank">
-        Generate a token on GitHub →
-      </a>
-      &nbsp;(check the <strong>repo</strong> scope, set expiration to your preference)
-    </p>
-
-    <div class="modal-footer">
-      <button class="btn btn-outline btn-sm" onclick="closeGitHubModal()">Cancel</button>
-      <button class="btn btn-github btn-sm" id="btn-push-confirm" onclick="pushToGitHub()" disabled="">⬆ Publish Now</button>
-    </div>
-  </div>
-</div>
 
 <!-- ══════════════════ JAVASCRIPT ══════════════════ -->
 <script>
@@ -2739,7 +2686,14 @@ function buildClientHTML() {
     strategyGridHTML,
   };
   const dataJSON = JSON.stringify(data);
-  const currentHTML = document.documentElement.outerHTML;
+  // Build a lean version — strip upload screen and GitHub modal from DOM copy
+  const clone = document.documentElement.cloneNode(true);
+  ['upload-screen', 'github-modal'].forEach(id => {
+    const el = clone.querySelector('#' + id);
+    if (el) el.remove();
+  });
+  const currentHTML = clone.outerHTML;
+
   const clientStyles = `<style>
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
@@ -2835,13 +2789,20 @@ async function pushToGitHub() {
   let clientHTML, content;
   try {
     clientHTML = buildClientHTML();
-    // UTF-8 safe base64 encode
-    const bytes = new TextEncoder().encode(clientHTML);
-    let binary = '';
-    bytes.forEach(b => binary += String.fromCharCode(b));
-    content = btoa(binary);
   } catch(e) {
-    setPushStatus('error', 'Failed to build client file: ' + e.message);
+    setPushStatus('error', 'Failed to build report: ' + e.message);
+    document.getElementById('btn-push-confirm').disabled = false;
+    return;
+  }
+
+  setPushStatus('loading', 'Encoding file…');
+  await new Promise(r => setTimeout(r, 80));
+
+  try {
+    // Fast UTF-8 safe base64 — avoids byte-by-byte loop that stalls on large files
+    content = btoa(unescape(encodeURIComponent(clientHTML)));
+  } catch(e) {
+    setPushStatus('error', 'Encoding failed: ' + e.message);
     document.getElementById('btn-push-confirm').disabled = false;
     return;
   }
@@ -2894,7 +2855,7 @@ function destroyChart(key) {
 }
 
 // ── Download Client Version (uses shared buildClientHTML) ──
-function downloadShareable() {
+async function downloadShareable() {
   if (igPosts.length === 0 && fbPosts.length === 0) {
     alert('No data loaded yet — upload your CSVs first.');
     return;
