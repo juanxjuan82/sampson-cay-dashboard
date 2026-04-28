@@ -296,6 +296,86 @@
   .insight-value { font-size: 17px; font-weight: 800; color: var(--text); }
   .insight-desc { font-size: 12px; color: var(--text-muted); }
 
+  /* ── ANALYST NOTES ── */
+  #analyst-notes {
+    margin: 0 40px 28px;
+    background: #fffbeb;
+    border: 1.5px solid #fcd34d;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .analyst-notes-hdr {
+    background: #fef3c7;
+    padding: 13px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+  .analyst-notes-hdr h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #78350f;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .analyst-notes-hdr span.anote-badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: #fde68a;
+    color: #92400e;
+    border-radius: 20px;
+    padding: 2px 9px;
+    letter-spacing: .4px;
+    border: 1px solid #fcd34d;
+  }
+  .analyst-toggle-btn {
+    font-size: 12px;
+    color: #92400e;
+    background: none;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .analyst-notes-body {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .audit-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid #fde68a;
+  }
+  .audit-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #92400e;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #fef3c7;
+  }
+  .audit-item {
+    font-size: 12px;
+    color: #374151;
+    padding: 6px 0;
+    border-bottom: 1px solid #fef9e7;
+    line-height: 1.55;
+  }
+  .audit-item:last-child { border-bottom: none; }
+  .aflag  { color: #b45309; font-weight: 600; }
+  .aok    { color: #047857; font-weight: 600; }
+  .awarn  { color: #dc2626; font-weight: 600; }
+
   /* ── FOOTER ── */
   .footer {
     text-align: center; padding: 24px 40px; color: var(--text-muted);
@@ -782,6 +862,15 @@
     </div>
   </div>
 
+  <!-- ANALYST NOTES — hidden from client report -->
+  <div id="analyst-notes" style="display:none">
+    <div class="analyst-notes-hdr" onclick="toggleAnalystNotes()">
+      <h3>🔬 Analyst Notes <span class="anote-badge">INTERNAL ONLY</span></h3>
+      <button class="analyst-toggle-btn" id="analyst-toggle-label">▲ Collapse</button>
+    </div>
+    <div class="analyst-notes-body" id="analyst-notes-body"></div>
+  </div>
+
 </div><!-- /dashboard -->
 
 <div class="footer" id="footer" style="display:none">
@@ -1063,6 +1152,125 @@ function loadDashboard() {
   renderAll();
 }
 
+// ── Analyst Notes (internal only — hidden from client report) ──
+let analystNotesOpen = true;
+
+function toggleAnalystNotes() {
+  analystNotesOpen = !analystNotesOpen;
+  document.getElementById('analyst-notes-body').style.display = analystNotesOpen ? '' : 'none';
+  document.getElementById('analyst-toggle-label').textContent = analystNotesOpen ? '▲ Collapse' : '▼ Expand';
+}
+
+function renderAnalystNotes(posts) {
+  const section = document.getElementById('analyst-notes');
+  if (!section) return;
+  section.style.display = 'block';
+
+  const HEATMAP_SLOTS = [
+    { label: '6–9am',  test: h => h >= 6 && h < 9 },
+    { label: '9–12pm', test: h => h >= 9 && h < 12 },
+    { label: '12–3pm', test: h => h >= 12 && h < 15 },
+    { label: '3–6pm',  test: h => h >= 15 && h < 18 },
+    { label: '6pm+',   test: h => h >= 18 },
+  ];
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // ── 1. Format confidence ──
+  const byType = {};
+  posts.forEach(p => {
+    if (!byType[p.type]) byType[p.type] = { count: 0, engRates: [], totalReach: 0 };
+    byType[p.type].count++;
+    if (p.reach > 0) {
+      byType[p.type].engRates.push(p.engRate);
+      byType[p.type].totalReach += p.reach;
+    }
+  });
+  const LOW_SAMPLE = 5;
+  const formatRows = Object.entries(byType)
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([type, d]) => {
+      const avgER = d.engRates.length ? d.engRates.reduce((a,b)=>a+b,0)/d.engRates.length : 0;
+      const avgReach = d.engRates.length ? Math.round(d.totalReach / d.engRates.length) : 0;
+      const low = d.count < LOW_SAMPLE;
+      return `<div class="audit-item">
+        ${low ? '⚠️' : '✓'} <strong>${type}</strong> — ${d.count} posts · avg ER ${fmtPct(avgER)} · avg reach ${fmt(avgReach)}
+        <span class="${low ? 'aflag' : 'aok'}">${low ? ' — Low sample, exclude from format rec' : ' — Sufficient sample'}</span>
+      </div>`;
+    }).join('');
+
+  // ── 2. Engagement rate audit ──
+  const postsWithReach = posts.filter(p => p.reach > 0);
+  const totalEng = postsWithReach.reduce((s,p) => s + p.interactions, 0);
+  const totalReach = postsWithReach.reduce((s,p) => s + p.reach, 0);
+  const weightedER = totalReach > 0 ? (totalEng / totalReach) * 100 : 0;
+  const avgPostER = postsWithReach.length > 0
+    ? postsWithReach.reduce((s,p) => s + p.engRate, 0) / postsWithReach.length : 0;
+  const erGap = Math.abs(avgPostER - weightedER);
+  const erGapNote = erGap > 1
+    ? `<span class="aflag">Gap of ${fmtPct(erGap)} — high-reach/low-engagement posts are pulling the weighted rate down. Both metrics are valid; report them differently.</span>`
+    : `<span class="aok">Methods broadly agree (gap &lt; 1%).</span>`;
+
+  // ── 3. Heatmap reliability ──
+  const grid = Array.from({length:7}, () => Array.from({length: HEATMAP_SLOTS.length}, () => []));
+  posts.forEach(p => {
+    if (!p.date || p.hour === null || p.reach === 0) return;
+    const slotIdx = HEATMAP_SLOTS.findIndex(s => s.test(p.hour));
+    if (slotIdx >= 0) grid[p.date.getDay()][slotIdx].push(p.engRate);
+  });
+  const allCellAvgs = grid.flatMap(row => row.map(cell => cell.length ? cell.reduce((a,b)=>a+b,0)/cell.length : null)).filter(v => v !== null);
+  const maxCellER = allCellAvgs.length ? Math.max(...allCellAvgs) : 1;
+  const weakCells = [];
+  grid.forEach((row, di) => {
+    row.forEach((cell, si) => {
+      if (cell.length > 0 && cell.length < 3) {
+        const avg = cell.reduce((a,b)=>a+b,0)/cell.length;
+        if (avg > maxCellER * 0.65) {
+          weakCells.push(`${DAYS[di]} ${HEATMAP_SLOTS[si].label}: ${fmtPct(avg)} avg ER on only ${cell.length} post${cell.length>1?'s':''}`);
+        }
+      }
+    });
+  });
+  const heatmapRows = weakCells.length
+    ? weakCells.map(c => `<div class="audit-item">⚠️ ${c} — <span class="aflag">treat as exploratory, not a firm timing rec</span></div>`).join('')
+    : `<div class="audit-item"><span class="aok">✓ No high-ER cells with &lt;3 posts found. Heatmap is directionally reliable.</span></div>`;
+
+  // ── 4. Data reconciliation ──
+  const igCt = posts.filter(p=>p.platform==='ig').length;
+  const fbCt = posts.filter(p=>p.platform==='fb').length;
+  const igRawCt = igPosts.length;
+  const fbRawCt = fbPosts.length;
+  const crosspostsExcluded = fbRawCt - fbCt; // only relevant if using a non-all filter
+  const totalLoadedReach = posts.reduce((s,p)=>s+p.reach,0);
+
+  document.getElementById('analyst-notes-body').innerHTML = `
+    <div class="audit-card">
+      <div class="audit-card-title">📊 Format Confidence Check</div>
+      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:2px">Formats with &lt;5 posts should be excluded from strategic format recommendations.</div>
+      ${formatRows}
+    </div>
+    <div class="audit-card">
+      <div class="audit-card-title">📐 Engagement Rate Methodology</div>
+      <div class="audit-item"><strong>Dashboard shows:</strong> Avg post-level ER = <strong>${fmtPct(avgPostER)}</strong><br><span style="font-size:11px;color:var(--text-muted)">Sum of individual post ERs ÷ number of posts with reach &gt; 0</span></div>
+      <div class="audit-item"><strong>Weighted ER</strong> (total engagements ÷ total reach) = <strong>${fmtPct(weightedER)}</strong><br>${erGapNote}</div>
+      <div class="audit-item awarn">→ Relabel KPI card: <strong>"Avg Post Engagement Rate"</strong><br><span style="font-size:11px;font-weight:400;color:var(--text-muted)">"Avg Engagement Rate" implies account-level weighted ER, which reads as ${fmtPct(weightedER)}</span></div>
+    </div>
+    <div class="audit-card">
+      <div class="audit-card-title">🕐 Heatmap Reliability</div>
+      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:2px">Flagging cells in top 65% of ER performance with &lt;3 posts — too thin for firm timing recommendations.</div>
+      ${heatmapRows}
+      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">Recommendation: treat best-time data as a testing guide. Require 5–8 posts per slot before calling it a conclusion.</div>
+    </div>
+    <div class="audit-card">
+      <div class="audit-card-title">🔢 Data Reconciliation</div>
+      <div class="audit-item"><strong>Loaded:</strong> ${igCt} IG posts · ${fbCt} FB posts · ${igCt+fbCt} total<br><span style="font-size:11px;color:var(--text-muted)">FB crossposts excluded via <em>Is crosspost ≠ '1'</em> filter</span></div>
+      <div class="audit-item"><strong>Total reach in this view:</strong> ${fmt(totalLoadedReach)}<br>
+        <span style="font-size:11px;color:var(--text-muted)">If client audits raw CSV and finds higher totals, add: <em>"Totals exclude duplicate/cross-posted rows."</em></span>
+      </div>
+      <div class="audit-item"><strong>Reach/Views split:</strong> IG ${fmt(igPosts.reduce((s,p)=>s+p.reach,0))} reach · FB ${fmt(fbPosts.reduce((s,p)=>s+p.reach,0))} reach</div>
+    </div>
+  `;
+}
+
 function renderAll() {
   const posts = filtered();
   renderKPIs(posts);
@@ -1075,6 +1283,7 @@ function renderAll() {
   renderHeatmap(posts);
   renderTopPosts(posts);
   renderStrategy();
+  renderAnalystNotes(posts);
 }
 
 // ── KPIs ──
@@ -1956,7 +2165,7 @@ function buildClientHTML() {
   // A separate <script> tag cannot reassign `let` vars declared in another script tag.
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
-    #upload-screen, #github-modal,
+    #upload-screen, #github-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
