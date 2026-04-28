@@ -834,6 +834,43 @@ let tableSortDir = 'desc';
 let _pageTemplate = null;
 window.addEventListener('DOMContentLoaded', () => {
   _pageTemplate = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+  // ── Client report mode ──
+  // If window.__EMBEDDED_DATA__ was injected (by buildClientHTML), auto-load it.
+  // This runs in the SAME script scope as igPosts/fbPosts/currentFilter so let
+  // re-assignment works correctly and renderAll() sees real data.
+  if (window.__EMBEDDED_DATA__) {
+    const embedded = window.__EMBEDDED_DATA__;
+    igPosts = embedded.igPosts.map(p => ({...p, date: p.date ? new Date(p.date) : null}));
+    fbPosts = embedded.fbPosts.map(p => ({...p, date: p.date ? new Date(p.date) : null}));
+    allPosts = [...igPosts, ...fbPosts].sort((a,b) => ((a.date?.getTime()||0) - (b.date?.getTime()||0)));
+    const validDates = allPosts.filter(p => p.date).map(p => p.date.getTime());
+    if (validDates.length) {
+      const minDate = new Date(Math.min(...validDates));
+      const maxDate = new Date(Math.max(...validDates));
+      const fmt = d => d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+      const el = document.getElementById('header-period');
+      if (el) el.textContent = 'Social Media Performance · ' + fmt(minDate) + ' – ' + fmt(maxDate);
+    }
+    const badgesEl = document.getElementById('header-badges');
+    if (badgesEl) badgesEl.innerHTML =
+      `<span class="badge badge-ig"><span class="badge-dot"></span> Instagram · ${igPosts.length} posts</span>` +
+      `<span class="badge badge-fb"><span class="badge-dot"></span> Facebook · ${fbPosts.length} posts</span>`;
+    const uploadScreen = document.getElementById('upload-screen');
+    if (uploadScreen) uploadScreen.style.display = 'none';
+    const dash = document.getElementById('dashboard');
+    if (dash) dash.style.display = 'block';
+    const footer = document.getElementById('footer');
+    if (footer) footer.style.display = 'block';
+    currentFilter = 'all';
+    renderAll();
+    if (embedded.strategyGridHTML) {
+      const sg = document.getElementById('strategy-grid');
+      if (sg) sg.innerHTML = embedded.strategyGridHTML;
+    }
+    const ss = document.getElementById('strategy-section');
+    if (ss) ss.style.display = 'block';
+  }
 });
 
 // ── Color map ──
@@ -1915,42 +1952,17 @@ function buildClientHTML() {
   // Use the template captured at page load (before charts rendered) — avoids cloning live DOM
   const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
 
+  // Inject as a true global so the main script's let-scoped variables are accessible.
+  // A separate <script> tag cannot reassign `let` vars declared in another script tag.
+  const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
     #upload-screen, #github-modal,
     #btn-edit-recs, #btn-done-recs, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
   </style>`;
-  const autoloadScript = `
-<script>
-window.addEventListener('DOMContentLoaded', function() {
-  var embedded = ${dataJSON};
-  igPosts = embedded.igPosts.map(function(p){ return Object.assign({}, p, {date: p.date ? new Date(p.date) : null}); });
-  fbPosts = embedded.fbPosts.map(function(p){ return Object.assign({}, p, {date: p.date ? new Date(p.date) : null}); });
-  allPosts = igPosts.concat(fbPosts).sort(function(a,b){ return ((a.date&&a.date.getTime())||0) - ((b.date&&b.date.getTime())||0); });
-  var validDates = allPosts.filter(function(p){return p.date;}).map(function(p){return p.date.getTime();});
-  var minDate = new Date(Math.min.apply(null, validDates));
-  var maxDate = new Date(Math.max.apply(null, validDates));
-  var fmt2 = function(d){ return d.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}); };
-  document.getElementById('header-period').textContent = 'Social Media Performance · ' + fmt2(minDate) + ' – ' + fmt2(maxDate);
-  document.getElementById('header-badges').innerHTML =
-    '<span class="badge badge-ig"><span class="badge-dot"></span> Instagram · ' + igPosts.length + ' posts</span>' +
-    '<span class="badge badge-fb"><span class="badge-dot"></span> Facebook · ' + fbPosts.length + ' posts</span>';
-  document.getElementById('upload-screen').style.display = 'none';
-  document.getElementById('dashboard').style.display = 'block';
-  document.getElementById('footer').style.display = 'block';
-  currentFilter = 'all';
-  renderAll();
-  if (embedded.strategyGridHTML && document.getElementById('strategy-grid')) {
-    document.getElementById('strategy-grid').innerHTML = embedded.strategyGridHTML;
-  }
-  var ss = document.getElementById('strategy-section');
-  if (ss) ss.style.display = 'block';
-});
-<\/script>`;
   return currentHTML
-      .replace('</head>', clientStyles + '\n</head>')
-      .replace('</body>', autoloadScript + '\n</body>');
+      .replace('</head>', dataScript + '\n' + clientStyles + '\n</head>');
 }
 
 async function pushToGitHub() {
