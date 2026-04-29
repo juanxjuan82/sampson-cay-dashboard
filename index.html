@@ -224,6 +224,7 @@
     font-size: 12px; color: var(--text-muted); margin-bottom: 20px;
   }
   .chart-wrap { position: relative; }
+  .chart-note { font-size: 11px; color: var(--text-muted); line-height: 1.55; margin-top: 12px; }
 
   /* ── TOP POSTS TABLE ── */
   .table-wrap { overflow-x: auto; }
@@ -819,6 +820,7 @@
       <div class="chart-wrap" style="height:260px">
         <canvas id="chart-reach-time"></canvas>
       </div>
+      <div class="chart-note" id="reach-trend-note"></div>
     </div>
     <div class="chart-card col-4">
       <div class="chart-title">Content Mix</div>
@@ -827,6 +829,7 @@
         <canvas id="chart-mix"></canvas>
       </div>
       <div class="legend" id="legend-mix"></div>
+      <div class="chart-note" id="content-mix-note"></div>
     </div>
   </div>
 
@@ -838,6 +841,7 @@
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-type"></canvas>
       </div>
+      <div class="chart-note" id="eng-type-note"></div>
     </div>
     <div class="chart-card col-6">
       <div class="chart-title">Avg Organic Reach by Post Type</div>
@@ -845,6 +849,7 @@
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-reach-type"></canvas>
       </div>
+      <div class="chart-note" id="reach-type-note"></div>
     </div>
   </div>
 
@@ -856,6 +861,7 @@
       <div class="chart-wrap" style="height:260px">
         <canvas id="chart-boost-reach"></canvas>
       </div>
+      <div class="chart-note" id="boost-reach-note"></div>
     </div>
   </div>
 
@@ -867,11 +873,13 @@
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-follows-type"></canvas>
       </div>
+      <div class="chart-note" id="follows-type-note"></div>
     </div>
     <div class="chart-card col-7">
       <div class="chart-title">Top Posts for Follower Acquisition</div>
       <div class="chart-sub">Top 10 Instagram posts ranked by follows gained — direct links to source</div>
       <div id="follows-top-posts" style="margin-top:4px"></div>
+      <div class="chart-note" id="follows-top-note"></div>
     </div>
   </div>
 
@@ -883,6 +891,7 @@
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-breakdown"></canvas>
       </div>
+      <div class="chart-note" id="eng-breakdown-note"></div>
     </div>
   </div>
 
@@ -894,6 +903,7 @@
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-saves-type"></canvas>
       </div>
+      <div class="chart-note" id="saves-type-note"></div>
     </div>
     <div class="chart-card col-4">
       <div class="chart-title">Avg Shares by Post Type</div>
@@ -901,6 +911,7 @@
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-shares-type"></canvas>
       </div>
+      <div class="chart-note" id="shares-type-note"></div>
     </div>
     <div class="chart-card col-4">
       <div class="chart-title">Avg Comments by Post Type</div>
@@ -908,6 +919,7 @@
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-comments-type"></canvas>
       </div>
+      <div class="chart-note" id="comments-type-note"></div>
     </div>
   </div>
 
@@ -941,7 +953,7 @@
     <!-- CONTENT CALENDAR -->
     <div>
       <div class="section-header" style="margin-bottom:4px">📅 Content Roadmap</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">High-level client view of what goes out, roughly when it happens, and what role it plays</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">High-level view of what goes out, roughly when it happens, and what role it plays</div>
       <div id="content-calendar"></div>
     </div>
   </div>
@@ -1571,6 +1583,155 @@ function isLikelyBoostedPost(p) {
   return p.reach > (p.platform === 'ig' ? igMedian : fbMedian) * 4;
 }
 
+function setChartNote(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text || '';
+}
+
+function average(values) {
+  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+}
+
+function groupAveragesByType(posts, valueFn, minimumValue = null) {
+  const byType = {};
+  posts.forEach(p => {
+    const value = valueFn(p);
+    if (minimumValue !== null && value <= minimumValue) return;
+    if (!byType[p.type]) byType[p.type] = [];
+    byType[p.type].push(value);
+  });
+  return Object.entries(byType).map(([type, values]) => ({
+    type,
+    avg: average(values),
+    count: values.length,
+    total: values.reduce((a, b) => a + b, 0),
+  })).sort((a, b) => b.avg - a.avg);
+}
+
+function renderInterpretationNotes(posts, organicPosts) {
+  const weeklyMap = {};
+  posts.forEach(p => {
+    if (!p.date) return;
+    const d = new Date(p.date);
+    d.setDate(d.getDate() - d.getDay());
+    const key = d.toISOString().split('T')[0];
+    if (!weeklyMap[key]) weeklyMap[key] = { ig: 0, fb: 0, posts: 0, boostedPosts: 0, boostedReach: 0 };
+    weeklyMap[key][p.platform] += p.reach || 0;
+    weeklyMap[key].posts += 1;
+    if (isLikelyBoostedPost(p)) {
+      weeklyMap[key].boostedPosts += 1;
+      weeklyMap[key].boostedReach += p.reach || 0;
+    }
+  });
+  const weeklyRows = Object.keys(weeklyMap).sort().map(week => ({
+    week,
+    total: weeklyMap[week].ig + weeklyMap[week].fb,
+    ...weeklyMap[week],
+  }));
+  if (weeklyRows.length) {
+    const avgWeek = average(weeklyRows.map(r => r.total).filter(v => v > 0));
+    const peakWeek = [...weeklyRows].sort((a, b) => b.total - a.total)[0];
+    const lowWeeks = weeklyRows.filter(r => r.total < avgWeek * 0.45);
+    const peakLabel = new Date(peakWeek.week).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    const dominantPlatform = peakWeek.fb >= peakWeek.ig ? 'Facebook' : 'Instagram';
+    const peakBoostShare = peakWeek.total > 0 ? peakWeek.boostedReach / peakWeek.total : 0;
+    let note = `Reach peaks in the week of ${peakLabel}, driven mainly by ${dominantPlatform}. `;
+    if (peakWeek.boostedPosts > 0 && peakBoostShare >= 0.25) {
+      note += `${peakWeek.boostedPosts} post${peakWeek.boostedPosts !== 1 ? 's' : ''} that week show reach consistent with paid amplification, so the spike sits above the usual organic baseline. `;
+    } else {
+      note += `That high point appears to come from stronger post performance rather than a broad sustained lift across the full period. `;
+    }
+    if (lowWeeks.length >= 2) {
+      const lightWeeks = lowWeeks.filter(r => r.posts <= 3).length;
+      note += `Lower-reach stretches tend to coincide with a more normal organic baseline`;
+      if (lightWeeks) note += ` and ${lightWeeks} week${lightWeeks !== 1 ? 's' : ''} with three or fewer posts`;
+      note += `. Going forward, interpret dips alongside posting volume before reading them as a collapse in audience demand.`;
+    } else {
+      note += `Outside the peak week, reach returns closer to the account's normal weekly baseline.`;
+    }
+    setChartNote('reach-trend-note', note);
+  }
+
+  const mixCounts = Object.entries(posts.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + 1; return acc; }, {}))
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
+  if (mixCounts.length) {
+    const lead = mixCounts[0];
+    const share = Math.round((lead.count / posts.length) * 100);
+    const note = `${lead.type} makes up the largest share of output at ${share}% of posts. This chart is best read as a volume snapshot, not a performance verdict: use it to spot over-reliance on one format or to confirm whether the content mix matches the strategy you want to execute going forward.`;
+    setChartNote('content-mix-note', note);
+  }
+
+  const engTypes = groupAveragesByType(organicPosts, p => p.reach > 0 ? p.engRate : 0, 0);
+  if (engTypes.length) {
+    const top = engTypes[0];
+    const runner = engTypes[1];
+    let note = `${top.type} leads on organic engagement at ${top.avg.toFixed(2)}% across ${top.count} post${top.count !== 1 ? 's' : ''}. `;
+    if (runner) note += `${runner.type} is the next closest organic engagement performer, so the takeaway is to prioritise formats that reliably earn interaction without relying on paid reach.`;
+    else note += `Treat this as an early signal rather than a final rule if the sample is still small.`;
+    setChartNote('eng-type-note', note);
+  }
+
+  const reachTypes = groupAveragesByType(organicPosts, p => p.reach || 0, 0);
+  if (reachTypes.length) {
+    const top = reachTypes[0];
+    let note = `${top.type} delivers the strongest average organic reach at ${Math.round(top.avg).toLocaleString()} per post. `;
+    note += `Because this view excludes likely boosted posts, it is the best guide to which formats naturally travel farthest before paid support is added.`;
+    setChartNote('reach-type-note', note);
+  }
+
+  const boosted = posts.filter(p => p.reach > 0 && isLikelyBoostedPost(p));
+  if (boosted.length) {
+    const boostTypes = groupAveragesByType(boosted, p => p.reach || 0, 0);
+    const top = boostTypes[0];
+    setChartNote('boost-reach-note', `${top.type} has the highest average reach among likely boosted posts at ${Math.round(top.avg).toLocaleString()}. Use this chart to understand what paid distribution has amplified most effectively, but keep it separate from organic format decisions.`);
+  } else {
+    setChartNote('boost-reach-note', "No posts in this dataset cross the dashboard's likely-boosted threshold, so paid amplification is not a major explanatory factor in this period.");
+  }
+
+  const igWithFollows = posts.filter(p => p.platform === 'ig' && (p.follows || 0) > 0);
+  const followTypes = groupAveragesByType(posts.filter(p => p.platform === 'ig'), p => p.follows || 0, -1);
+  if (followTypes.length && igWithFollows.length) {
+    const top = followTypes[0];
+    setChartNote('follows-type-note', `${top.type} contributes the strongest follower growth on average at ${top.avg.toFixed(1)} follows per post. Treat this as an acquisition signal rather than an engagement signal: formats that attract follows are the best candidates for top-of-funnel visibility content.`);
+  } else {
+    setChartNote('follows-type-note', 'Follower-gain data is limited in this export, so use this chart cautiously until more posts with tracked follows are available.');
+  }
+
+  if (igWithFollows.length) {
+    const topPosts = [...igWithFollows].sort((a, b) => (b.follows || 0) - (a.follows || 0)).slice(0, 10);
+    const avgTopFollows = average(topPosts.map(p => p.follows || 0));
+    const dominantType = Object.entries(topPosts.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1])[0][0];
+    setChartNote('follows-top-note', `Follower acquisition is concentrated in a small set of posts, with ${dominantType} appearing most often in the top group and the top 10 averaging ${avgTopFollows.toFixed(1)} follows each. The practical takeaway is to study these posts for repeatable hooks, not to assume every post should chase the same creative treatment.`);
+  } else {
+    setChartNote('follows-top-note', 'This list becomes more useful once the export includes more posts with measurable follower gains.');
+  }
+
+  const interactionTotals = {
+    likes: average(posts.map(p => p.likes || p.reactions || 0)),
+    comments: average(posts.map(p => p.comments || 0)),
+    shares: average(posts.map(p => p.shares || 0)),
+    saves: average(posts.map(p => p.saves || 0)),
+    follows: average(posts.map(p => p.follows || 0)),
+  };
+  const sortedInteraction = Object.entries(interactionTotals).sort((a, b) => b[1] - a[1]);
+  if (sortedInteraction.length) {
+    const [topMetric, topValue] = sortedInteraction[0];
+    setChartNote('eng-breakdown-note', `${topMetric.charAt(0).toUpperCase() + topMetric.slice(1)} are the most common interaction outcome on average at ${topValue.toFixed(1)} per post. Read this breakdown as a quality-of-response view: it helps distinguish formats that spark conversation, sharing, saving, or follower conversion, not just total interaction volume.`);
+  }
+
+  const metricNotes = [
+    ['saves-type-note', groupAveragesByType(posts, p => p.saves || 0, -1), 'saves', 'formats people want to revisit or keep for reference'],
+    ['shares-type-note', groupAveragesByType(posts, p => p.shares || 0, -1), 'shares', 'formats most likely to travel beyond the immediate audience'],
+    ['comments-type-note', groupAveragesByType(posts, p => p.comments || 0, -1), 'comments', 'formats most likely to generate conversation or response'],
+  ];
+  metricNotes.forEach(([id, rows, label, meaning]) => {
+    if (!rows.length) return;
+    const top = rows[0];
+    setChartNote(id, `${top.type} leads on average ${label} at ${top.avg.toFixed(1)} per post. This is the best place to identify ${meaning}; going forward, use the strongest format here when the objective is depth of response rather than raw reach.`);
+  });
+}
+
 function renderAll() {
   const posts = filtered();
   const organicPosts = posts.filter(p => !isLikelyBoostedPost(p));
@@ -1586,6 +1747,7 @@ function renderAll() {
   renderSavesByType(posts);
   renderSharesByType(posts);
   renderCommentsByType(posts);
+  renderInterpretationNotes(posts, organicPosts);
   renderTopPosts(posts);
   renderExecSummary();
   renderStrategy();
@@ -2583,57 +2745,82 @@ function escapeHTML(str) {
     .replace(/'/g, '&#39;');
 }
 
+function stripDocEmoji(str) {
+  return String(str)
+    .replace(/[🌀-🫿☀-➿]/gu, '')
+    .replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function cleanDocHTML(html) {
+  return String(html)
+    .replace(/[🌀-🫿☀-➿]/gu, '')
+    .replace(/<br\s*\/?>(\s*<br\s*\/?>)+/gi, '<br>');
+}
+
 function buildStrategyDocExport() {
   const execSummary = document.getElementById('exec-summary-body');
   const calendar = document.getElementById('content-calendar');
-  const title = normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Strategic Performance Review');
-  const meta = normalizeCopyText(document.getElementById('exec-summary-meta')?.innerText || '');
+  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Strategic Performance Review'));
+  const meta = stripDocEmoji(normalizeCopyText(document.getElementById('exec-summary-meta')?.innerText || ''));
 
   const summaryHTML = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => {
-    const label = block.querySelector('.exec-block-label')?.innerText?.trim() || '';
+    const label = stripDocEmoji(block.querySelector('.exec-block-label')?.innerText?.trim() || '');
     const actions = block.querySelectorAll('.exec-action');
     if (actions.length) {
       const items = Array.from(actions).map(action => {
-        const body = action.querySelector('.editable-field, span:last-child')?.innerHTML?.trim() || action.innerHTML;
-        return '<li style="margin:0 0 10px 0; line-height:1.6;">' + body + '</li>';
+        const body = cleanDocHTML(action.querySelector('.editable-field, span:last-child')?.innerHTML?.trim() || action.innerHTML);
+        return '<li style="margin:0 0 8px 0; line-height:1.55;">' + body + '</li>';
       }).join('');
-      return '<section style="margin:0 0 24px 0;">'
-        + '<h2 style="font-size:14px; line-height:1.3; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:.06em; color:#0d5a6c;">' + escapeHTML(label) + '</h2>'
+      return '<section style="margin:0 0 22px 0;">'
+        + '<h2 style="font-size:15px; line-height:1.35; margin:0 0 10px 0; font-weight:700; color:#111111;">' + escapeHTML(label) + '</h2>'
         + '<ol style="margin:0; padding-left:20px;">' + items + '</ol>'
         + '</section>';
     }
 
-    const body = block.querySelector('.exec-block-body')?.innerHTML?.trim() || '';
-    return '<section style="margin:0 0 24px 0;">'
-      + '<h2 style="font-size:14px; line-height:1.3; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:.06em; color:#0d5a6c;">' + escapeHTML(label) + '</h2>'
-      + '<div style="font-size:12px; line-height:1.7; color:#1a202c;">' + body + '</div>'
+    const body = cleanDocHTML(block.querySelector('.exec-block-body')?.innerHTML?.trim() || '');
+    return '<section style="margin:0 0 22px 0;">'
+      + '<h2 style="font-size:15px; line-height:1.35; margin:0 0 10px 0; font-weight:700; color:#111111;">' + escapeHTML(label) + '</h2>'
+      + '<div style="font-size:12px; line-height:1.65; color:#111111;">' + body + '</div>'
       + '</section>';
   }).join('');
 
-  const roadmapHTML = Array.from(calendar.querySelectorAll('.cal-week')).map(card => {
-    const timing = card.querySelector('.cal-week-header span')?.innerText?.trim() || '';
-    const sections = Array.from(card.querySelectorAll('.cal-slot')).map(slot => {
-      const label = slot.querySelector('.cal-slot-num')?.innerText?.trim() || '';
-      const value = slot.querySelector('.editable-field, .cal-slot-detail, .cal-slot-theme')?.innerHTML?.trim() || '';
-      return '<p style="margin:0 0 8px 0; font-size:12px; line-height:1.65;"><strong>' + escapeHTML(label) + ':</strong> ' + value + '</p>';
-    }).join('');
-    return '<div style="margin:0 0 16px 0; padding:14px 16px; border:1px solid #dde6e8; border-radius:10px;">'
-      + '<h3 style="margin:0 0 10px 0; font-size:14px; color:#0d5a6c;">' + escapeHTML(timing) + '</h3>'
-      + sections
-      + '</div>';
+  const roadmapRows = Array.from(calendar.querySelectorAll('.cal-week')).map(card => {
+    const timing = stripDocEmoji(card.querySelector('.cal-week-header span')?.innerText?.trim() || '');
+    const slots = Array.from(card.querySelectorAll('.cal-slot'));
+    const focus = cleanDocHTML(slots[0]?.querySelector('.editable-field, .cal-slot-theme, .cal-slot-detail')?.innerHTML?.trim() || '');
+    const role = cleanDocHTML(slots[1]?.querySelector('.editable-field, .cal-slot-theme, .cal-slot-detail')?.innerHTML?.trim() || '');
+    const execution = cleanDocHTML(slots[2]?.querySelector('.editable-field, .cal-slot-theme, .cal-slot-detail')?.innerHTML?.trim() || '');
+    return '<tr>'
+      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px; font-weight:700;">' + escapeHTML(timing) + '</td>'
+      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px;">' + focus + '</td>'
+      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px;">' + role + '</td>'
+      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px;">' + execution + '</td>'
+      + '</tr>';
   }).join('');
 
-  const plainSummary = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => normalizeCopyText(block.innerText)).filter(Boolean);
-  const plainRoadmap = Array.from(calendar.querySelectorAll('.cal-week')).map(block => normalizeCopyText(block.innerText)).filter(Boolean);
+  const roadmapHTML = '<table style="border-collapse:collapse; width:100%; margin-top:8px;">'
+    + '<thead><tr>'
+    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Timing</th>'
+    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Content Focus</th>'
+    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Strategic Role</th>'
+    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Likely Execution</th>'
+    + '</tr></thead>'
+    + '<tbody>' + roadmapRows + '</tbody>'
+    + '</table>';
+
+  const plainSummary = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
+  const plainRoadmap = Array.from(calendar.querySelectorAll('.cal-week')).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
 
   const plainText = [title, meta, '', ...plainSummary, '', 'Content Roadmap', ...plainRoadmap].join('\n\n');
 
-  const richHTML = '<div style="font-family:Arial, Helvetica, sans-serif; color:#1a202c;">'
-    + '<h1 style="font-size:22px; margin:0 0 6px 0; color:#0d5a6c;">' + escapeHTML(title) + '</h1>'
-    + (meta ? '<p style="margin:0 0 22px 0; font-size:12px; color:#707373;">' + escapeHTML(meta) + '</p>' : '')
+  const richHTML = '<div style="font-family:Arial, Helvetica, sans-serif; color:#111111;">'
+    + '<h1 style="font-size:20px; margin:0 0 8px 0; font-weight:700; color:#111111;">' + escapeHTML(title) + '</h1>'
+    + (meta ? '<p style="margin:0 0 20px 0; font-size:11px; color:#111111;">' + escapeHTML(meta) + '</p>' : '')
     + summaryHTML
-    + '<section style="margin-top:28px;">'
-    + '<h2 style="font-size:16px; margin:0 0 12px 0; color:#0d5a6c;">Content Roadmap</h2>'
+    + '<section style="margin-top:24px;">'
+    + '<h2 style="font-size:16px; margin:0 0 12px 0; font-weight:700; color:#111111;">Content Roadmap</h2>'
     + roadmapHTML
     + '</section>'
     + '</div>';
