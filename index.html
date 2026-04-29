@@ -759,7 +759,7 @@
     <div class="exec-summary-card">
       <div class="exec-summary-header">
         <div>
-          <div class="exec-summary-title">Strategic Performance Review — Sampson Cay Project</div>
+          <div class="exec-summary-title">Strategic Performance Review: Sampson Cay Project</div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
@@ -1014,6 +1014,7 @@ let embeddedData = null;
 let tableSortKey = 'engRate';
 let tableSortDir = 'desc';
 let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
+let sharedEditableContent = { execSummaryHTML: '', calendarHTML: '' };
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1263,6 +1264,7 @@ function filtered() {
 }
 
 function setFilter(f, el) {
+  captureSharedEditableContent();
   currentFilter = f;
   document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
@@ -1751,6 +1753,7 @@ function renderAll() {
   renderTopPosts(posts);
   renderExecSummary();
   renderStrategy();
+  restoreSharedEditableContent();
   renderAnalystNotes(posts);
 }
 
@@ -2503,13 +2506,6 @@ function renderExecSummary() {
   const igOrgER = avg(igOrganic.map(p=>p.engRate));
   const fbOrgER = avg(fbOrganic.map(p=>p.engRate));
 
-  // Industry benchmarks (real estate / development accounts, Meta platforms)
-  const IG_BENCH = 1.2, FB_BENCH = 0.6;
-  const igVsBench = igOrgER > 0 ? (igOrgER >= IG_BENCH ? 'above' : 'below') : null;
-  const fbVsBench = fbOrgER > 0 ? (fbOrgER >= FB_BENCH ? 'above' : 'below') : null;
-  const igDiff = igOrgER > 0 ? Math.abs(igOrgER - IG_BENCH).toFixed(2) : null;
-  const fbDiff = fbOrgER > 0 ? Math.abs(fbOrgER - FB_BENCH).toFixed(2) : null;
-
   // ── Top formats ──
   const orgByType = {};
   organicPosts.filter(p=>p.reach>0).forEach(p => {
@@ -2567,18 +2563,13 @@ function renderExecSummary() {
     ? ` ${boostedPosts.length} of ${totalPosts} posts show reach consistent with paid promotion; organic figures used throughout unless stated.`
     : '';
 
-  // Helper: benchmark badge
-  const bench = (val, ref, unit='%') => val > 0
-    ? `<span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;background:${val>=ref?'#dcfce7':'#fef9c3'};color:${val>=ref?'#15803d':'#a16207'}">${val>=ref?'▲':'▼'} ${val>=ref?'above':'below'} benchmark</span>`
-    : '';
-
   el.innerHTML = `
     <div class="exec-block">
-      <div class="exec-block-label">Performance &amp; Benchmarks</div>
-      <div class="exec-block-body editable-field" contenteditable="false">The account generated <strong>${fmt(totalReach)} total reach</strong> across <strong>${totalPosts} posts</strong> over the period, with <strong>${fmt(totalFollows)} new followers</strong> gained on Instagram and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' link clicks' : 'no link click data recorded'}</strong> on Facebook.${boostNote} Organically, posts averaged <strong>${fmt(avgOrgReach)} reach</strong>${avgBoostReach ? ` — rising to <strong>${fmt(avgBoostReach)}</strong> when boosted` : ''}.
-      ${igOrgER > 0 ? `Instagram organic engagement rate of <strong>${fmtPct(igOrgER)}</strong> sits <strong>${igVsBench} the ${IG_BENCH}% industry benchmark</strong> for real estate and development accounts by ${igDiff}pp.` : ''}
-      ${fbOrgER > 0 ? `Facebook organic ER of <strong>${fmtPct(fbOrgER)}</strong> is <strong>${fbVsBench} the ${FB_BENCH}% benchmark</strong> for pages in this category by ${fbDiff}pp.` : ''}
-      For context, cause and advocacy accounts in the same space typically run 3–5% ER on the strength of an activated, self-selected audience.</div>
+      <div class="exec-block-label">Performance Overview</div>
+      <div class="exec-block-body editable-field" contenteditable="false">The account generated <strong>${fmt(totalReach)} total reach</strong> across <strong>${totalPosts} posts</strong> over the period, with <strong>${fmt(totalFollows)} new followers</strong> gained on Instagram and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' link clicks' : 'no link click data recorded'}</strong> on Facebook.${boostNote} Organically, posts averaged <strong>${fmt(avgOrgReach)} reach</strong>${avgBoostReach ? `, rising to <strong>${fmt(avgBoostReach)}</strong> when boosted` : ''}.
+      ${igOrgER > 0 ? `Instagram organic engagement rate averaged <strong>${fmtPct(igOrgER)}</strong>, which gives us a useful internal baseline for future content decisions.` : ''}
+      ${fbOrgER > 0 ? `Facebook organic engagement rate averaged <strong>${fmtPct(fbOrgER)}</strong>, which is best read as a directional baseline for this page.` : ''}
+      The clearest value here is trend tracking over time and by format, especially as site-related communications shift from approvals into visible activity.</div>
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
@@ -2588,7 +2579,7 @@ function renderExecSummary() {
         <div style="display:flex;flex-direction:column;gap:6px">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#15803d">What's driving growth</div>
           <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">
-            ${topER ? `<strong>${topER[0]}</strong> leads on organic engagement at <strong>${fmtPct(avg(topER[1].er))}</strong> — this is your highest-quality content signal.` : ''}
+            ${topER ? `<strong>${topER[0]}</strong> leads on organic engagement at <strong>${fmtPct(avg(topER[1].er))}</strong>. This is your strongest signal of what audiences respond to most actively.` : ''}
             ${topFollows ? ` <strong>${topFollows[0]}</strong> is the strongest follower acquisition format, averaging <strong>${avg(topFollows[1].follows).toFixed(1)} follows per post</strong>.` : ''}
             ${topReach && topReach[0] !== topFollows?.[0] ? ` <strong>${topReach[0]}</strong> generates the widest organic reach at <strong>${fmt(Math.round(avg(topReach[1].reach)))}</strong> avg per post.` : ''}
             ${totalLinkClicks > 0 ? ` Link clicks — the key conversion metric for the jobs content — are present in the dataset at <strong>${fmt(totalLinkClicks)} total</strong>.` : ''}
@@ -2597,7 +2588,7 @@ function renderExecSummary() {
 
         <div style="display:flex;flex-direction:column;gap:6px">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">What's working against it</div>
-          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">At <strong>${postsPerWeek} posts per week</strong>, the account is below the threshold for meaningful organic follower growth — two posts per week maintains visibility but does not compound. Organic reach is naturally capped for an account this size without paid amplification. ${boostedPosts.length ? `Boosting has extended reach on ${boostedPosts.length} posts but masks true organic performance in aggregate data.` : ''} Externally, the Save Exuma Alliance campaign has secured high-profile endorsements including Rafael Nadal (21M followers), significantly amplifying opposition reach in the same period.</div>
+          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">At <strong>${postsPerWeek} posts per week</strong>, the account is below the threshold for meaningful organic follower growth. Two posts per week maintains visibility but does not compound. Organic reach is naturally capped for an account this size without paid amplification. ${boostedPosts.length ? `Boosting has extended reach on ${boostedPosts.length} posts but masks true organic performance in aggregate data.` : ''} Externally, the Save Exuma Alliance campaign has secured high-profile endorsements including Rafael Nadal (21M followers), significantly amplifying opposition reach in the same period.</div>
         </div>
 
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
@@ -2608,19 +2599,19 @@ function renderExecSummary() {
 
             <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #0d5a6c;border-radius:0 6px 6px 0">
               <div style="font-size:12px;font-weight:700;margin-bottom:5px">🏗️ Site Activity</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">On-site progress content is the account's strongest organic performer${siteOrgER > 0 ? ` at <strong>${fmtPct(siteOrgER)} organic ER</strong>` : ''} and drives the most follower gains${siteFollows > 0 ? ` (${fmt(siteFollows)} total in period)` : ''}. With site activity now ramping up, the immediate job is to publish a clear overview of what is happening on site, what the milestones are, and what safeguards are in place before Turtlegrass or other critics fill that vacuum themselves. As fresh footage comes in, visible ground-level progress — machinery, crew, milestones, and approved site access — should become the anchor of every week's posting schedule, supported by recurring capture from the team and Paul Turnquest's return visits every 2–3 weeks.</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">Historically, approvals and project-readiness content is the account's strongest organic performer${siteOrgER > 0 ? ` at <strong>${fmtPct(siteOrgER)} organic ER</strong>` : ''} and drives the most follower gains${siteFollows > 0 ? ` (${fmt(siteFollows)} total in period)` : ''}. Because on-site activity and construction are still ahead, the immediate job is to publish a clear overview of what is about to happen, what the milestones are, and what safeguards are in place before Turtlegrass or other critics fill that vacuum themselves. As regular updated footage starts to come in, the content mix should shift from approvals into visible site activity, anchored by clear milestone updates and approved access footage.</div>
               ${postLink(siteExample)}
             </div>
 
             <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #1d7a90;border-radius:0 6px 6px 0">
               <div style="font-size:12px;font-weight:700;margin-bottom:5px">💼 Job Creation</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${jobsPosts.length ? `Employment content averaged <strong>${fmt(jobsAvgReach)} reach</strong> and <strong>${fmtPct(jobsAvgER)} engagement</strong>${jobsLinkClicks > 0 ? `, generating <strong>${fmt(jobsLinkClicks)} link clicks</strong>` : ''}. The link click metric — not ER — is the correct measure of success for this content type; it represents real downstream intent.` : 'Employment content is underrepresented in the current dataset.'} In roughly four weeks, site activity is expected to require hiring, so the jobs announcement should already be treated as a planned campaign beat for the end of May. Lead with the number ("500+ jobs. Starting in Exuma."), use Facebook for the stat-forward post and Instagram for the follow-up carousel, and frame the hiring message as concrete local economic evidence rather than a general brand post.</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${jobsPosts.length ? `Employment content averaged <strong>${fmt(jobsAvgReach)} reach</strong> and <strong>${fmtPct(jobsAvgER)} engagement</strong>${jobsLinkClicks > 0 ? `, generating <strong>${fmt(jobsLinkClicks)} link clicks</strong>` : ''}. The link click metric, not ER, is the correct measure of success for this content type because it represents real downstream intent.` : 'Employment content is underrepresented in the current dataset.'} In roughly four weeks, site activity is expected to require hiring, so the jobs announcement should already be treated as a planned campaign beat for the end of May. Lead with the number ("500+ jobs. Starting in Exuma.") and frame the hiring message as concrete local economic evidence rather than a general brand post. Because Facebook and Instagram are cross-posted with the same asset, the creative should work as one unified post across both channels.</div>
               ${postLink(jobsExample)}
             </div>
 
             <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #4ea3b8;border-radius:0 6px 6px 0">
               <div style="font-size:12px;font-weight:700;margin-bottom:5px">🤝 Environmental &amp; Third-Party Credibility</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${partnerPosts.length ? `Partnership content generated <strong>${fmt(partnerSaves)} saves</strong>${partnerOrgER > 0 ? ` and <strong>${fmtPct(partnerOrgER)} organic ER</strong>` : ''} — the save rate signals this content is being bookmarked for reference, not just passively consumed.` : 'Partnership content is present but underperforming its potential.'} In the coming weeks, this credibility layer should expand beyond standard partner content: if BRON provides technical video or voiceovers, use them to explain what is happening on site, what environmental regulation applies, and what mitigation steps are being followed. Sponsorships should also be treated as proof-of-presence content — not filler — because they reinforce local ties and give the account more third-party credibility in the same period.</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${partnerPosts.length ? `Partnership content generated <strong>${fmt(partnerSaves)} saves</strong>${partnerOrgER > 0 ? ` and <strong>${fmtPct(partnerOrgER)} organic ER</strong>` : ''}. The save rate signals this content is being bookmarked for reference, not just passively consumed.` : 'Partnership content is present but underperforming its potential.'} In the coming weeks, this credibility layer should expand beyond standard partner content. If BRON or ESS provides technical video, voiceovers, or expert framing, use it to explain what is happening on site, what environmental regulation applies, and what mitigation steps are being followed. ESS content led by Valin Bodie has already performed well, so that voice should be treated as a proven credibility asset. Sponsorships should also be treated as proof-of-presence content because they reinforce local ties and give the account more third-party credibility in the same period.</div>
               ${postLink(partnerExample)}
             </div>
 
@@ -2634,9 +2625,9 @@ function renderExecSummary() {
       <div class="exec-block-label">Priority Actions — Next 6 Weeks</div>
       <div class="exec-actions">
         <div class="exec-action"><span class="exec-action-num">1</span><span class="editable-field" contenteditable="false"><strong>Publish the on-site overview before others define the story.</strong> As soon as the project team has the approved outline of on-site activities, turn it into a clear explainer covering what will happen, what the milestones are, and what viewers should expect to see. The goal is to fill the information vacuum before Turtlegrass uses visible activity to imply something improper is happening.</span></div>
-        <div class="exec-action"><span class="exec-action-num">2</span><span class="editable-field" contenteditable="false"><strong>Build a repeatable footage pipeline now.</strong> Once on-site footage starts arriving, review it quickly with Alice and turn it into a recurring content series rather than one-off posts. Plan for project footage, drone footage where approved, and fresh Paul Turnquest capture every 2–3 weeks so the account consistently shows controlled, current site progress.</span></div>
-        <div class="exec-action"><span class="exec-action-num">3</span><span class="editable-field" contenteditable="false"><strong>Stage the jobs announcement for the end of May.</strong> Hiring tied to on-site activity is expected in roughly four weeks, so the creative, copy, and calendar placement should be prepared now. Run the hiring message as a dedicated campaign beat: Facebook stat graphic first, Instagram carousel second, with link clicks as the primary KPI.</span></div>
-        <div class="exec-action"><span class="exec-action-num">4</span><span class="editable-field" contenteditable="false"><strong>Use BRON and other technical voices as credibility assets the moment they are available.</strong> If BRON provides video or voiceover support, package it as plain-language explainers on environmental regulation, mitigation, and what is actually happening on site. This is stronger than reactive rebuttal because it lets third-party expertise carry the message.</span></div>
+        <div class="exec-action"><span class="exec-action-num">2</span><span class="editable-field" contenteditable="false"><strong>Build a repeatable footage pipeline now.</strong> Once on-site footage starts arriving, review it quickly with Alice and turn it into a recurring content series rather than one-off posts. Plan for project footage, drone footage where approved, and regular updated footage so the account consistently shows controlled, current site activity.</span></div>
+        <div class="exec-action"><span class="exec-action-num">3</span><span class="editable-field" contenteditable="false"><strong>Stage the jobs announcement for the end of May.</strong> Hiring tied to on-site activity is expected in roughly four weeks, so the creative, copy, and calendar placement should be prepared now. Run the hiring message as a dedicated campaign beat with one cross-posted creative across Facebook and Instagram, and use link clicks as the primary KPI.</span></div>
+        <div class="exec-action"><span class="exec-action-num">4</span><span class="editable-field" contenteditable="false"><strong>Use BRON or ESS as credibility assets the moment they are available.</strong> If BRON or ESS provides video, voiceover support, or expert framing, package it as plain-language explainers on environmental regulation, mitigation, and what is actually happening on site. This is stronger than reactive rebuttal because it lets third-party expertise carry the message.</span></div>
         <div class="exec-action"><span class="exec-action-num">5</span><span class="editable-field" contenteditable="false"><strong>Thread sponsorships and partnerships into the same narrative window.</strong> Upcoming sponsorships should not sit off to the side of the dashboard strategy. They should be scheduled as proof-of-community-presence moments that sit alongside site activity and environmental content, reinforcing local ties while the project enters a more visible phase.</span></div>
       </div>
     </div>
@@ -2648,6 +2639,20 @@ function renderStrategy() {
   if (allPosts.length === 0) return;
   document.getElementById('strategy-section').style.display = 'block';
   renderCalendar();
+}
+
+function captureSharedEditableContent() {
+  const execSummary = document.getElementById('exec-summary-body');
+  if (execSummary && execSummary.innerHTML.trim()) sharedEditableContent.execSummaryHTML = execSummary.innerHTML;
+  const calendar = document.getElementById('content-calendar');
+  if (calendar && calendar.innerHTML.trim()) sharedEditableContent.calendarHTML = calendar.innerHTML;
+}
+
+function restoreSharedEditableContent() {
+  const execSummary = document.getElementById('exec-summary-body');
+  if (execSummary && sharedEditableContent.execSummaryHTML) execSummary.innerHTML = sharedEditableContent.execSummaryHTML;
+  const calendar = document.getElementById('content-calendar');
+  if (calendar && sharedEditableContent.calendarHTML) calendar.innerHTML = sharedEditableContent.calendarHTML;
 }
 
 // ── Content Calendar ──
@@ -2665,26 +2670,26 @@ function renderCalendar() {
     {
       timing: 'As footage lands',
       focus: 'Site progress and milestone updates',
-      purpose: 'Use approved footage to show visible proof of progress and keep the narrative grounded in what is actually happening on the ground.',
-      execution: 'Short progress-led updates built from approved footage, with follow-up explanation when a milestone or mitigation step needs context.',
+      purpose: 'Use approved footage to show visible site activity once it begins and keep the narrative grounded in what is actually happening on the ground.',
+      execution: 'Short site-activity updates built from approved footage, with follow-up explanation when a milestone or mitigation step needs context.',
     },
     {
       timing: 'End of May',
       focus: 'Job creation announcement',
       purpose: 'Connect site activity to local economic benefit and make the hiring story concrete, not abstract.',
-      execution: 'Facebook stat-led post first, Instagram carousel second, both centered on the 500+ jobs message and local impact.',
+      execution: 'One cross-posted creative centered on the 500+ jobs message and local impact, adapted only where platform formatting requires it.',
     },
     {
       timing: 'Coming weeks',
       focus: 'Environmental and technical credibility',
       purpose: 'Use third-party expertise to reduce ambiguity and strengthen trust as site activity becomes more visible.',
-      execution: 'BRON explainers or voiceovers translated into plain-language content on regulation, mitigation, and what is happening on site.',
+      execution: 'BRON or ESS explainers, voiceovers, or expert framing translated into plain-language content on regulation, mitigation, and what is happening on site.',
     },
     {
       timing: 'Ongoing',
       focus: 'Community presence and sponsorships',
       purpose: 'Reinforce local ties between major project updates and keep the account visibly active in the community.',
-      execution: 'Sponsorship moments, partnership updates, and fresh Paul Turnquest capture every 2–3 weeks to maintain current proof points.',
+      execution: 'Sponsorship moments, partnership updates, and regular updated footage to maintain current proof points.',
     },
   ];
 
@@ -2762,7 +2767,7 @@ function cleanDocHTML(html) {
 function buildStrategyDocExport() {
   const execSummary = document.getElementById('exec-summary-body');
   const calendar = document.getElementById('content-calendar');
-  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Strategic Performance Review'));
+  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Strategic Performance Review: Sampson Cay Project'));
   const meta = stripDocEmoji(normalizeCopyText(document.getElementById('exec-summary-meta')?.innerText || ''));
 
   const summaryHTML = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => {
