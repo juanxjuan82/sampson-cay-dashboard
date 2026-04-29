@@ -761,7 +761,8 @@
           <div class="exec-summary-title">Strategic Performance Review — Sampson Cay Project</div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
-        <div style="display:flex;gap:8px;flex-shrink:0">
+        <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn btn-sm btn-edit" id="btn-copy-doc" onclick="copyStrategyForDoc()">📋 Copy for Google Doc</button>
           <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
           <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done</button>
         </div>
@@ -832,15 +833,15 @@
   <!-- ROW 2: Engagement Rate by Post Type + Views by Type -->
   <div class="charts-grid">
     <div class="chart-card col-6">
-      <div class="chart-title">Avg Engagement Rate by Post Type</div>
-      <div class="chart-sub">IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
+      <div class="chart-title">Avg Organic Engagement Rate by Post Type</div>
+      <div class="chart-sub">Estimated unboosted posts only · IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-type"></canvas>
       </div>
     </div>
     <div class="chart-card col-6">
-      <div class="chart-title">Avg Reach by Post Type</div>
-      <div class="chart-sub">Average unique accounts reached per post</div>
+      <div class="chart-title">Avg Organic Reach by Post Type</div>
+      <div class="chart-sub">Estimated unboosted posts only · average unique accounts reached per post</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-reach-type"></canvas>
       </div>
@@ -874,25 +875,38 @@
     </div>
   </div>
 
-  <!-- ROW 5: Engagement Breakdown + Heatmap -->
+  <!-- ROW 5: Engagement Breakdown -->
   <div class="charts-grid">
-    <div class="chart-card col-7">
+    <div class="chart-card col-12">
       <div class="chart-title">Engagement Breakdown by Post Type</div>
       <div class="chart-sub">Avg interactions per post — what kind of engagement each format drives</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-breakdown"></canvas>
       </div>
     </div>
-    <div class="chart-card col-5">
-      <div class="chart-title">Best Time to Post</div>
-      <div class="chart-sub">Avg engagement rate by day &amp; time — darker = higher</div>
-      <div class="heatmap-wrap">
-        <div id="heatmap-grid"></div>
+  </div>
+
+  <!-- ROW 6: Saves, Shares, Comments by Post Type -->
+  <div class="charts-grid">
+    <div class="chart-card col-4">
+      <div class="chart-title">Avg Saves by Post Type</div>
+      <div class="chart-sub">Average saves per post by format</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="chart-saves-type"></canvas>
       </div>
-      <div class="heatmap-legend">
-        <span>Low</span>
-        <div class="heatmap-legend-bar"></div>
-        <span>High</span>
+    </div>
+    <div class="chart-card col-4">
+      <div class="chart-title">Avg Shares by Post Type</div>
+      <div class="chart-sub">Average shares per post by format</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="chart-shares-type"></canvas>
+      </div>
+    </div>
+    <div class="chart-card col-4">
+      <div class="chart-title">Avg Comments by Post Type</div>
+      <div class="chart-sub">Average comments per post by format</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="chart-comments-type"></canvas>
       </div>
     </div>
   </div>
@@ -926,8 +940,8 @@
   <div class="strategy-section" id="strategy-section" style="display:none">
     <!-- CONTENT CALENDAR -->
     <div>
-      <div class="section-header" style="margin-bottom:4px">📅 Content Calendar</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Recommended cadence · both platforms</div>
+      <div class="section-header" style="margin-bottom:4px">📅 Content Roadmap</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">High-level client view of what goes out, roughly when it happens, and what role it plays</div>
       <div id="content-calendar"></div>
     </div>
   </div>
@@ -1541,18 +1555,37 @@ function renderStrategyCompliance() {
     </div>`;
 }
 
+function isLikelyBoostedPost(p) {
+  const medianReach = platform => {
+    const reaches = (platform === 'ig' ? igPosts : fbPosts)
+      .filter(post => post.reach > 0)
+      .map(post => post.reach)
+      .sort((a, b) => a - b);
+    if (!reaches.length) return 0;
+    const mid = Math.floor(reaches.length / 2);
+    return reaches.length % 2 ? reaches[mid] : (reaches[mid - 1] + reaches[mid]) / 2;
+  };
+
+  const igMedian = medianReach('ig');
+  const fbMedian = medianReach('fb');
+  return p.reach > (p.platform === 'ig' ? igMedian : fbMedian) * 4;
+}
+
 function renderAll() {
   const posts = filtered();
+  const organicPosts = posts.filter(p => !isLikelyBoostedPost(p));
   renderKPIs(posts);
   renderInsights(posts);
   renderReachOverTime(posts);
   renderContentMix(posts);
-  renderEngByType(posts);
-  renderReachByType(posts);
+  renderEngByType(organicPosts);
+  renderReachByType(organicPosts);
   renderBoostReach(posts);
   renderFollows(posts);
   renderEngBreakdown(posts);
-  renderHeatmap(posts);
+  renderSavesByType(posts);
+  renderSharesByType(posts);
+  renderCommentsByType(posts);
   renderTopPosts(posts);
   renderExecSummary();
   renderStrategy();
@@ -1791,7 +1824,7 @@ function renderEngByType(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg Engagement Rate (%)',
+        label: 'Avg Organic Engagement Rate (%)',
         data: avgs,
         backgroundColor: colors,
         borderRadius: 6,
@@ -1805,7 +1838,7 @@ function renderEngByType(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmtPct(ctx.raw)} avg engagement rate`
+            label: ctx => ` ${fmtPct(ctx.raw)} avg organic engagement rate`
           }
         }
       },
@@ -1841,7 +1874,7 @@ function renderReachByType(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg Reach',
+        label: 'Avg Organic Reach',
         data: avgs,
         backgroundColor: colors.map(c => c + 'cc'),
         borderColor: colors,
@@ -1857,7 +1890,7 @@ function renderReachByType(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmt(ctx.raw)} avg reach per post`
+            label: ctx => ` ${fmt(ctx.raw)} avg organic reach per post`
           }
         }
       },
@@ -2077,6 +2110,70 @@ function renderEngBreakdown(posts) {
       }
     }
   });
+}
+
+
+function renderMetricByType(posts, metricKey, chartKey, canvasId, label, color) {
+  const byType = {};
+  posts.forEach(p => {
+    if (!byType[p.type]) byType[p.type] = [];
+    byType[p.type].push(p[metricKey] || 0);
+  });
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+  const types = Object.keys(byType).sort();
+  const avgs = types.map(t => parseFloat(avg(byType[t]).toFixed(2)));
+
+  destroyChart(chartKey);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+
+  charts[chartKey] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: types,
+      datasets: [{
+        label,
+        data: avgs,
+        backgroundColor: color + 'cc',
+        borderColor: color,
+        borderWidth: 1.5,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + ctx.raw.toFixed(1) + ' avg ' + label.toLowerCase() + ' · ' + (byType[types[ctx.dataIndex]]?.length || 0) + ' posts'
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 11 }, color: '#94a3b8' },
+          title: { display: true, text: 'Avg ' + label.toLowerCase() + ' per post', font: { size: 11 }, color: '#94a3b8' }
+        }
+      }
+    }
+  });
+}
+
+function renderSavesByType(posts) {
+  renderMetricByType(posts, 'saves', 'saves-type', 'chart-saves-type', 'Saves', '#f59e0b');
+}
+
+function renderSharesByType(posts) {
+  renderMetricByType(posts, 'shares', 'shares-type', 'chart-shares-type', 'Shares', '#10b981');
+}
+
+function renderCommentsByType(posts) {
+  renderMetricByType(posts, 'comments', 'comments-type', 'chart-comments-type', 'Comments', '#06b6d4');
 }
 
 // ── Best Time to Post Heatmap ──
@@ -2349,19 +2446,19 @@ function renderExecSummary() {
 
             <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #0d5a6c;border-radius:0 6px 6px 0">
               <div style="font-size:12px;font-weight:700;margin-bottom:5px">🏗️ Site Activity</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">On-site progress content is the account's strongest organic performer${siteOrgER > 0 ? ` at <strong>${fmtPct(siteOrgER)} organic ER</strong>` : ''} and drives the most follower gains${siteFollows > 0 ? ` (${fmt(siteFollows)} total in period)` : ''}. In the context of the current counter-narrative environment, visible ground-level progress — machinery, crew, milestones — is also the most credible counter to opposition claims. This content should be the consistent anchor of every week's posting schedule, prioritised above all other formats.</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">On-site progress content is the account's strongest organic performer${siteOrgER > 0 ? ` at <strong>${fmtPct(siteOrgER)} organic ER</strong>` : ''} and drives the most follower gains${siteFollows > 0 ? ` (${fmt(siteFollows)} total in period)` : ''}. With site activity now ramping up, the immediate job is to publish a clear overview of what is happening on site, what the milestones are, and what safeguards are in place before Turtlegrass or other critics fill that vacuum themselves. As fresh footage comes in, visible ground-level progress — machinery, crew, milestones, and approved site access — should become the anchor of every week's posting schedule, supported by recurring capture from the team and Paul Turnquest's return visits every 2–3 weeks.</div>
               ${postLink(siteExample)}
             </div>
 
             <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #1d7a90;border-radius:0 6px 6px 0">
               <div style="font-size:12px;font-weight:700;margin-bottom:5px">💼 Job Creation</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${jobsPosts.length ? `Employment content averaged <strong>${fmt(jobsAvgReach)} reach</strong> and <strong>${fmtPct(jobsAvgER)} engagement</strong>${jobsLinkClicks > 0 ? `, generating <strong>${fmt(jobsLinkClicks)} link clicks</strong>` : ''}. The link click metric — not ER — is the correct measure of success for this content type; it represents real downstream intent.` : 'Employment content is underrepresented in the current dataset.'} The upcoming job creation announcement is a high-value moment: lead with the number ("500+ jobs. Starting in Exuma."), not the narrative. Stat-forward graphics on FB, carousel breakdown on IG, published in the same week. This content also directly addresses the "outside developer" opposition framing with concrete local economic evidence.</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${jobsPosts.length ? `Employment content averaged <strong>${fmt(jobsAvgReach)} reach</strong> and <strong>${fmtPct(jobsAvgER)} engagement</strong>${jobsLinkClicks > 0 ? `, generating <strong>${fmt(jobsLinkClicks)} link clicks</strong>` : ''}. The link click metric — not ER — is the correct measure of success for this content type; it represents real downstream intent.` : 'Employment content is underrepresented in the current dataset.'} In roughly four weeks, site activity is expected to require hiring, so the jobs announcement should already be treated as a planned campaign beat for the end of May. Lead with the number ("500+ jobs. Starting in Exuma."), use Facebook for the stat-forward post and Instagram for the follow-up carousel, and frame the hiring message as concrete local economic evidence rather than a general brand post.</div>
               ${postLink(jobsExample)}
             </div>
 
             <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #4ea3b8;border-radius:0 6px 6px 0">
-              <div style="font-size:12px;font-weight:700;margin-bottom:5px">🤝 Partnerships &amp; Credibility</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${partnerPosts.length ? `Partnership content generated <strong>${fmt(partnerSaves)} saves</strong>${partnerOrgER > 0 ? ` and <strong>${fmtPct(partnerOrgER)} organic ER</strong>` : ''} — the save rate signals this content is being bookmarked for reference, not just passively consumed.` : 'Partnership content is present but underperforming its potential.'} In a high-opposition environment, ESS, XCO₂, and Bahamian community partnerships are not just engagement content — they are the project's primary credibility infrastructure. Every partnership post should lead with the environmental or community significance, not the event. This content should function as a standing counter-narrative, not a reactive response.</div>
+              <div style="font-size:12px;font-weight:700;margin-bottom:5px">🤝 Environmental &amp; Third-Party Credibility</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${partnerPosts.length ? `Partnership content generated <strong>${fmt(partnerSaves)} saves</strong>${partnerOrgER > 0 ? ` and <strong>${fmtPct(partnerOrgER)} organic ER</strong>` : ''} — the save rate signals this content is being bookmarked for reference, not just passively consumed.` : 'Partnership content is present but underperforming its potential.'} In the coming weeks, this credibility layer should expand beyond standard partner content: if BRON provides technical video or voiceovers, use them to explain what is happening on site, what environmental regulation applies, and what mitigation steps are being followed. Sponsorships should also be treated as proof-of-presence content — not filler — because they reinforce local ties and give the account more third-party credibility in the same period.</div>
               ${postLink(partnerExample)}
             </div>
 
@@ -2372,13 +2469,13 @@ function renderExecSummary() {
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
-      <div class="exec-block-label">Priority Actions — Next 90 Days</div>
+      <div class="exec-block-label">Priority Actions — Next 6 Weeks</div>
       <div class="exec-actions">
-        <div class="exec-action"><span class="exec-action-num">1</span><span class="editable-field" contenteditable="false"><strong>Treat paid ads as the primary follower growth driver.</strong> At the current organic cadence, the account will not grow its follower base at a rate that matters. A targeted paid campaign — focused on Bahamian audiences, hospitality industry, and regional stakeholders — is the lever that moves the follower number. Organic content quality supports ad performance; it does not replace it.</span></div>
-        <div class="exec-action"><span class="exec-action-num">2</span><span class="editable-field" contenteditable="false"><strong>Lock in two posts per week as a non-negotiable floor.</strong> This cadence alone will not grow the account, but inconsistency actively damages it. The content calendar should be treated as a production schedule — content planned, shot, and queued in advance, not reactive.</span></div>
-        <div class="exec-action"><span class="exec-action-num">3</span><span class="editable-field" contenteditable="false"><strong>Schedule the jobs announcement as a standalone campaign week.</strong> FB stat graphic first, IG carousel second, within the same week. Lead with "500+ jobs. Starting in Exuma." Track link clicks as the primary KPI, not engagement rate.</span></div>
-        <div class="exec-action"><span class="exec-action-num">4</span><span class="editable-field" contenteditable="false"><strong>Build a proactive counter-narrative content layer.</strong> The Save Exuma Alliance now has celebrity-level amplification. Reactive responses will always lose. A standing schedule of environmental and community credibility content — ESS partnership, native plant nursery, Bahamian employment data, dredging mitigation — needs to be in market consistently, not only when opposition activity spikes.</span></div>
-        <div class="exec-action"><span class="exec-action-num">5</span><span class="editable-field" contenteditable="false"><strong>Separate organic and paid performance tracking.</strong> Blended reach figures currently mask what content is actually working without spend. Maintain clean internal separation so ad budget decisions are based on real organic signals, not inflated averages.</span></div>
+        <div class="exec-action"><span class="exec-action-num">1</span><span class="editable-field" contenteditable="false"><strong>Publish the on-site overview before others define the story.</strong> As soon as the project team has the approved outline of on-site activities, turn it into a clear explainer covering what will happen, what the milestones are, and what viewers should expect to see. The goal is to fill the information vacuum before Turtlegrass uses visible activity to imply something improper is happening.</span></div>
+        <div class="exec-action"><span class="exec-action-num">2</span><span class="editable-field" contenteditable="false"><strong>Build a repeatable footage pipeline now.</strong> Once on-site footage starts arriving, review it quickly with Alice and turn it into a recurring content series rather than one-off posts. Plan for project footage, drone footage where approved, and fresh Paul Turnquest capture every 2–3 weeks so the account consistently shows controlled, current site progress.</span></div>
+        <div class="exec-action"><span class="exec-action-num">3</span><span class="editable-field" contenteditable="false"><strong>Stage the jobs announcement for the end of May.</strong> Hiring tied to on-site activity is expected in roughly four weeks, so the creative, copy, and calendar placement should be prepared now. Run the hiring message as a dedicated campaign beat: Facebook stat graphic first, Instagram carousel second, with link clicks as the primary KPI.</span></div>
+        <div class="exec-action"><span class="exec-action-num">4</span><span class="editable-field" contenteditable="false"><strong>Use BRON and other technical voices as credibility assets the moment they are available.</strong> If BRON provides video or voiceover support, package it as plain-language explainers on environmental regulation, mitigation, and what is actually happening on site. This is stronger than reactive rebuttal because it lets third-party expertise carry the message.</span></div>
+        <div class="exec-action"><span class="exec-action-num">5</span><span class="editable-field" contenteditable="false"><strong>Thread sponsorships and partnerships into the same narrative window.</strong> Upcoming sponsorships should not sit off to the side of the dashboard strategy. They should be scheduled as proof-of-community-presence moments that sit alongside site activity and environmental content, reinforcing local ties while the project enters a more visible phase.</span></div>
       </div>
     </div>
   `;
@@ -2396,20 +2493,59 @@ function renderCalendar() {
   const el = document.getElementById('content-calendar');
   if (!el) return;
 
-  const sentences = [
-    { label: 'May', text: 'Maintain a two-post weekly cadence, pairing a Reel or Video for reach with a Carousel or Photo for depth and saves — lead with on-site progress content and environmental stewardship to build momentum.' },
-    { label: 'End of May', text: 'Dedicate one full posting week to the job creation announcement: a stat-forward graphic on Facebook followed by a breakdown Carousel on Instagram within the same week.' },
-    { label: 'Ongoing', text: 'As partnerships confirm, pair an event-tied post on the day with an impact follow-up carousel within the same week, keeping community benefit and environmental credibility at the centre of both.' },
+  const roadmap = [
+    {
+      timing: 'Now',
+      focus: 'On-site activity overview',
+      purpose: 'Define what is happening on site before outside voices frame visible activity as a problem or a controversy.',
+      execution: 'A clear explainer post or short sequence outlining approved on-site activity, milestones, and safeguards.',
+    },
+    {
+      timing: 'As footage lands',
+      focus: 'Site progress and milestone updates',
+      purpose: 'Use approved footage to show visible proof of progress and keep the narrative grounded in what is actually happening on the ground.',
+      execution: 'Short progress-led updates built from approved footage, with follow-up explanation when a milestone or mitigation step needs context.',
+    },
+    {
+      timing: 'End of May',
+      focus: 'Job creation announcement',
+      purpose: 'Connect site activity to local economic benefit and make the hiring story concrete, not abstract.',
+      execution: 'Facebook stat-led post first, Instagram carousel second, both centered on the 500+ jobs message and local impact.',
+    },
+    {
+      timing: 'Coming weeks',
+      focus: 'Environmental and technical credibility',
+      purpose: 'Use third-party expertise to reduce ambiguity and strengthen trust as site activity becomes more visible.',
+      execution: 'BRON explainers or voiceovers translated into plain-language content on regulation, mitigation, and what is happening on site.',
+    },
+    {
+      timing: 'Ongoing',
+      focus: 'Community presence and sponsorships',
+      purpose: 'Reinforce local ties between major project updates and keep the account visibly active in the community.',
+      execution: 'Sponsorship moments, partnership updates, and fresh Paul Turnquest capture every 2–3 weeks to maintain current proof points.',
+    },
   ];
 
-  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:12px;max-width:680px">
-    ${sentences.map(s => `
-      <div style="display:flex;gap:12px;align-items:baseline">
-        <span style="font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;min-width:80px">${s.label}</span>
-        <span class="editable-field" contenteditable="false" style="font-size:14px;line-height:1.65;color:var(--text)">${s.text}</span>
+  el.innerHTML = `<div class="cal-grid">${roadmap.map((item, index) => `
+    <div class="cal-week ${item.timing === 'End of May' ? 'cal-highlight' : ''}">
+      <div class="cal-week-header">
+        <span>${item.timing}</span>
+        <span class="cal-dates">Phase ${index + 1}</span>
       </div>
-    `).join('')}
-  </div>`;
+      <div class="cal-slot">
+        <div class="cal-slot-num">Content Focus</div>
+        <div class="cal-slot-theme editable-field" contenteditable="false">${item.focus}</div>
+      </div>
+      <div class="cal-slot">
+        <div class="cal-slot-num">Strategic Role</div>
+        <div class="cal-slot-detail editable-field" contenteditable="false">${item.purpose}</div>
+      </div>
+      <div class="cal-slot">
+        <div class="cal-slot-num">Likely Execution</div>
+        <div class="cal-slot-detail editable-field" contenteditable="false">${item.execution}</div>
+      </div>
+    </div>
+  `).join('')}</div>`;
 
 }
 
@@ -2425,6 +2561,167 @@ function toggleEditMode(on) {
   if (on) {
     const first = document.querySelector('.editable-field[contenteditable="true"]');
     if (first) first.focus();
+  }
+}
+
+function normalizeCopyText(text) {
+  return text
+    .replace(/ /g, ' ')
+    .split('\n')
+    .map(line => line.replace(/[ \t]+$/g, '').trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function escapeHTML(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildStrategyDocExport() {
+  const execSummary = document.getElementById('exec-summary-body');
+  const calendar = document.getElementById('content-calendar');
+  const title = normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Strategic Performance Review');
+  const meta = normalizeCopyText(document.getElementById('exec-summary-meta')?.innerText || '');
+
+  const summaryHTML = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => {
+    const label = block.querySelector('.exec-block-label')?.innerText?.trim() || '';
+    const actions = block.querySelectorAll('.exec-action');
+    if (actions.length) {
+      const items = Array.from(actions).map(action => {
+        const body = action.querySelector('.editable-field, span:last-child')?.innerHTML?.trim() || action.innerHTML;
+        return '<li style="margin:0 0 10px 0; line-height:1.6;">' + body + '</li>';
+      }).join('');
+      return '<section style="margin:0 0 24px 0;">'
+        + '<h2 style="font-size:14px; line-height:1.3; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:.06em; color:#0d5a6c;">' + escapeHTML(label) + '</h2>'
+        + '<ol style="margin:0; padding-left:20px;">' + items + '</ol>'
+        + '</section>';
+    }
+
+    const body = block.querySelector('.exec-block-body')?.innerHTML?.trim() || '';
+    return '<section style="margin:0 0 24px 0;">'
+      + '<h2 style="font-size:14px; line-height:1.3; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:.06em; color:#0d5a6c;">' + escapeHTML(label) + '</h2>'
+      + '<div style="font-size:12px; line-height:1.7; color:#1a202c;">' + body + '</div>'
+      + '</section>';
+  }).join('');
+
+  const roadmapHTML = Array.from(calendar.querySelectorAll('.cal-week')).map(card => {
+    const timing = card.querySelector('.cal-week-header span')?.innerText?.trim() || '';
+    const sections = Array.from(card.querySelectorAll('.cal-slot')).map(slot => {
+      const label = slot.querySelector('.cal-slot-num')?.innerText?.trim() || '';
+      const value = slot.querySelector('.editable-field, .cal-slot-detail, .cal-slot-theme')?.innerHTML?.trim() || '';
+      return '<p style="margin:0 0 8px 0; font-size:12px; line-height:1.65;"><strong>' + escapeHTML(label) + ':</strong> ' + value + '</p>';
+    }).join('');
+    return '<div style="margin:0 0 16px 0; padding:14px 16px; border:1px solid #dde6e8; border-radius:10px;">'
+      + '<h3 style="margin:0 0 10px 0; font-size:14px; color:#0d5a6c;">' + escapeHTML(timing) + '</h3>'
+      + sections
+      + '</div>';
+  }).join('');
+
+  const plainSummary = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => normalizeCopyText(block.innerText)).filter(Boolean);
+  const plainRoadmap = Array.from(calendar.querySelectorAll('.cal-week')).map(block => normalizeCopyText(block.innerText)).filter(Boolean);
+
+  const plainText = [title, meta, '', ...plainSummary, '', 'Content Roadmap', ...plainRoadmap].join('\n\n');
+
+  const richHTML = '<div style="font-family:Arial, Helvetica, sans-serif; color:#1a202c;">'
+    + '<h1 style="font-size:22px; margin:0 0 6px 0; color:#0d5a6c;">' + escapeHTML(title) + '</h1>'
+    + (meta ? '<p style="margin:0 0 22px 0; font-size:12px; color:#707373;">' + escapeHTML(meta) + '</p>' : '')
+    + summaryHTML
+    + '<section style="margin-top:28px;">'
+    + '<h2 style="font-size:16px; margin:0 0 12px 0; color:#0d5a6c;">Content Roadmap</h2>'
+    + roadmapHTML
+    + '</section>'
+    + '</div>';
+
+  return { html: richHTML, text: plainText };
+}
+
+async function copyTextToClipboard(text, richHTML) {
+  try {
+    if (navigator.clipboard && window.ClipboardItem && richHTML) {
+      const item = new ClipboardItem({
+        'text/html': new Blob([richHTML], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      });
+      await navigator.clipboard.write([item]);
+      return true;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {}
+
+  if (richHTML) {
+    const wrapper = document.createElement('div');
+    wrapper.contentEditable = 'true';
+    wrapper.innerHTML = richHTML;
+    wrapper.style.position = 'fixed';
+    wrapper.style.opacity = '0';
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.left = '-9999px';
+    document.body.appendChild(wrapper);
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(wrapper);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    let copied = false;
+    try {
+      copied = document.execCommand('copy');
+    } catch (err) {
+      copied = false;
+    }
+    selection.removeAllRanges();
+    document.body.removeChild(wrapper);
+    if (copied) return true;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch (err) {
+    copied = false;
+  }
+  document.body.removeChild(textarea);
+  return copied;
+}
+
+async function copyStrategyForDoc() {
+  const execSummary = document.getElementById('exec-summary-body');
+  const calendar = document.getElementById('content-calendar');
+  if (!execSummary || !calendar || !execSummary.innerText.trim()) {
+    alert('Load the dashboard first so there is strategy text to copy.');
+    return;
+  }
+
+  const exportPayload = buildStrategyDocExport();
+  const copied = await copyTextToClipboard(exportPayload.text, exportPayload.html);
+  const btn = document.getElementById('btn-copy-doc');
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = copied ? '✓ Copied' : '⚠ Copy failed';
+    setTimeout(() => { btn.textContent = original; }, 1800);
+  }
+  if (!copied) {
+    alert('Copy failed in this browser. The text is ready, but clipboard access was blocked.');
   }
 }
 
@@ -2497,7 +2794,7 @@ function buildClientHTML() {
   const clientStyles = `<style>
     /* ── hide internal-only elements ── */
     #upload-screen, #github-modal, #analyst-notes,
-    #btn-edit-recs, #btn-done-recs, #edit-banner,
+    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
 
