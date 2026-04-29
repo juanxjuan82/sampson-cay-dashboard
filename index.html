@@ -495,6 +495,42 @@
 
   .strategy-divider { height: 1px; background: var(--border); margin: 14px 0; }
 
+  /* ── EXEC SUMMARY ── */
+  .exec-summary-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px 32px 24px;
+    margin-bottom: 28px;
+    border-top: 3px solid var(--accent);
+  }
+  .exec-summary-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; margin-bottom: 20px;
+  }
+  .exec-summary-title { font-size: 17px; font-weight: 800; color: var(--text); }
+  .exec-summary-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .exec-block { margin-bottom: 20px; }
+  .exec-block-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--accent); margin-bottom: 8px;
+  }
+  .exec-block-body {
+    font-size: 13.5px; line-height: 1.7; color: var(--text);
+  }
+  .exec-block-body strong { font-weight: 700; }
+  .exec-actions { display: flex; flex-direction: column; gap: 8px; }
+  .exec-action {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 13.5px; line-height: 1.6; color: var(--text);
+  }
+  .exec-action-num {
+    font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
+    border-radius: 50%; width: 20px; height: 20px; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .exec-divider { height: 1px; background: var(--border); margin: 18px 0; }
+
   /* ── CONTENT CALENDAR ── */
   .cal-grid {
     display: grid;
@@ -675,16 +711,16 @@
 
     <div class="upload-zones">
       <div class="upload-zone" id="zone-fb">
-        <input type="file" accept=".csv" id="file-fb" onchange="handleFile('fb', this)">
+        <input type="file" accept=".csv" multiple id="file-fb" onchange="handleFile('fb', this)">
         <div class="icon">🔵</div>
         <div class="label" id="label-fb">Facebook CSV</div>
-        <div class="sub">Post insights export</div>
+        <div class="sub">Select one or more 90-day exports</div>
       </div>
       <div class="upload-zone" id="zone-ig">
-        <input type="file" accept=".csv" id="file-ig" onchange="handleFile('ig', this)">
+        <input type="file" accept=".csv" multiple id="file-ig" onchange="handleFile('ig', this)">
         <div class="icon">📸</div>
         <div class="label" id="label-ig">Instagram CSV</div>
-        <div class="sub">Post insights export</div>
+        <div class="sub">Select one or more 90-day exports</div>
       </div>
     </div>
 
@@ -693,7 +729,7 @@
     </button>
 
     <p style="margin-top:16px; font-size:12px; color:#94a3b8;">
-      Data is processed locally in your browser — nothing is uploaded to any server.
+      Multiple CSVs per platform are merged and deduplicated by Post ID. Data is processed locally — nothing leaves your browser.
     </p>
   </div>
 </div>
@@ -714,6 +750,26 @@
       <button class="btn btn-outline btn-sm" onclick="showUpload()">↑ New Upload</button>
       <button class="btn btn-success btn-sm" onclick="downloadShareable()">⬇ Download Client</button>
       <button class="btn btn-github btn-sm" onclick="openGitHubModal()" id="btn-github">⬆ Push to GitHub</button>
+    </div>
+  </div>
+
+  <!-- EXEC SUMMARY -->
+  <div id="exec-summary" style="display:none">
+    <div class="exec-summary-card">
+      <div class="exec-summary-header">
+        <div>
+          <div class="exec-summary-title">Strategic Performance Review — Sampson Cay Project</div>
+          <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
+          <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done</button>
+        </div>
+      </div>
+      <div class="edit-mode-banner" id="edit-banner">
+        ✏️ <span><strong>Edit mode on</strong> — click any highlighted text to rewrite it. Changes carry through to the client report.</span>
+      </div>
+      <div id="exec-summary-body"></div>
     </div>
   </div>
 
@@ -791,7 +847,34 @@
     </div>
   </div>
 
-  <!-- ROW 3: Engagement Breakdown + Heatmap -->
+  <!-- ROW 3: Organic vs Boosted Reach -->
+  <div class="charts-grid">
+    <div class="chart-card col-12">
+      <div class="chart-title">Avg Reach by Content Type — Estimated Boosted Posts Only</div>
+      <div class="chart-sub">Posts with reach &gt;4× platform median treated as likely boosted · how content types compare when paid amplification is in play</div>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="chart-boost-reach"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 4: Follows by Post Type + Top Follows Posts -->
+  <div class="charts-grid">
+    <div class="chart-card col-5">
+      <div class="chart-title">Avg Follows Gained by Post Type</div>
+      <div class="chart-sub">Instagram only — avg new followers per post in each format</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="chart-follows-type"></canvas>
+      </div>
+    </div>
+    <div class="chart-card col-7">
+      <div class="chart-title">Top Posts for Follower Acquisition</div>
+      <div class="chart-sub">Top 10 Instagram posts ranked by follows gained — direct links to source</div>
+      <div id="follows-top-posts" style="margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- ROW 5: Engagement Breakdown + Heatmap -->
   <div class="charts-grid">
     <div class="chart-card col-7">
       <div class="chart-title">Engagement Breakdown by Post Type</div>
@@ -839,24 +922,10 @@
     </div>
   </div>
 
-  <!-- STRATEGY SECTION -->
+  <!-- STRATEGY SECTION (calendar only) -->
   <div class="strategy-section" id="strategy-section" style="display:none">
-    <div class="strategy-header" style="justify-content:space-between">
-      <h2>ONWRD's Recommendations</h2>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit Recommendations</button>
-        <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done Editing</button>
-      </div>
-    </div>
-    <div class="edit-mode-banner" id="edit-banner">
-      ✏️ <span><strong>Edit mode on</strong> — click any text in the cards below to rewrite it. Your changes carry through to the shareable download.</span>
-    </div>
-    <div class="strategy-header-sub">Strategic recommendations for the Sampson Cay Project — next 90 days.</div>
-    <div id="boost-caveat-note" style="display:none; align-items:flex-start; gap:10px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:13px 16px; margin-bottom:18px; font-size:12.5px; color:#0369a1; line-height:1.55"></div>
-    <div class="strategy-grid" id="strategy-grid"></div>
-
     <!-- CONTENT CALENDAR -->
-    <div style="margin-top:28px">
+    <div>
       <div class="section-header" style="margin-bottom:4px">📅 Content Calendar</div>
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Recommended cadence · both platforms</div>
       <div id="content-calendar"></div>
@@ -911,7 +980,7 @@
 <!-- ══════════════════ JAVASCRIPT ══════════════════ -->
 <script>
 // ── State ──
-let rawIG = null, rawFB = null;
+let rawIG = [], rawFB = [];   // arrays — supports multiple 90-day CSVs per platform
 let igPosts = [], fbPosts = [], allPosts = [];
 let currentFilter = 'all';
 let charts = {};
@@ -960,9 +1029,16 @@ window.addEventListener('DOMContentLoaded', () => {
       Object.assign(PLATFORM_COLORS, embedded.brandColors.platformColors);
     }
     renderAll();
-    if (embedded.strategyGridHTML) {
-      const sg = document.getElementById('strategy-grid');
-      if (sg) sg.innerHTML = embedded.strategyGridHTML;
+    // Restore edited exec summary and calendar (captures any analyst edits before push)
+    if (embedded.execSummaryHTML) {
+      const eb = document.getElementById('exec-summary-body');
+      if (eb) eb.innerHTML = embedded.execSummaryHTML;
+      const es = document.getElementById('exec-summary');
+      if (es) es.style.display = 'block';
+    }
+    if (embedded.calendarHTML) {
+      const cal = document.getElementById('content-calendar');
+      if (cal) cal.innerHTML = embedded.calendarHTML;
     }
     const ss = document.getElementById('strategy-section');
     if (ss) ss.style.display = 'block';
@@ -988,37 +1064,59 @@ function detectPlatform(csv) {
 }
 
 // ── File handlers ──
+function updateZoneLabel(platform) {
+  const arr = platform === 'ig' ? rawIG : rawFB;
+  const id  = platform === 'ig' ? 'label-ig' : 'label-fb';
+  const zid = platform === 'ig' ? 'zone-ig'  : 'zone-fb';
+  const name = platform === 'ig' ? 'Instagram' : 'Facebook';
+  document.getElementById(id).textContent =
+    arr.length === 1 ? `✓ 1 file loaded` : `✓ ${arr.length} files loaded`;
+  document.getElementById(zid).classList.add('loaded');
+  document.getElementById('load-btn').disabled = !(rawIG.length && rawFB.length);
+}
+
 function handleFile(hintPlatform, input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const csv = e.target.result;
-    const detected = detectPlatform(csv);
-    // Use detected platform; fall back to hint if ambiguous
-    const platform = detected || hintPlatform;
+  const files = Array.from(input.files);
+  if (!files.length) return;
 
-    // Warn if it looks swapped
-    if (detected && detected !== hintPlatform) {
-      const swapMsg = `This looks like a ${detected.toUpperCase()} file — assigning it there automatically.`;
-      alert(swapMsg);
-    }
+  let pending = files.length;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const csv = e.target.result;
+      const detected = detectPlatform(csv);
+      const platform = detected || hintPlatform;
 
-    if (platform === 'ig') {
-      rawIG = csv;
-      document.getElementById('label-ig').textContent = '✓ ' + file.name;
-      document.getElementById('zone-ig').classList.add('loaded');
-    } else {
-      rawFB = csv;
-      document.getElementById('label-fb').textContent = '✓ ' + file.name;
-      document.getElementById('zone-fb').classList.add('loaded');
-    }
-    document.getElementById('load-btn').disabled = !(rawIG && rawFB);
-  };
-  reader.readAsText(file);
+      if (detected && detected !== hintPlatform) {
+        alert(`"${file.name}" looks like a ${detected.toUpperCase()} file — assigning it there automatically.`);
+      }
+
+      if (platform === 'ig') {
+        rawIG.push(csv);
+      } else {
+        rawFB.push(csv);
+      }
+
+      pending--;
+      if (pending === 0) {
+        // Update both zones since auto-detect may have redirected some files
+        if (rawIG.length) updateZoneLabel('ig');
+        if (rawFB.length) updateZoneLabel('fb');
+      }
+    };
+    reader.readAsText(file);
+  });
 }
 
 function showUpload() {
+  // Reset state for a fresh upload
+  rawIG = []; rawFB = [];
+  ['ig','fb'].forEach(p => {
+    document.getElementById(`label-${p}`).textContent = p === 'ig' ? 'Instagram CSV' : 'Facebook CSV';
+    document.getElementById(`zone-${p}`).classList.remove('loaded');
+    document.getElementById(`file-${p}`).value = '';
+  });
+  document.getElementById('load-btn').disabled = true;
   document.getElementById('upload-screen').style.display = 'flex';
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('footer').style.display = 'none';
@@ -1056,10 +1154,17 @@ function publishHour(timeStr) {
   return isNaN(h) ? null : h;
 }
 
-// ── Parse IG CSV ──
-function parseIG(csv) {
-  const result = Papa.parse(csv, { header: true, skipEmptyLines: true, quoteChar: '"' });
-  return result.data.filter(r => r['Post ID'] && r['Reach']).map(r => {
+// ── Parse IG CSV (accepts array of CSVs; deduplicates by Post ID) ──
+function parseIG(csvArr) {
+  const seen = new Set();
+  const rows = [];
+  (Array.isArray(csvArr) ? csvArr : [csvArr]).forEach(csv => {
+    const result = Papa.parse(csv, { header: true, skipEmptyLines: true, quoteChar: '"' });
+    result.data.filter(r => r['Post ID'] && r['Reach']).forEach(r => {
+      if (!seen.has(r['Post ID'])) { seen.add(r['Post ID']); rows.push(r); }
+    });
+  });
+  return rows.map(r => {
     const reach = n(r['Reach']);
     const likes = n(r['Likes']);
     const comments = n(r['Comments']);
@@ -1084,13 +1189,19 @@ function parseIG(csv) {
   });
 }
 
-// ── Parse FB CSV (skip crossposts) ──
-function parseFB(csv) {
-  const result = Papa.parse(csv, { header: true, skipEmptyLines: true, quoteChar: '"' });
-  return result.data
-    .filter(r => r['Post ID'] && r['Reach'])
-    .filter(r => r['Is crosspost'] !== '1') // exclude crossposts — they skew organic metrics
-    .map(r => {
+// ── Parse FB CSV (accepts array of CSVs; deduplicates by Post ID; skips crossposts) ──
+function parseFB(csvArr) {
+  const seen = new Set();
+  const rows = [];
+  (Array.isArray(csvArr) ? csvArr : [csvArr]).forEach(csv => {
+    const result = Papa.parse(csv, { header: true, skipEmptyLines: true, quoteChar: '"' });
+    result.data
+      .filter(r => r['Post ID'] && r['Reach'] && r['Is crosspost'] !== '1')
+      .forEach(r => {
+        if (!seen.has(r['Post ID'])) { seen.add(r['Post ID']); rows.push(r); }
+      });
+  });
+  return rows.map(r => {
       const reach = n(r['Reach']);
       const reactions = n(r['Reactions']);
       const comments = n(r['Comments']);
@@ -1108,6 +1219,10 @@ function parseFB(csv) {
         reactions, comments, shares,
         interactions, engRate,
         follows: 0,
+        linkClicks:  n(r['Link clicks']),
+        otherClicks: n(r['Other clicks']),
+        totalClicks: n(r['Total clicks']),
+        avgSecondsViewed: n(r['Average seconds viewed'] || r['Avg. seconds viewed'] || r['Avg seconds viewed']),
         caption: (r['Description'] || r['Title'] || '').replace(/\n/g,' ').trim(),
         permalink: r['Permalink'] || '',
       };
@@ -1130,8 +1245,8 @@ function setFilter(f, el) {
 
 // ── Main load ──
 function loadDashboard() {
-  igPosts = parseIG(rawIG);
-  fbPosts = parseFB(rawFB);
+  igPosts = parseIG(rawIG);   // rawIG is now an array of CSV strings
+  fbPosts = parseFB(rawFB);   // rawFB is now an array of CSV strings
   allPosts = [...igPosts, ...fbPosts].sort((a,b) => a.date - b.date);
 
   // Header
@@ -1434,9 +1549,12 @@ function renderAll() {
   renderContentMix(posts);
   renderEngByType(posts);
   renderReachByType(posts);
+  renderBoostReach(posts);
+  renderFollows(posts);
   renderEngBreakdown(posts);
   renderHeatmap(posts);
   renderTopPosts(posts);
+  renderExecSummary();
   renderStrategy();
   renderAnalystNotes(posts);
 }
@@ -1754,6 +1872,164 @@ function renderReachByType(posts) {
   });
 }
 
+// ── Boosted Reach by Content Type (boosted posts only) ──
+function renderBoostReach(posts) {
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+
+  const medianReach = platform => {
+    const r = (platform === 'ig' ? igPosts : fbPosts)
+      .filter(p => p.reach > 0).map(p => p.reach).sort((a,b) => a-b);
+    if (!r.length) return 0;
+    const m = Math.floor(r.length / 2);
+    return r.length % 2 ? r[m] : (r[m-1]+r[m])/2;
+  };
+  const igMed = medianReach('ig'), fbMed = medianReach('fb');
+  const isBoosted = p => p.reach > (p.platform === 'ig' ? igMed : fbMed) * 4;
+
+  // Boosted posts only, grouped by type
+  const boostByType = {};
+  posts.filter(p => p.reach > 0 && isBoosted(p)).forEach(p => {
+    if (!boostByType[p.type]) boostByType[p.type] = [];
+    boostByType[p.type].push(p.reach);
+  });
+
+  const types  = Object.keys(boostByType).sort((a,b) => avg(boostByType[b]) - avg(boostByType[a]));
+  const avgs   = types.map(t => Math.round(avg(boostByType[t])));
+  const counts = types.map(t => boostByType[t].length);
+  const colors = types.map(t => TYPE_COLORS[t] || '#94a3b8');
+
+  destroyChart('boost-reach');
+  const ctx = document.getElementById('chart-boost-reach')?.getContext('2d');
+  if (!ctx) return;
+
+  if (!types.length) {
+    ctx.canvas.parentElement.innerHTML = '<div style="padding:24px;font-size:13px;color:#94a3b8;text-align:center">No estimated boosted posts detected in this dataset.</div>';
+    return;
+  }
+
+  charts['boost-reach'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: types,
+      datasets: [{
+        label: 'Avg reach when boosted',
+        data: avgs,
+        backgroundColor: colors.map(c => c + 'cc'),
+        borderColor: colors,
+        borderWidth: 1.5,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${fmt(ctx.raw)} avg reach · ${counts[ctx.dataIndex]} boosted post${counts[ctx.dataIndex] !== 1 ? 's' : ''}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 11 }, color: '#94a3b8', callback: v => fmt(v) },
+          title: { display: true, text: 'Avg reach per boosted post', font: { size: 11 }, color: '#94a3b8' }
+        }
+      }
+    }
+  });
+}
+
+// ── Follows by Post Type + Top Follows Posts ──
+function renderFollows(posts) {
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+
+  // Chart: avg follows per post type (IG only — FB follows always 0)
+  const igOnly = posts.filter(p => p.platform === 'ig');
+  const byType = {};
+  igOnly.forEach(p => {
+    if (!byType[p.type]) byType[p.type] = [];
+    byType[p.type].push(p.follows || 0);
+  });
+  const types = Object.keys(byType).sort();
+  const avgs  = types.map(t => parseFloat(avg(byType[t]).toFixed(2)));
+  const colors = types.map(t => TYPE_COLORS[t] || '#94a3b8');
+
+  destroyChart('follows-type');
+  const ctx = document.getElementById('chart-follows-type')?.getContext('2d');
+  if (ctx) {
+    charts['follows-type'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: types,
+        datasets: [{
+          label: 'Avg Follows',
+          data: avgs,
+          backgroundColor: colors.map(c => c + 'cc'),
+          borderColor: colors,
+          borderWidth: 1.5,
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.raw.toFixed(1)} avg follows · ${byType[types[ctx.dataIndex]]?.length} posts`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+          y: {
+            grid: { color: '#f1f5f9' },
+            ticks: { font: { size: 11 }, color: '#94a3b8' },
+            title: { display: true, text: 'Avg follows per post', font: { size: 11 }, color: '#94a3b8' }
+          }
+        }
+      }
+    });
+  }
+
+  // Top 3 IG posts by follows gained
+  const el = document.getElementById('follows-top-posts');
+  if (!el) return;
+
+  const top3 = [...igOnly]
+    .filter(p => p.follows > 0)
+    .sort((a, b) => b.follows - a.follows)
+    .slice(0, 10);
+
+  if (!top3.length) {
+    el.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:16px 0">No follows data found in the IG CSV — check that the "Follows" column is present in your export.</div>`;
+    return;
+  }
+
+  el.innerHTML = top3.map((p, i) => `
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;${i < top3.length-1 ? 'border-bottom:1px solid var(--border)' : ''}">
+      <div style="font-size:22px;font-weight:800;color:var(--accent);opacity:.25;line-height:1;min-width:24px;text-align:center">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:700;color:var(--accent)">+${p.follows} follows</span>
+          <span style="font-size:11px;font-weight:600;color:#fff;background:${TYPE_COLORS[p.type]||'#94a3b8'};padding:2px 8px;border-radius:4px">${p.type}</span>
+          <span style="font-size:11px;color:var(--text-muted)">${p.dateStr}</span>
+          <span style="font-size:11px;color:var(--text-muted)">${fmt(p.reach)} reach · ${fmtPct(p.engRate)} ER</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${p.caption ? '"' + p.caption.substring(0, 110) + (p.caption.length > 110 ? '…' : '') + '"' : 'No caption'}</div>
+        ${p.permalink ? `<a href="${p.permalink}" target="_blank" style="font-size:11px;font-weight:600;color:var(--accent);text-decoration:none;margin-top:5px;display:inline-block">View post ↗</a>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
 // ── Engagement Breakdown Stacked Bar ──
 function renderEngBreakdown(posts) {
   const byType = {};
@@ -1930,196 +2206,189 @@ function renderTopPosts(posts) {
   `).join('') || '<tr><td colspan="10" class="no-data">No posts found for this filter.</td></tr>';
 }
 
-// ── Strategy Section ──
-function renderStrategy() {
-  const all = allPosts;
-  if (all.length === 0) return;
+// ── Executive Summary ──
+function renderExecSummary() {
+  const el = document.getElementById('exec-summary-body');
+  if (!el || allPosts.length === 0) return;
 
-  document.getElementById('strategy-section').style.display = 'block';
+  document.getElementById('exec-summary').style.display = 'block';
 
   const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
 
-  // ── Separate organic vs boosted using same 4× median threshold as Analyst Notes ──
+  // ── Key metrics ──
+  const withReach = allPosts.filter(p => p.reach > 0);
+  const totalReach = allPosts.reduce((s,p) => s+p.reach, 0);
+  const rawAvgER = avg(withReach.map(p => p.engRate));
+  const totalPosts = allPosts.length;
+  const totalFollows = igPosts.reduce((s,p) => s+(p.follows||0), 0);
+  const totalLinkClicks = allPosts.reduce((s,p) => s+(p.linkClicks||0), 0);
+
+  // ── Organic vs boosted ──
   const medianReach = platform => {
     const r = (platform === 'ig' ? igPosts : fbPosts)
       .filter(p => p.reach > 0).map(p => p.reach).sort((a,b) => a-b);
     if (!r.length) return 0;
     const m = Math.floor(r.length / 2);
-    return r.length % 2 ? r[m] : (r[m-1] + r[m]) / 2;
+    return r.length % 2 ? r[m] : (r[m-1]+r[m])/2;
   };
-  const igMed = medianReach('ig');
-  const fbMed = medianReach('fb');
-  const isBoosted = p => p.reach > (p.platform === 'ig' ? igMed : fbMed) * 4;
+  const igMed = medianReach('ig'), fbMed = medianReach('fb');
+  const isBoosted = p => p.reach > (p.platform==='ig' ? igMed : fbMed) * 4;
+  const boostedPosts = allPosts.filter(isBoosted);
+  const organicPosts = allPosts.filter(p => !isBoosted(p));
+  const avgOrgReach = Math.round(avg(organicPosts.map(p=>p.reach)));
+  const avgBoostReach = boostedPosts.length ? Math.round(avg(boostedPosts.map(p=>p.reach))) : 0;
 
-  // Build type stats split by organic / boosted
-  const byTypeOrg = {}, byTypeBoost = {};
-  all.forEach(p => {
-    const bucket = isBoosted(p) ? byTypeBoost : byTypeOrg;
-    if (!bucket[p.type]) bucket[p.type] = { engRates: [], reaches: [], follows: [], posts: [] };
-    bucket[p.type].posts.push(p);
-    bucket[p.type].reaches.push(p.reach);
-    if (p.reach > 0) bucket[p.type].engRates.push(p.engRate);
-    bucket[p.type].follows.push(p.follows || 0);
+  // ── Per-platform organic ER ──
+  const igOrganic = organicPosts.filter(p => p.platform==='ig' && p.reach>0);
+  const fbOrganic = organicPosts.filter(p => p.platform==='fb' && p.reach>0);
+  const igOrgER = avg(igOrganic.map(p=>p.engRate));
+  const fbOrgER = avg(fbOrganic.map(p=>p.engRate));
+
+  // Industry benchmarks (real estate / development accounts, Meta platforms)
+  const IG_BENCH = 1.2, FB_BENCH = 0.6;
+  const igVsBench = igOrgER > 0 ? (igOrgER >= IG_BENCH ? 'above' : 'below') : null;
+  const fbVsBench = fbOrgER > 0 ? (fbOrgER >= FB_BENCH ? 'above' : 'below') : null;
+  const igDiff = igOrgER > 0 ? Math.abs(igOrgER - IG_BENCH).toFixed(2) : null;
+  const fbDiff = fbOrgER > 0 ? Math.abs(fbOrgER - FB_BENCH).toFixed(2) : null;
+
+  // ── Top formats ──
+  const orgByType = {};
+  organicPosts.filter(p=>p.reach>0).forEach(p => {
+    if (!orgByType[p.type]) orgByType[p.type] = { er:[], reach:[], follows:[] };
+    orgByType[p.type].er.push(p.engRate);
+    orgByType[p.type].reach.push(p.reach);
+    orgByType[p.type].follows.push(p.follows||0);
   });
+  const sortedByER    = Object.entries(orgByType).sort((a,b) => avg(b[1].er)-avg(a[1].er));
+  const sortedByReach = Object.entries(orgByType).sort((a,b) => avg(b[1].reach)-avg(a[1].reach));
+  const sortedByFollows = Object.entries(orgByType).filter(([,v])=>avg(v.follows)>0).sort((a,b)=>avg(b[1].follows)-avg(a[1].follows));
+  const topER      = sortedByER[0];
+  const topReach   = sortedByReach[0];
+  const topFollows = sortedByFollows[0];
 
-  const makeStats = bucket => {
-    const s = {};
-    Object.entries(bucket).forEach(([t, v]) => {
-      s[t] = {
-        avgEngRate: avg(v.engRates),
-        avgReach:   Math.round(avg(v.reaches)),
-        count:      v.posts.length,
-        topPost:    v.posts.filter(p=>p.reach>0).sort((a,b)=>b.engRate-a.engRate)[0],
-      };
-    });
-    return s;
+  // ── Posting cadence ──
+  const dated = allPosts.filter(p=>p.date).sort((a,b)=>a.date-b.date);
+  const spanWeeks = dated.length >= 2
+    ? Math.max(1, Math.round((dated[dated.length-1].date - dated[0].date) / (7*24*60*60*1000)))
+    : 1;
+  const postsPerWeek = (totalPosts / spanWeeks).toFixed(1);
+
+  // ── Content theme buckets ──
+  const sitePosts    = allPosts.filter(p => /site|construction|ground|build|progress|milestone|crew|team|work/i.test(p.caption||''));
+  const jobsPosts    = allPosts.filter(p => /job|employ|hire|hiring|staff|workforce/i.test(p.caption||''));
+  const partnerPosts = allPosts.filter(p => /ESS|XCO|partner|sponsor|collab|regatta|gathering/i.test(p.caption||''));
+  const siteOrgER    = avg(sitePosts.filter(p=>!isBoosted(p)&&p.reach>0).map(p=>p.engRate));
+  const siteFollows  = sitePosts.reduce((s,p)=>s+(p.follows||0),0);
+  const jobsLinkClicks = jobsPosts.reduce((s,p)=>s+(p.linkClicks||0),0);
+  const jobsAvgReach = jobsPosts.length ? Math.round(avg(jobsPosts.filter(p=>p.reach>0).map(p=>p.reach))) : 0;
+  const jobsAvgER    = avg(jobsPosts.filter(p=>p.reach>0).map(p=>p.engRate));
+  const partnerSaves = partnerPosts.reduce((s,p)=>s+(p.saves||0),0);
+  const partnerOrgER = avg(partnerPosts.filter(p=>!isBoosted(p)&&p.reach>0).map(p=>p.engRate));
+
+  // ── Example posts: best post per focus area (with permalink) ──
+  const examplePost = (posts, scoreFn) => {
+    const p = [...posts].filter(x => x.permalink && x.reach > 0).sort((a,b) => scoreFn(b)-scoreFn(a))[0];
+    return p || null;
   };
-  const orgStats   = makeStats(byTypeOrg);
-  const boostStats = makeStats(byTypeBoost);
+  const siteExample    = examplePost(sitePosts,    p => !isBoosted(p) ? p.engRate : -1);
+  const jobsExample    = examplePost(jobsPosts,    p => (p.linkClicks||0) > 0 ? p.linkClicks : p.reach);
+  const partnerExample = examplePost(partnerPosts, p => (p.saves||0) > 0 ? p.saves : p.engRate);
 
-  // Helper: format "~X organic · ~Y when boosted" or just "~X organic"
-  const reachLabel = (type) => {
-    const o = orgStats[type],   oR = o?.avgReach   || 0;
-    const b = boostStats[type], bR = b?.avgReach   || 0;
-    if (oR && bR) return `~${fmt(oR)} organic reach · ~${fmt(bR)} when boosted`;
-    if (oR)       return `~${fmt(oR)} organic reach`;
-    if (bR)       return `~${fmt(bR)} reach (boosted only)`;
-    return 'limited data';
-  };
-  const erLabel = (type) => {
-    const o = orgStats[type];
-    const b = boostStats[type];
-    if (o?.avgEngRate && b?.avgEngRate)
-      return `${fmtPct(o.avgEngRate)} organic ER · ${fmtPct(b.avgEngRate)} when boosted`;
-    if (o?.avgEngRate) return `${fmtPct(o.avgEngRate)} avg ER (organic)`;
-    return fmtPct((orgStats[type]||boostStats[type])?.avgEngRate||0);
-  };
+  const postLink = (p, label='View example post ↗') => p?.permalink
+    ? `<a href="${p.permalink}" target="_blank" style="font-size:11px;font-weight:600;color:var(--accent);text-decoration:none;display:inline-block;margin-top:6px">${label}</a>`
+    : '';
 
-  // Reference stats
-  const reelOrg    = orgStats['IG reel']    || {};
-  const fbPhotoOrg = orgStats['Photos']     || {};
-  const carOrg     = orgStats['IG carousel']|| {};
+  // ── Date range label ──
+  const dateRange = dated.length
+    ? `${dated[0].date.toLocaleDateString('en-US',{month:'short',year:'numeric'})} – ${dated[dated.length-1].date.toLocaleDateString('en-US',{month:'short',year:'numeric'})}`
+    : 'Period on file';
+  document.getElementById('exec-summary-meta').textContent = `${dateRange} · ${totalPosts} posts · ONWRD`;
 
-  // Best organic posts for cited examples
-  const bestCarOrg   = [...(byTypeOrg['IG carousel']?.posts||[])].sort((a,b)=>b.reach-a.reach)[0] || {};
-  const bestReelFollows = [...(byTypeOrg['IG reel']?.posts||[])].filter(p=>p.follows>0).sort((a,b)=>b.follows-a.follows)[0] || {};
-  const bestFBOrg    = [...(byTypeOrg['Photos']?.posts||[])].sort((a,b)=>b.reach-a.reach)[0] || {};
-  const bestFBBoosted= [...(byTypeBoost['Photos']?.posts||[])].sort((a,b)=>b.reach-a.reach)[0] || {};
+  const boostNote = boostedPosts.length
+    ? ` ${boostedPosts.length} of ${totalPosts} posts show reach consistent with paid promotion; organic figures used throughout unless stated.`
+    : '';
 
-  const cards = [
-    {
-      icon: '🏗️',
-      title: 'On-Site Activities Overview',
-      timing: 'Publish ASAP',
-      timingColor: '#2563eb',
-      formats: [
-        { label: 'IG Reel', cls: 'chip-reel' },
-        { label: 'FB Video', cls: 'chip-video' },
-        { label: 'IG Carousel', cls: 'chip-carousel' },
-        { label: 'FB Photo', cls: 'chip-photo' },
-      ],
-      recs: [
-        {
-          label: 'What\'s working',
-          content: `Reels and FB Videos are your strongest reach and discovery format — ${reachLabel('IG reel')} per post, ${erLabel('IG reel')}. Progress content with visible activity (site work, team, milestones) consistently outperforms renders or static graphics.`,
-        },
-        {
-          label: 'The opportunity',
-          content: `Use your two posts as a pair: <strong>Reel/Video</strong> for reach, <strong>Carousel/Photo</strong> for depth and saves — both within the same week. Your best carousel reached <strong>${fmt(bestCarOrg.reach||0)} accounts organically</strong> and drove saves above the account average. Show what's happening on the ground, anchor the caption on community benefit.`,
-        },
-      ],
-      callout: {
-        label: '📊 From your data',
-        text: `Progress-tied content reached <strong>${fmt(bestFBOrg.reach||0)} people organically on FB${bestFBBoosted.reach ? ` · ${fmt(bestFBBoosted.reach)} when boosted` : ''}</strong> and generated <strong>${fmt(bestReelFollows.follows||0)} new followers from a single IG reel</strong>. This is your highest-reach content type.`,
-      },
-    },
-    {
-      icon: '💼',
-      title: 'Job Creation Announcement',
-      timing: 'End of May',
-      timingColor: '#10b981',
-      formats: [
-        { label: 'FB Photo', cls: 'chip-photo' },
-        { label: 'IG Carousel', cls: 'chip-carousel' },
-      ],
-      recs: [
-        {
-          label: 'What\'s working',
-          content: `Jobs and employment content is your strongest click-through lane. The "80% Bahamian employment" post drove <strong>1,595 link clicks</strong> — the highest in the full period. Stat-forward graphics on Facebook outperform video for driving action on this topic.`,
-        },
-        {
-          label: 'What to watch',
-          content: `High-reach posts on this theme have lower engagement rates because the audience is broader — that's expected, not a failure. The metric that matters here is <strong>link clicks</strong>, not ER.`,
-        },
-        {
-          label: 'The opportunity',
-          content: `Lead with the number. <strong>FB Photo</strong> (stat graphic, direct link) as your first post. <strong>IG Carousel</strong> (job categories, how to apply, CTA) as your second. Open the caption with the specific claim — "500+ jobs. Starting in Exuma." — not the narrative paragraph.`,
-        },
-      ],
-      callout: {
-        label: '📊 From your data',
-        text: `Careers-focused FB photos averaged <strong>${reachLabel('Photos')}</strong> and generated your highest click-through rate. This is the content type most likely to drive real downstream action from this audience.`,
-      },
-    },
-    {
-      icon: '🤝',
-      title: 'Partnership & Environmental Credibility',
-      timing: 'As details confirm',
-      timingColor: '#f59e0b',
-      formats: [
-        { label: 'IG Reel', cls: 'chip-reel' },
-        { label: 'IG Carousel', cls: 'chip-carousel' },
-        { label: 'FB Photo', cls: 'chip-photo' },
-      ],
-      recs: [
-        {
-          label: 'What\'s working',
-          content: `Partnership content (ESS, XCO₂, Bahamian Gathering) drove your highest follower-gain moments on IG and strongest engagement rates on FB. Event-tied posts with real imagery significantly outperform standalone promotional content.`,
-        },
-        {
-          label: 'What to watch',
-          content: `Sponsorship posts with weak community framing underperform. The regatta post had strong reach but <strong>0.14% ER</strong> — visibility without resonance. Posts that lead with the partner's community or environmental significance consistently do better than posts that lead with the event itself.`,
-        },
-        {
-          label: 'The opportunity',
-          content: `Each partnership week: <strong>Slot 1</strong> = event-tied visual on the day. <strong>Slot 2</strong> = impact carousel the same week showing what the partnership actually means for Exuma. Lead with the "why" — what does ESS do, why does the project work with them, what does it mean for the community. Tag the partner on both posts.`,
-        },
-      ],
-      callout: {
-        label: '📊 From your data',
-        text: `ESS and XCO₂ partnership posts were your most-saved content in the period. Community and environmental credibility content builds the strongest long-term case for this project.`,
-      },
-    },
-  ];
+  // Helper: benchmark badge
+  const bench = (val, ref, unit='%') => val > 0
+    ? `<span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;background:${val>=ref?'#dcfce7':'#fef9c3'};color:${val>=ref?'#15803d':'#a16207'}">${val>=ref?'▲':'▼'} ${val>=ref?'above':'below'} benchmark</span>`
+    : '';
 
-  renderCalendar();
-  document.getElementById('strategy-grid').innerHTML = cards.map(card => `
-    <div class="strategy-card">
-      <div class="strategy-card-header">
-        <div class="strategy-card-icon">${card.icon}</div>
+  el.innerHTML = `
+    <div class="exec-block">
+      <div class="exec-block-label">Performance &amp; Benchmarks</div>
+      <div class="exec-block-body editable-field" contenteditable="false">The account generated <strong>${fmt(totalReach)} total reach</strong> across <strong>${totalPosts} posts</strong> over the period, with <strong>${fmt(totalFollows)} new followers</strong> gained on Instagram and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' link clicks' : 'no link click data recorded'}</strong> on Facebook.${boostNote} Organically, posts averaged <strong>${fmt(avgOrgReach)} reach</strong>${avgBoostReach ? ` — rising to <strong>${fmt(avgBoostReach)}</strong> when boosted` : ''}.
+      ${igOrgER > 0 ? `Instagram organic engagement rate of <strong>${fmtPct(igOrgER)}</strong> sits <strong>${igVsBench} the ${IG_BENCH}% industry benchmark</strong> for real estate and development accounts by ${igDiff}pp.` : ''}
+      ${fbOrgER > 0 ? `Facebook organic ER of <strong>${fmtPct(fbOrgER)}</strong> is <strong>${fbVsBench} the ${FB_BENCH}% benchmark</strong> for pages in this category by ${fbDiff}pp.` : ''}
+      For context, cause and advocacy accounts in the same space typically run 3–5% ER on the strength of an activated, self-selected audience.</div>
+    </div>
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">Trends &amp; Content Strategy</div>
+      <div class="exec-block-body" style="display:flex;flex-direction:column;gap:14px">
+
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#15803d">What's driving growth</div>
+          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">
+            ${topER ? `<strong>${topER[0]}</strong> leads on organic engagement at <strong>${fmtPct(avg(topER[1].er))}</strong> — this is your highest-quality content signal.` : ''}
+            ${topFollows ? ` <strong>${topFollows[0]}</strong> is the strongest follower acquisition format, averaging <strong>${avg(topFollows[1].follows).toFixed(1)} follows per post</strong>.` : ''}
+            ${topReach && topReach[0] !== topFollows?.[0] ? ` <strong>${topReach[0]}</strong> generates the widest organic reach at <strong>${fmt(Math.round(avg(topReach[1].reach)))}</strong> avg per post.` : ''}
+            ${totalLinkClicks > 0 ? ` Link clicks — the key conversion metric for the jobs content — are present in the dataset at <strong>${fmt(totalLinkClicks)} total</strong>.` : ''}
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">What's working against it</div>
+          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">At <strong>${postsPerWeek} posts per week</strong>, the account is below the threshold for meaningful organic follower growth — two posts per week maintains visibility but does not compound. Organic reach is naturally capped for an account this size without paid amplification. ${boostedPosts.length ? `Boosting has extended reach on ${boostedPosts.length} posts but masks true organic performance in aggregate data.` : ''} Externally, the Save Exuma Alliance campaign has secured high-profile endorsements including Rafael Nadal (21M followers), significantly amplifying opposition reach in the same period.</div>
+        </div>
+
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+
         <div>
-          <div class="strategy-card-title editable-field" contenteditable="false">${card.title}</div>
-          <span class="strategy-card-timing" style="background:${card.timingColor}">📅 <span class="editable-field" contenteditable="false">${card.timing}</span></span>
-          <div class="format-chips" style="margin-top:10px">
-            ${card.formats.map(f => `<span class="format-chip ${f.cls}">${f.label}</span>`).join('')}
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);margin-bottom:10px">Content Focus Areas</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+
+            <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #0d5a6c;border-radius:0 6px 6px 0">
+              <div style="font-size:12px;font-weight:700;margin-bottom:5px">🏗️ Site Activity</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">On-site progress content is the account's strongest organic performer${siteOrgER > 0 ? ` at <strong>${fmtPct(siteOrgER)} organic ER</strong>` : ''} and drives the most follower gains${siteFollows > 0 ? ` (${fmt(siteFollows)} total in period)` : ''}. In the context of the current counter-narrative environment, visible ground-level progress — machinery, crew, milestones — is also the most credible counter to opposition claims. This content should be the consistent anchor of every week's posting schedule, prioritised above all other formats.</div>
+              ${postLink(siteExample)}
+            </div>
+
+            <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #1d7a90;border-radius:0 6px 6px 0">
+              <div style="font-size:12px;font-weight:700;margin-bottom:5px">💼 Job Creation</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${jobsPosts.length ? `Employment content averaged <strong>${fmt(jobsAvgReach)} reach</strong> and <strong>${fmtPct(jobsAvgER)} engagement</strong>${jobsLinkClicks > 0 ? `, generating <strong>${fmt(jobsLinkClicks)} link clicks</strong>` : ''}. The link click metric — not ER — is the correct measure of success for this content type; it represents real downstream intent.` : 'Employment content is underrepresented in the current dataset.'} The upcoming job creation announcement is a high-value moment: lead with the number ("500+ jobs. Starting in Exuma."), not the narrative. Stat-forward graphics on FB, carousel breakdown on IG, published in the same week. This content also directly addresses the "outside developer" opposition framing with concrete local economic evidence.</div>
+              ${postLink(jobsExample)}
+            </div>
+
+            <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #4ea3b8;border-radius:0 6px 6px 0">
+              <div style="font-size:12px;font-weight:700;margin-bottom:5px">🤝 Partnerships &amp; Credibility</div>
+              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${partnerPosts.length ? `Partnership content generated <strong>${fmt(partnerSaves)} saves</strong>${partnerOrgER > 0 ? ` and <strong>${fmtPct(partnerOrgER)} organic ER</strong>` : ''} — the save rate signals this content is being bookmarked for reference, not just passively consumed.` : 'Partnership content is present but underperforming its potential.'} In a high-opposition environment, ESS, XCO₂, and Bahamian community partnerships are not just engagement content — they are the project's primary credibility infrastructure. Every partnership post should lead with the environmental or community significance, not the event. This content should function as a standing counter-narrative, not a reactive response.</div>
+              ${postLink(partnerExample)}
+            </div>
+
           </div>
         </div>
-      </div>
-      <div class="strategy-card-body">
-        ${card.recs.map((r, i) => `
-          ${i > 0 ? '<div class="strategy-divider"></div>' : ''}
-          <div class="strategy-rec">
-            <div class="strategy-rec-label editable-field" contenteditable="false">${r.label}</div>
-            <div class="strategy-rec-content editable-field" contenteditable="false">${r.content}</div>
-          </div>
-        `).join('')}
-        <div class="data-callout">
-          <div class="data-callout-label">${card.callout.label}</div>
-          <div class="data-callout-text editable-field" contenteditable="false">${card.callout.text}</div>
-        </div>
+
       </div>
     </div>
-  `).join('');
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">Priority Actions — Next 90 Days</div>
+      <div class="exec-actions">
+        <div class="exec-action"><span class="exec-action-num">1</span><span class="editable-field" contenteditable="false"><strong>Treat paid ads as the primary follower growth driver.</strong> At the current organic cadence, the account will not grow its follower base at a rate that matters. A targeted paid campaign — focused on Bahamian audiences, hospitality industry, and regional stakeholders — is the lever that moves the follower number. Organic content quality supports ad performance; it does not replace it.</span></div>
+        <div class="exec-action"><span class="exec-action-num">2</span><span class="editable-field" contenteditable="false"><strong>Lock in two posts per week as a non-negotiable floor.</strong> This cadence alone will not grow the account, but inconsistency actively damages it. The content calendar should be treated as a production schedule — content planned, shot, and queued in advance, not reactive.</span></div>
+        <div class="exec-action"><span class="exec-action-num">3</span><span class="editable-field" contenteditable="false"><strong>Schedule the jobs announcement as a standalone campaign week.</strong> FB stat graphic first, IG carousel second, within the same week. Lead with "500+ jobs. Starting in Exuma." Track link clicks as the primary KPI, not engagement rate.</span></div>
+        <div class="exec-action"><span class="exec-action-num">4</span><span class="editable-field" contenteditable="false"><strong>Build a proactive counter-narrative content layer.</strong> The Save Exuma Alliance now has celebrity-level amplification. Reactive responses will always lose. A standing schedule of environmental and community credibility content — ESS partnership, native plant nursery, Bahamian employment data, dredging mitigation — needs to be in market consistently, not only when opposition activity spikes.</span></div>
+        <div class="exec-action"><span class="exec-action-num">5</span><span class="editable-field" contenteditable="false"><strong>Separate organic and paid performance tracking.</strong> Blended reach figures currently mask what content is actually working without spend. Maintain clean internal separation so ad budget decisions are based on real organic signals, not inflated averages.</span></div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Strategy Section ──
+function renderStrategy() {
+  if (allPosts.length === 0) return;
+  document.getElementById('strategy-section').style.display = 'block';
+  renderCalendar();
 }
 
 // ── Content Calendar ──
@@ -2199,12 +2468,13 @@ function setPushStatus(type, msg) {
 }
 
 function buildClientHTML() {
-  const strategyGridHTML = document.getElementById('strategy-grid')
-    ? document.getElementById('strategy-grid').innerHTML : '';
+  const execSummaryHTML = document.getElementById('exec-summary-body')?.innerHTML || '';
+  const calendarHTML    = document.getElementById('content-calendar')?.innerHTML    || '';
   const data = {
     igPosts: igPosts.map(p => ({...p, date: p.date ? p.date.toISOString() : null})),
     fbPosts: fbPosts.map(p => ({...p, date: p.date ? p.date.toISOString() : null})),
-    strategyGridHTML,
+    execSummaryHTML,
+    calendarHTML,
     // Brand palette — applied to all charts in the client report
     brandColors: {
       typeColors: {
