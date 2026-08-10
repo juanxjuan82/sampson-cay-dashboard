@@ -56,7 +56,7 @@
   }
   .header-left p {
     font-size: 13px;
-    color: #94a3b8;
+    color: rgba(255,255,255,.78);
     margin-top: 4px;
   }
   .header-right {
@@ -75,11 +75,10 @@
     font-weight: 600;
     letter-spacing: .3px;
   }
-  .badge-ig { background: rgba(225,48,108,.15); color: #fd8bc4; border: 1px solid rgba(225,48,108,.3); }
-  .badge-fb { background: rgba(24,119,242,.15); color: #7fb3f7; border: 1px solid rgba(24,119,242,.3); }
-  .badge-dot { width: 7px; height: 7px; border-radius: 50%; }
-  .badge-ig .badge-dot { background: #e1306c; }
-  .badge-fb .badge-dot { background: #1877f2; }
+  .badge-ig, .badge-fb { background: rgba(255,255,255,.14); color: #ffffff; border: 1px solid rgba(255,255,255,.32); }
+  .badge-dot { width: 7px; height: 7px; border-radius: 50%; box-shadow:0 0 0 2px rgba(255,255,255,.16); }
+  .badge-ig .badge-dot { background: #ff72b6; }
+  .badge-fb .badge-dot { background: #73b7ff; }
 
   /* ── UPLOAD SCREEN ── */
   #upload-screen {
@@ -550,6 +549,7 @@
   }
   .exec-summary-title { font-size: 17px; font-weight: 800; color: var(--text); }
   .exec-summary-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .summary-source-badge { display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#e8f1f3;color:var(--accent);font-size:9px;font-weight:800;letter-spacing:.45px;text-transform:uppercase;white-space:nowrap; }
   .exec-block { margin-bottom: 20px; }
   .exec-block-label {
     font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -700,7 +700,7 @@
   .modal h3 { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
   .modal p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
   .modal label { font-size: 12px; font-weight: 600; color: var(--text); display: block; margin-bottom: 5px; }
-  .modal input[type="text"], .modal input[type="password"] {
+  .modal input[type="text"], .modal input[type="url"], .modal input[type="password"] {
     width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
     border-radius: 8px; font-size: 13px; margin-bottom: 14px;
     outline: none; transition: border .15s;
@@ -903,11 +903,12 @@
     <div class="exec-summary-card">
       <div class="exec-summary-header">
         <div>
-          <div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div><span class="summary-source-badge" id="summary-source-badge" title="Calculated from uploaded post data">Deterministic summary</span></div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-sm btn-edit" id="btn-ai-brief" onclick="copyThemeAIBrief()" title="Copy structured theme evidence for analysis in ChatGPT">✨ Copy AI Brief</button>
+          <button class="btn btn-sm btn-edit" id="btn-ai-generate" onclick="generateAISummary()" title="Generate an editable narrative from the dashboard’s deterministic evidence">✨ Generate AI Summary</button>
+          <button class="btn btn-sm btn-edit" id="btn-ai-settings" onclick="openAISettings(false)" title="Configure the Cloudflare Worker connection">⚙ AI</button>
           <button class="btn btn-sm btn-edit" id="btn-copy-doc" onclick="copyStrategyForDoc()">📋 Copy for Google Doc</button>
           <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
           <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done</button>
@@ -1127,6 +1128,25 @@
   </div>
 </div>
 
+<!-- ══════════════════ AI SUMMARY MODAL ══════════════════ -->
+<div class="modal-overlay" id="ai-modal">
+  <div class="modal">
+    <h3>✨ Generate AI Summary</h3>
+    <p>Connect the dashboard to the protected Cloudflare Worker. The Worker URL is saved in this browser; the access token is kept only for this tab.</p>
+
+    <label>Worker URL</label>
+    <input type="url" id="ai-endpoint" placeholder="https://sampson-cay-dashboard-ai.your-subdomain.workers.dev" autocomplete="url">
+
+    <label>Dashboard access token</label>
+    <input type="password" id="ai-access-token" placeholder="Paste DASHBOARD_AI_TOKEN" autocomplete="off">
+
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeAISettings()">Cancel</button>
+      <button class="btn btn-edit btn-sm" onclick="saveAISettingsAndGenerate()">Save &amp; Generate</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════ JAVASCRIPT ══════════════════ -->
 <script>
 // ── State ──
@@ -1140,6 +1160,9 @@ let tableSortDir = 'desc';
 let topPostsExpanded = false;
 let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
 let sharedEditableContent = {};
+let summaryMode = 'deterministic';
+let aiGenerateAfterSettings = false;
+const DASHBOARD_VERSION = '2026-08-10.5'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1167,6 +1190,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const footer = document.getElementById('footer'); if (footer) footer.style.display = 'block';
     currentFilter = 'all';
     sharedEditableContent = embedded.editableOverrides || {};
+    summaryMode = embedded.summaryMode === 'ai' ? 'ai' : 'deterministic';
     if (embedded.brandColors) {
       Object.assign(TYPE_COLORS, embedded.brandColors.typeColors);
       Object.assign(PLATFORM_COLORS, embedded.brandColors.platformColors);
@@ -1431,38 +1455,313 @@ function renderThemes(posts) {
   note.textContent = platformLabel + ': ' + coverage + '% classification coverage · ' + result.unclassifiedCount + ' unclassified · comparisons require at least ' + THEME_MIN_SAMPLE + ' estimated organic posts per theme.';
 }
 
-function buildThemeAIBrief(posts) {
-  const result = getThemeStats(posts);
-  const evidence = {
-    filter: currentFilter,
-    minimumOrganicSampleForClaims: THEME_MIN_SAMPLE,
-    classificationCoveragePercent: result.totalPosts ? Math.round((result.classifiedCount / result.totalPosts) * 100) : 0,
-    unclassifiedPosts: result.unclassifiedCount,
-    themes: result.rows.map(function(row) {
-      return { theme: row.label, totalPosts: row.count, organicPosts: row.organicCount, medianOrganicReach: Math.round(row.medianReach), medianOrganicEngagementRate: Number(row.medianEngagement.toFixed(2)), bottomEngagementQuartileSharePercent: Math.round(row.lowShare * 100), examples: row.examples };
-    })
+function buildAlignedComparisonEvidence(posts) {
+  const dated = posts.filter(function(post) {
+    return post.date instanceof Date && !isNaN(post.date);
+  });
+  if (!dated.length) return { available: false, reason: 'No dated posts are available.' };
+
+  const DAY = 86400000;
+  const WINDOW = 90 * DAY;
+  const TOLERANCE = 14 * DAY;
+  const maxDate = new Date(Math.max.apply(null, dated.map(function(post) { return post.date.getTime(); })));
+  const currentStart = new Date(maxDate.getTime() - WINDOW);
+  const priorStart = new Date(maxDate.getTime() - (2 * WINDOW));
+  const current = dated.filter(function(post) { return post.date > currentStart && post.date <= maxDate; });
+  const prior = dated.filter(function(post) { return post.date > priorStart && post.date <= currentStart; });
+  const platforms = Array.from(new Set(dated.map(function(post) { return post.platform; })));
+  const coverage = platforms.map(function(platform) {
+    const platformPosts = dated.filter(function(post) { return post.platform === platform; });
+    const minDate = new Date(Math.min.apply(null, platformPosts.map(function(post) { return post.date.getTime(); })));
+    const platformMaxDate = new Date(Math.max.apply(null, platformPosts.map(function(post) { return post.date.getTime(); })));
+    return {
+      platform: platform,
+      start: minDate.toISOString().slice(0, 10),
+      end: platformMaxDate.toISOString().slice(0, 10),
+      currentPosts: current.filter(function(post) { return post.platform === platform; }).length,
+      priorPosts: prior.filter(function(post) { return post.platform === platform; }).length
+    };
+  });
+
+  const incompleteCoverage = coverage.some(function(item) {
+    return new Date(item.start).getTime() > priorStart.getTime() + TOLERANCE
+      || new Date(item.end).getTime() < maxDate.getTime() - TOLERANCE
+      || item.currentPosts === 0
+      || item.priorPosts === 0;
+  });
+  const starts = coverage.map(function(item) { return new Date(item.start).getTime(); });
+  const ends = coverage.map(function(item) { return new Date(item.end).getTime(); });
+  const platformDatesMisaligned = coverage.length > 1 && (
+    Math.max.apply(null, starts) - Math.min.apply(null, starts) > TOLERANCE
+    || Math.max.apply(null, ends) - Math.min.apply(null, ends) > TOLERANCE
+  );
+
+  if (incompleteCoverage || platformDatesMisaligned) {
+    return {
+      available: false,
+      reason: 'The selected platforms do not contain aligned coverage for both complete 90-day windows.',
+      boundaryToleranceDays: 14,
+      coverage: coverage
+    };
+  }
+
+  const sum = function(items, value) {
+    return items.reduce(function(total, post) { return total + value(post); }, 0);
   };
-  return [
-    'Analyze the following social-media theme evidence for a client report.',
-    'Theme assignment and all metrics are deterministic. Use only the supplied evidence.',
-    'Do not infer causation. Do not make comparative claims for themes with fewer than ' + THEME_MIN_SAMPLE + ' organic posts.',
-    'Return: (1) one executive takeaway, (2) two concise repeat/increase recommendations, (3) one reduce/test recommendation only if supported, and (4) one limitation note.',
-    'Keep the response under 140 words and reference the relevant numbers.',
-    '',
-    JSON.stringify(evidence, null, 2)
-  ].join('\n');
+  const avgEngagement = function(items) {
+    const eligible = items.filter(function(post) { return post.reach > 0; });
+    return eligible.length ? sum(eligible, function(post) { return post.engRate; }) / eligible.length : 0;
+  };
+  const metric = function(currentValue, priorValue) {
+    return {
+      current: Number(currentValue.toFixed(2)),
+      prior: Number(priorValue.toFixed(2)),
+      percentChange: priorValue > 0 ? Number((((currentValue - priorValue) / priorValue) * 100).toFixed(1)) : null
+    };
+  };
+  const igCurrent = current.filter(function(post) { return post.platform === 'ig'; });
+  const igPrior = prior.filter(function(post) { return post.platform === 'ig'; });
+
+  return {
+    available: true,
+    currentWindow: {
+      start: new Date(currentStart.getTime() + DAY).toISOString().slice(0, 10),
+      end: maxDate.toISOString().slice(0, 10),
+      posts: current.length
+    },
+    priorWindow: {
+      start: new Date(priorStart.getTime() + DAY).toISOString().slice(0, 10),
+      end: currentStart.toISOString().slice(0, 10),
+      posts: prior.length
+    },
+    coverage: coverage,
+    metrics: {
+      totalReach: metric(sum(current, function(post) { return post.reach; }), sum(prior, function(post) { return post.reach; })),
+      totalViews: metric(sum(current, function(post) { return post.views; }), sum(prior, function(post) { return post.views; })),
+      averageEngagementRate: metric(avgEngagement(current), avgEngagement(prior)),
+      interactions: metric(sum(current, function(post) { return post.interactions; }), sum(prior, function(post) { return post.interactions; })),
+      postsPublished: metric(current.length, prior.length),
+      instagramFollows: metric(sum(igCurrent, function(post) { return post.follows || 0; }), sum(igPrior, function(post) { return post.follows || 0; }))
+    }
+  };
 }
 
-async function copyThemeAIBrief() {
-  if (!allPosts.length) { alert('Load the dashboard first so there is theme evidence to analyze.'); return; }
-  const copied = await copyTextToClipboard(buildThemeAIBrief(filtered()));
-  const button = document.getElementById('btn-ai-brief');
-  if (button) {
-    const original = button.textContent;
-    button.textContent = copied ? '✓ AI brief copied' : '⚠ Copy failed';
-    setTimeout(function() { button.textContent = original; }, 1800);
+function htmlToPlainText(html) {
+  const holder = document.createElement('div');
+  holder.innerHTML = String(html || '');
+  return normalizeCopyText(holder.textContent || '');
+}
+
+function buildAISummaryEvidence(posts) {
+  const organicPosts = posts.filter(function(post) {
+    return !isLikelyBoostedPost(post) && post.reach > 0;
+  });
+  const likelyBoosted = posts.filter(isLikelyBoostedPost);
+  const sum = function(items, value) {
+    return items.reduce(function(total, post) { return total + value(post); }, 0);
+  };
+  const averageValue = function(items, value) {
+    return items.length ? sum(items, value) / items.length : 0;
+  };
+  const platformRows = ['ig', 'fb'].map(function(platform) {
+    const platformPosts = posts.filter(function(post) { return post.platform === platform; });
+    const organicPlatformPosts = organicPosts.filter(function(post) { return post.platform === platform; });
+    return {
+      platform: platform,
+      posts: platformPosts.length,
+      totalReach: sum(platformPosts, function(post) { return post.reach; }),
+      totalViews: sum(platformPosts, function(post) { return post.views; }),
+      totalInteractions: sum(platformPosts, function(post) { return post.interactions; }),
+      averageEstimatedOrganicReach: Math.round(averageValue(organicPlatformPosts, function(post) { return post.reach; })),
+      averageEstimatedOrganicEngagementRate: Number(averageValue(organicPlatformPosts, function(post) { return post.engRate; }).toFixed(2)),
+      attributedFollows: sum(platformPosts, function(post) { return post.follows || 0; }),
+      linkClicks: sum(platformPosts, function(post) { return post.linkClicks || 0; })
+    };
+  });
+
+  const formatGroups = {};
+  organicPosts.forEach(function(post) {
+    if (!formatGroups[post.type]) formatGroups[post.type] = [];
+    formatGroups[post.type].push(post);
+  });
+  const formatRows = Object.keys(formatGroups).map(function(type) {
+    const group = formatGroups[type];
+    const igGroup = group.filter(function(post) { return post.platform === 'ig'; });
+    return {
+      format: type,
+      estimatedOrganicPosts: group.length,
+      averageReach: Math.round(averageValue(group, function(post) { return post.reach; })),
+      averageEngagementRate: Number(averageValue(group, function(post) { return post.engRate; }).toFixed(2)),
+      averageInstagramFollows: igGroup.length ? Number(averageValue(igGroup, function(post) { return post.follows || 0; }).toFixed(2)) : null
+    };
+  }).sort(function(a, b) { return b.averageEngagementRate - a.averageEngagementRate; });
+
+  const themeResult = getThemeStats(posts);
+  const dated = posts.filter(function(post) { return post.date instanceof Date && !isNaN(post.date); }).sort(function(a, b) { return a.date - b.date; });
+
+  return {
+    evidenceVersion: DASHBOARD_VERSION,
+    period: dated.length ? {
+      start: dated[0].date.toISOString().slice(0, 10),
+      end: dated[dated.length - 1].date.toISOString().slice(0, 10)
+    } : null,
+    boostHeuristic: {
+      definition: 'A post is marked likely boosted when its reach exceeds four times the median reach for its platform.',
+      likelyBoostedPosts: likelyBoosted.length,
+      likelyBoostedReach: sum(likelyBoosted, function(post) { return post.reach; }),
+      estimatedOrganicPosts: organicPosts.length
+    },
+    overall: {
+      posts: posts.length,
+      totalReach: sum(posts, function(post) { return post.reach; }),
+      totalViews: sum(posts, function(post) { return post.views; }),
+      totalInteractions: sum(posts, function(post) { return post.interactions; }),
+      instagramFollowsAttributedToPosts: sum(posts.filter(function(post) { return post.platform === 'ig'; }), function(post) { return post.follows || 0; }),
+      facebookLinkClicks: sum(posts.filter(function(post) { return post.platform === 'fb'; }), function(post) { return post.linkClicks || 0; })
+    },
+    platforms: platformRows,
+    formats: {
+      minimumOrganicSampleForClaims: 3,
+      rows: formatRows
+    },
+    themes: {
+      minimumOrganicSampleForClaims: THEME_MIN_SAMPLE,
+      classificationMethod: 'Fixed weighted-keyword scoring; overlaps are allowed; examples are ranked for primary-theme purity.',
+      classificationCoveragePercent: themeResult.totalPosts ? Math.round((themeResult.classifiedCount / themeResult.totalPosts) * 100) : 0,
+      unclassifiedPosts: themeResult.unclassifiedCount,
+      rows: themeResult.rows.map(function(row) {
+        return {
+          theme: row.label,
+          totalPosts: row.count,
+          estimatedOrganicPosts: row.organicCount,
+          medianEstimatedOrganicReach: Math.round(row.medianReach),
+          medianEstimatedOrganicEngagementRate: Number(row.medianEngagement.toFixed(2)),
+          bottomEngagementQuartileSharePercent: Math.round(row.lowShare * 100),
+          pureExamples: row.examples
+        };
+      })
+    },
+    comparison: buildAlignedComparisonEvidence(posts),
+    deterministicLowPerformancePattern: htmlToPlainText(buildLowPerformanceFinding(organicPosts)),
+    topEstimatedOrganicPosts: organicPosts.slice().sort(function(a, b) {
+      return b.engRate - a.engRate || b.reach - a.reach;
+    }).slice(0, 5).map(function(post) {
+      return {
+        platform: post.platform,
+        format: post.type,
+        date: post.dateStr,
+        reach: post.reach,
+        engagementRate: Number(post.engRate.toFixed(2)),
+        caption: String(post.caption || '').slice(0, 180)
+      };
+    })
+  };
+}
+
+function updateSummarySourceBadge() {
+  const badge = document.getElementById('summary-source-badge');
+  if (!badge) return;
+  const isAI = summaryMode === 'ai';
+  badge.textContent = isAI ? 'AI-assisted summary' : 'Deterministic summary';
+  badge.title = isAI
+    ? 'Generated from deterministic dashboard evidence; text remains editable'
+    : 'Calculated from uploaded post data; not written by AI';
+}
+
+function openAISettings(generateAfterSave) {
+  aiGenerateAfterSettings = Boolean(generateAfterSave);
+  document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
+  document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
+  document.getElementById('ai-modal').classList.add('open');
+}
+
+function closeAISettings() {
+  aiGenerateAfterSettings = false;
+  document.getElementById('ai-modal').classList.remove('open');
+}
+
+function saveAISettingsAndGenerate() {
+  const endpoint = document.getElementById('ai-endpoint').value.trim().replace(/\/+$/, '');
+  const token = document.getElementById('ai-access-token').value.trim();
+  if (!/^https:\/\//i.test(endpoint) || !token) {
+    alert('Enter the HTTPS Worker URL and the DASHBOARD_AI_TOKEN value.');
+    return;
   }
-  if (!copied) alert('Copy failed in this browser. Clipboard access was blocked.');
+  localStorage.setItem('dashboard_ai_endpoint', endpoint);
+  sessionStorage.setItem('dashboard_ai_token', token);
+  document.getElementById('ai-modal').classList.remove('open');
+  const shouldGenerate = aiGenerateAfterSettings;
+  aiGenerateAfterSettings = false;
+  if (shouldGenerate || allPosts.length) generateAISummary();
+}
+
+function applyAISummary(summary) {
+  if (currentFilter !== 'all') {
+    const allButton = document.querySelector('.pill');
+    if (allButton) setFilter('all', allButton);
+  }
+  const values = {
+    'performance-overview': summary.performanceOverview,
+    'leading-formats': summary.leadingFormats,
+    'theme-analysis-all': summary.themeAnalysis,
+    'low-performance-patterns': summary.lowPerformancePatterns
+  };
+  Object.keys(values).forEach(function(key) {
+    const element = document.querySelector('[data-edit-key="' + key + '"]');
+    if (!element) return;
+    element.textContent = String(values[key] || '').trim();
+  });
+  summaryMode = 'ai';
+  captureSharedEditableContent();
+  updateSummarySourceBadge();
+}
+
+async function generateAISummary() {
+  if (!allPosts.length) {
+    alert('Load the dashboard first so there is evidence to summarize.');
+    return;
+  }
+  const endpoint = (localStorage.getItem('dashboard_ai_endpoint') || '').replace(/\/+$/, '');
+  const token = sessionStorage.getItem('dashboard_ai_token') || '';
+  if (!endpoint || !token) {
+    openAISettings(true);
+    return;
+  }
+
+  const button = document.getElementById('btn-ai-generate');
+  const original = button ? button.textContent : '';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Generating…';
+  }
+
+  try {
+    const response = await fetch(endpoint.endsWith('/summary') ? endpoint : endpoint + '/summary', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ evidence: buildAISummaryEvidence(allPosts) })
+    });
+    const payload = await response.json().catch(function() { return {}; });
+    if (!response.ok) {
+      const detail = payload.requestId ? ' Request ID: ' + payload.requestId : '';
+      throw new Error((payload.error || 'Summary generation failed.') + detail);
+    }
+    applyAISummary(payload.summary);
+    if (button) button.textContent = '✓ AI Summary Updated';
+  } catch (error) {
+    if (button) button.textContent = '⚠ Generation failed';
+    alert(error.message || 'AI summary generation failed.');
+  } finally {
+    if (button) {
+      setTimeout(function() {
+        button.disabled = false;
+        button.textContent = original || '✨ Generate AI Summary';
+      }, 1800);
+    }
+  }
 }
 
 function switchDashboardView(view, button) {
@@ -1532,6 +1831,7 @@ function showUpload() {
   // Reset state for a fresh upload
   rawIG = []; rawFB = [];
   sharedEditableContent = {};
+  summaryMode = 'deterministic';
   ['ig','fb'].forEach(p => {
     document.getElementById(`label-${p}`).textContent = p === 'ig' ? 'Instagram CSV' : 'Facebook CSV';
     document.getElementById(`zone-${p}`).classList.remove('loaded');
@@ -2052,6 +2352,7 @@ function renderAll() {
   renderTopPosts(posts);
   renderExecSummary();
   restoreSharedEditableContent();
+  updateSummarySourceBadge();
   renderAnalystNotes(posts);
 }
 
@@ -3294,6 +3595,7 @@ function buildClientHTML() {
     igPosts: igPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
     fbPosts: fbPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
     editableOverrides: { ...sharedEditableContent },
+    summaryMode: summaryMode,
     brandColors: {
       typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
@@ -3303,14 +3605,13 @@ function buildClientHTML() {
   const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
-    #upload-screen, #github-modal, #analyst-notes,
-    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-brief, #edit-banner,
+    #upload-screen, #github-modal, #ai-modal, #analyst-notes,
+    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
     #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
     :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
     .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
-    .badge-ig{background:rgba(13,90,108,.1);color:#0d5a6c;border:1px solid rgba(13,90,108,.25)}.badge-ig .badge-dot{background:#0d5a6c}
-    .badge-fb{background:rgba(78,163,184,.12);color:#1d7a90;border:1px solid rgba(78,163,184,.3)}.badge-fb .badge-dot{background:#4ea3b8}
+    .badge-ig,.badge-fb{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.32)}.badge-ig .badge-dot{background:#ff72b6}.badge-fb .badge-dot{background:#73b7ff}
     .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   </style>`;
   return currentHTML.replace('</head>', dataScript + '\n' + clientStyles + '\n</head>');
@@ -3338,6 +3639,26 @@ async function pushToGitHub() {
   };
 
   document.getElementById('btn-push-confirm').disabled = true;
+  setPushStatus('loading', 'Checking dashboard version…');
+
+  try {
+    const indexRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/index.html`, { headers });
+    if (!indexRes.ok) throw new Error('Could not verify the current dashboard source.');
+    const remoteIndex = await indexRes.json();
+    const remoteSource = decodeURIComponent(escape(atob(String(remoteIndex.content || '').replace(/\n/g, ''))));
+    const remoteVersionMatch = remoteSource.match(/const DASHBOARD_VERSION = ['"]([^'"]+)['"]/);
+    const remoteVersion = remoteVersionMatch ? remoteVersionMatch[1] : null;
+    if (!remoteVersion || remoteVersion !== DASHBOARD_VERSION) {
+      setPushStatus('error', 'This dashboard tab is out of date and publishing has been blocked. Hard-refresh index.html, reload the CSV exports, then publish again.');
+      document.getElementById('btn-push-confirm').disabled = false;
+      return;
+    }
+  } catch (e) {
+    setPushStatus('error', 'Unable to verify the dashboard version, so publishing was blocked: ' + e.message);
+    document.getElementById('btn-push-confirm').disabled = false;
+    return;
+  }
+
   setPushStatus('loading', 'Building client version…');
 
   // Yield to browser so the status message renders before heavy work
@@ -3402,8 +3723,10 @@ async function pushToGitHub() {
 
 // Close modal on overlay click
 document.addEventListener('click', e => {
-  const modal = document.getElementById('github-modal');
-  if (e.target === modal) closeGitHubModal();
+  const githubModal = document.getElementById('github-modal');
+  const aiModal = document.getElementById('ai-modal');
+  if (e.target === githubModal) closeGitHubModal();
+  if (e.target === aiModal) closeAISettings();
 });
 
 // ── Chart cleanup ──
