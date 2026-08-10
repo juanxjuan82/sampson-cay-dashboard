@@ -730,6 +730,56 @@
   .btn-github { background: #24292f; color: #fff; border: none; }
   .btn-github:hover { background: #3d444d; }
   .btn-github:disabled { background: #94a3b8; cursor: not-allowed; }
+
+  .dashboard-tabs {
+    display:flex; gap:8px; margin:18px 0; padding:5px; width:max-content;
+    max-width:100%; overflow-x:auto; background:#e8eef0; border-radius:10px;
+  }
+  .dashboard-tab {
+    border:0; background:transparent; color:var(--text-muted); font:inherit;
+    font-size:12px; font-weight:750; padding:9px 14px; border-radius:7px;
+    cursor:pointer; white-space:nowrap;
+  }
+  .dashboard-tab.active { background:var(--surface); color:var(--accent); box-shadow:0 1px 4px rgba(0,0,0,.1); }
+  .dashboard-view { display:none; }
+  .dashboard-view.active { display:block; }
+  .summary-heading { margin:26px 0 12px; }
+  .summary-heading h2 { margin:0 0 4px; font-size:18px; color:var(--text); }
+  .summary-heading p { margin:0; font-size:12px; color:var(--text-muted); line-height:1.5; }
+  .theme-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
+  .theme-card {
+    background:var(--surface); border:1px solid var(--border); border-top:4px solid var(--theme-color);
+    border-radius:var(--radius); padding:16px; box-shadow:var(--shadow);
+  }
+  .theme-card-label { font-size:12px; font-weight:800; color:var(--text); margin-bottom:8px; }
+  .theme-card-count { font-size:25px; line-height:1; font-weight:850; color:var(--theme-color); }
+  .theme-card-sub { margin-top:5px; font-size:11px; color:var(--text-muted); }
+  .theme-card-metric { margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
+  .theme-card-metric strong { display:block; font-size:14px; color:var(--text); }
+  .theme-card-metric span { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.35px; }
+  .theme-analysis {
+    background:#f8fbfc; border:1px solid var(--border); border-left:4px solid var(--accent);
+    border-radius:10px; padding:15px 16px; margin:14px 0; font-size:13.5px; line-height:1.65;
+  }
+  .theme-table-wrap { overflow-x:auto; }
+  .theme-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .theme-table th { color:var(--text-muted); font-size:10px; letter-spacing:.4px; text-transform:uppercase; text-align:left; padding:10px; border-bottom:1px solid var(--border); }
+  .theme-table td { padding:11px 10px; border-bottom:1px solid #edf2f3; vertical-align:middle; }
+  .theme-swatch { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; }
+  .evidence-badge { display:inline-flex; padding:3px 7px; border-radius:999px; font-size:10px; font-weight:750; }
+  .evidence-badge.enough { color:#166534; background:#dcfce7; }
+  .evidence-badge.limited { color:#92400e; background:#fef3c7; }
+  .theme-tag { display:inline-flex; padding:3px 7px; border-radius:999px; font-size:10px; font-weight:750; color:var(--accent); background:#e8f1f3; }
+  .table-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  .methodology { margin-top:12px; font-size:11px; color:var(--text-muted); }
+  .methodology summary { cursor:pointer; font-weight:700; color:var(--accent); }
+  @media (max-width:900px) { .theme-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:560px) {
+    .theme-grid { grid-template-columns:1fr; }
+    .dashboard-tabs { width:100%; }
+    .dashboard-tab { flex:1; }
+  }
+
 </style>
 </head>
 <body>
@@ -793,44 +843,30 @@
     </div>
   </div>
 
-  <!-- EXEC SUMMARY -->
-  <div id="exec-summary" style="display:none">
-    <div class="exec-summary-card">
-      <div class="exec-summary-header">
-        <div>
-          <div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div>
-          <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-sm btn-edit" id="btn-copy-doc" onclick="copyStrategyForDoc()">📋 Copy for Google Doc</button>
-          <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
-          <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done</button>
-        </div>
-      </div>
-      <div class="edit-mode-banner" id="edit-banner">
-        ✏️ <span><strong>Edit mode on</strong> — click any highlighted text to rewrite it. Changes carry through to the client report.</span>
-      </div>
-      <div id="exec-summary-body"></div>
-    </div>
+  <div class="dashboard-tabs" role="tablist" aria-label="Dashboard sections">
+    <button class="dashboard-tab active" type="button" onclick="switchDashboardView('overview', this)">Overview</button>
+    <button class="dashboard-tab" type="button" onclick="switchDashboardView('details', this)">Detailed Performance</button>
+    <button class="dashboard-tab" type="button" onclick="switchDashboardView('posts', this)">Top Posts</button>
   </div>
 
+  <div id="view-overview" class="dashboard-view active">
   <!-- KPI CARDS -->
   <div class="kpi-grid">
     <div class="kpi-card reach">
       <div class="kpi-icon">👁</div>
-      <div class="kpi-label">Total Reach</div>
+      <div class="kpi-label">Accounts Reached</div>
       <div class="kpi-value" id="kpi-reach">—</div>
       <div class="kpi-sub" id="kpi-reach-sub">Unique accounts</div>
     </div>
     <div class="kpi-card views">
       <div class="kpi-icon">▶</div>
-      <div class="kpi-label">Total Views</div>
+      <div class="kpi-label">Content Views</div>
       <div class="kpi-value" id="kpi-views">—</div>
       <div class="kpi-sub" id="kpi-views-sub">Across all posts</div>
     </div>
     <div class="kpi-card engagement">
       <div class="kpi-icon">💬</div>
-      <div class="kpi-label">Avg Engagement Rate</div>
+      <div class="kpi-label">Avg Post Engagement</div>
       <div class="kpi-value" id="kpi-eng">—</div>
       <div class="kpi-sub" id="kpi-eng-sub">Interactions ÷ Reach</div>
     </div>
@@ -851,7 +887,7 @@
   <!-- 90-DAY PERIOD-OVER-PERIOD COMPARISON -->
   <div class="charts-grid">
     <div class="chart-card col-12">
-      <div class="chart-title">Last 90 Days vs Prior 90 Days</div>
+      <div class="chart-title">Performance Change</div>
       <div class="chart-sub" id="pop-sub">Most recent 90-day window compared with the 90 days before it</div>
       <div class="pop-grid" id="pop-grid"></div>
       <div class="pop-empty" id="pop-empty" style="display:none"></div>
@@ -862,6 +898,48 @@
   <!-- INSIGHT BOXES -->
   <div class="insight-grid" id="insight-grid"></div>
 
+  <!-- EXEC SUMMARY -->
+  <div id="exec-summary" style="display:none">
+    <div class="exec-summary-card">
+      <div class="exec-summary-header">
+        <div>
+          <div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div>
+          <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn btn-sm btn-edit" id="btn-ai-brief" onclick="copyThemeAIBrief()" title="Copy structured theme evidence for analysis in ChatGPT">✨ Copy AI Brief</button>
+          <button class="btn btn-sm btn-edit" id="btn-copy-doc" onclick="copyStrategyForDoc()">📋 Copy for Google Doc</button>
+          <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
+          <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done</button>
+        </div>
+      </div>
+      <div class="edit-mode-banner" id="edit-banner">
+        ✏️ <span><strong>Edit mode on</strong> — click any highlighted text to rewrite it. Changes carry through to the client report.</span>
+      </div>
+      <div id="exec-summary-body"></div>
+    </div>
+  </div>
+
+
+  <div class="summary-heading">
+    <h2>Content Themes</h2>
+    <p>Deterministic caption classification across Community, Economy, Environment and Site Activity.</p>
+  </div>
+  <div class="theme-grid" id="theme-grid"></div>
+  <div class="chart-card col-12" id="theme-section" style="margin-bottom:28px">
+    <div class="chart-title">How Each Theme Performs</div>
+    <div class="chart-sub">Organic results only where stated · median values reduce distortion from unusually large posts</div>
+    <div class="theme-analysis editable-field" id="theme-analysis" data-edit-key="theme-analysis-all" contenteditable="false"></div>
+    <div class="theme-table-wrap" id="theme-table-wrap"></div>
+    <div class="chart-note" id="theme-note"></div>
+    <details class="methodology">
+      <summary>How themes are detected</summary>
+      Captions are scored against a fixed weighted-keyword dictionary. A theme is assigned when it scores at least four points and reaches at least 80% of the post’s strongest theme score; closely matched posts may carry more than one theme. Posts with no qualifying match remain unclassified. AI is used only after classification to interpret the evidence.
+    </details>
+  </div>
+  </div><!-- /view-overview -->
+
+  <div id="view-details" class="dashboard-view">
   <!-- ROW 1: Reach Over Time + Content Mix -->
   <div class="charts-grid">
     <div class="chart-card col-8">
@@ -886,7 +964,7 @@
   <!-- ROW 2: Engagement Rate by Post Type + Views by Type -->
   <div class="charts-grid">
     <div class="chart-card col-6">
-      <div class="chart-title">Avg Organic Engagement Rate by Post Type</div>
+      <div class="chart-title">Which Formats Earn the Most Engagement</div>
       <div class="chart-sub">Estimated unboosted posts only · IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-type"></canvas>
@@ -894,7 +972,7 @@
       <div class="chart-note" id="eng-type-note"></div>
     </div>
     <div class="chart-card col-6">
-      <div class="chart-title">Avg Organic Reach by Post Type</div>
+      <div class="chart-title">Which Formats Reach the Most People</div>
       <div class="chart-sub">Estimated unboosted posts only · average unique accounts reached per post</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-reach-type"></canvas>
@@ -906,7 +984,7 @@
   <!-- ROW 3: Organic vs Boosted Reach -->
   <div class="charts-grid">
     <div class="chart-card col-12">
-      <div class="chart-title">Avg Reach by Content Type — Estimated Boosted Posts Only</div>
+      <div class="chart-title">Likely Paid Posts: Reach by Format</div>
       <div class="chart-sub">Posts with reach &gt;4× platform median treated as likely boosted · how content types compare when paid amplification is in play</div>
       <div class="chart-wrap" style="height:260px">
         <canvas id="chart-boost-reach"></canvas>
@@ -918,7 +996,7 @@
   <!-- ROW 4: Follows by Post Type + Top Follows Posts -->
   <div class="charts-grid">
     <div class="chart-card col-5">
-      <div class="chart-title">Avg Follows Gained by Post Type</div>
+      <div class="chart-title">Which Formats Attract Followers</div>
       <div class="chart-sub">Instagram only — avg new followers per post in each format</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-follows-type"></canvas>
@@ -936,7 +1014,7 @@
   <!-- ROW 5: Engagement Breakdown -->
   <div class="charts-grid">
     <div class="chart-card col-12">
-      <div class="chart-title">Engagement Breakdown by Post Type</div>
+      <div class="chart-title">How People Respond to Each Format</div>
       <div class="chart-sub">Avg interactions per post — what kind of engagement each format drives</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-breakdown"></canvas>
@@ -973,16 +1051,20 @@
     </div>
   </div>
 
-  <!-- ROW 4: Top Posts Table -->
+  </div><!-- /view-details -->
+
+  <div id="view-posts" class="dashboard-view">
+  <!-- TOP POSTS TABLE -->
   <div class="chart-card col-12" style="margin-bottom:28px">
-    <div class="section-header">🏆 Top Performing Posts</div>
-    <div style="font-size:12px; color:var(--text-muted); margin-bottom:16px;" id="table-sort-hint">Click any column header to sort</div>
+    <div class="section-header">Best-Performing Content</div>
+    <div class="table-controls"><div style="font-size:12px; color:var(--text-muted);" id="table-sort-hint">Showing the top 10 posts · click any column header to sort</div><button class="btn btn-outline btn-sm" id="btn-top-posts-toggle" onclick="toggleTopPosts()">View all 30</button></div>
     <div class="table-wrap">
       <table id="top-posts-table">
         <thead>
           <tr>
             <th>#</th>
             <th>Platform</th>
+            <th>Theme</th>
             <th>Type</th>
             <th class="sortable" onclick="sortTable('date')">Date</th>
             <th>Caption</th>
@@ -997,6 +1079,8 @@
       </table>
     </div>
   </div>
+
+  </div><!-- /view-posts -->
 
   <!-- ANALYST NOTES — hidden from client report -->
   <div id="analyst-notes" style="display:none">
@@ -1053,6 +1137,7 @@ let charts = {};
 let embeddedData = null;
 let tableSortKey = 'engRate';
 let tableSortDir = 'desc';
+let topPostsExpanded = false;
 let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
 let sharedEditableContent = {};
 
@@ -1099,6 +1184,237 @@ const TYPE_COLORS = {
   'Photos':     '#10b981',
 };
 const PLATFORM_COLORS = { ig: '#e1306c', fb: '#1877f2' };
+
+const THEME_MIN_SAMPLE = 5;
+const THEME_CONFIG = [
+  {
+    id: 'community',
+    label: 'Community',
+    color: '#0d5a6c',
+    terms: [
+      ['community', 4], ['communities', 4], ['local residents', 4], ['resident', 3], ['residents', 3],
+      ['family', 2], ['families', 2], ['youth', 3], ['student', 2], ['students', 2],
+      ['neighbourhood', 3], ['neighborhood', 3], ['volunteer', 3], ['donation', 3],
+      ['community centre', 4], ['community center', 4], ['local people', 3], ['bahamian community', 4],
+      ['partnership', 1], ['support', 1], ['people', 1]
+    ]
+  },
+  {
+    id: 'economy',
+    label: 'Economy',
+    color: '#b7791f',
+    terms: [
+      ['economy', 4], ['economic', 4], ['job', 4], ['jobs', 4], ['employment', 4], ['employed', 3],
+      ['workforce', 3], ['career', 3], ['careers', 3], ['hiring', 4], ['business', 2], ['businesses', 2],
+      ['local business', 4], ['vendor', 3], ['vendors', 3], ['supplier', 3], ['suppliers', 3],
+      ['contractor', 2], ['contractors', 2], ['investment', 3], ['tourism', 3],
+      ['opportunity', 2], ['opportunities', 2], ['livelihood', 3], ['commerce', 3]
+    ]
+  },
+  {
+    id: 'environment',
+    label: 'Environment',
+    color: '#2f855a',
+    terms: [
+      ['environment', 4], ['environmental', 4], ['sustainability', 4], ['sustainable', 4],
+      ['conservation', 4], ['marine', 3], ['ocean', 3], ['sea', 2], ['coast', 2], ['coastal', 3],
+      ['wildlife', 3], ['habitat', 3], ['ecosystem', 3], ['biodiversity', 4], ['coral', 3],
+      ['mangrove', 3], ['mangroves', 3], ['turtle', 3], ['turtles', 3], ['turtlegrass', 4],
+      ['seagrass', 4], ['climate', 3], ['water quality', 4], ['waste', 2], ['renewable', 3],
+      ['solar', 3], ['nature', 2], ['ecological', 4]
+    ]
+  },
+  {
+    id: 'site-activity',
+    label: 'Site Activity',
+    color: '#4c51bf',
+    terms: [
+      ['site activity', 5], ['on site', 3], ['worksite', 4], ['construction', 4], ['construction site', 5],
+      ['site preparation', 5], ['preparatory work', 4], ['work has begun', 4], ['work begins', 3], ['work underway', 4],
+      ['modular construction', 5], ['early work', 2], ['moving forward', 2], ['preparation', 2],
+      ['building', 2], ['build', 2], ['progress update', 4], ['project update', 4], ['project milestone', 4], ['milestone', 3],
+      ['infrastructure', 3], ['equipment', 3], ['machinery', 3], ['installation', 3], ['installing', 3],
+      ['excavation', 4], ['foundation', 3], ['foundations', 3], ['concrete', 3], ['engineering', 3],
+      ['crew', 2], ['roadwork', 4], ['roadworks', 4], ['utilities', 3], ['groundbreaking', 4],
+      ['underway', 2], ['completed', 1], ['completion', 2], ['site', 1], ['progress', 1]
+    ]
+  }
+];
+
+function normalizeThemeText(value) {
+  return (' ' + String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ');
+}
+
+function classifyThemes(post) {
+  const text = normalizeThemeText(post && post.caption);
+  const ranked = THEME_CONFIG.map(function(theme, index) {
+    const matched = [];
+    let score = 0;
+    theme.terms.forEach(function(entry) {
+      const term = normalizeThemeText(entry[0]).trim();
+      if (term && text.indexOf(' ' + term + ' ') >= 0) {
+        score += entry[1];
+        matched.push(entry[0]);
+      }
+    });
+    return { id: theme.id, label: theme.label, color: theme.color, score: score, matched: matched, order: index };
+  }).sort(function(a, b) {
+    return b.score - a.score || a.order - b.order;
+  });
+  const strongestScore = ranked.length ? ranked[0].score : 0;
+  if (strongestScore < 4) return [];
+  return ranked.filter(function(theme) {
+    return theme.score >= 4 && theme.score >= strongestScore * 0.8;
+  });
+}
+
+function classifyTheme(post) {
+  const matches = classifyThemes(post);
+  return matches[0] || { id: 'unclassified', label: 'Unclassified', color: '#94a3b8', score: 0, matched: [] };
+}
+
+function medianValue(values) {
+  const sorted = values.filter(function(value) { return Number.isFinite(Number(value)); }).map(Number).sort(function(a,b) { return a-b; });
+  if (!sorted.length) return 0;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function getThemeStats(posts) {
+  const annotated = posts.map(function(post) { return { post: post, themes: classifyThemes(post) }; });
+  const eligibleOrganic = annotated.filter(function(item) {
+    return !isLikelyBoostedPost(item.post) && item.post.reach > 0 && Number.isFinite(Number(item.post.engRate));
+  });
+  const lowPosts = new Set();
+  ['ig', 'fb'].forEach(function(platform) {
+    const group = eligibleOrganic.filter(function(item) { return item.post.platform === platform; })
+      .sort(function(a,b) { return a.post.engRate - b.post.engRate; });
+    if (group.length < 4) return;
+    group.slice(0, Math.max(1, Math.ceil(group.length * 0.25))).forEach(function(item) { lowPosts.add(item.post); });
+  });
+
+  const rows = THEME_CONFIG.map(function(theme) {
+    const assigned = annotated.filter(function(item) { return item.themes.some(function(match) { return match.id === theme.id; }); });
+    const organic = eligibleOrganic.filter(function(item) { return item.themes.some(function(match) { return match.id === theme.id; }); });
+    const topPost = organic.slice().sort(function(a,b) { return b.post.engRate - a.post.engRate || b.post.reach - a.post.reach; })[0];
+    const lowCount = organic.filter(function(item) { return lowPosts.has(item.post); }).length;
+    return {
+      id: theme.id,
+      label: theme.label,
+      color: theme.color,
+      count: assigned.length,
+      share: posts.length ? assigned.length / posts.length : 0,
+      organicCount: organic.length,
+      medianReach: medianValue(organic.map(function(item) { return item.post.reach; })),
+      medianEngagement: medianValue(organic.map(function(item) { return item.post.engRate; })),
+      lowShare: organic.length ? lowCount / organic.length : 0,
+      topPost: topPost ? topPost.post : null,
+      examples: assigned.slice().sort(function(a,b) { return b.post.engRate - a.post.engRate; }).slice(0,3).map(function(item) {
+        return { platform: item.post.platform, date: item.post.dateStr, caption: String(item.post.caption || '').slice(0, 220), reach: item.post.reach, engagementRate: Number(item.post.engRate.toFixed(2)), link: item.post.permalink || '' };
+      })
+    };
+  });
+  return {
+    rows: rows,
+    totalPosts: posts.length,
+    classifiedCount: annotated.filter(function(item) { return item.themes.length > 0; }).length,
+    unclassifiedCount: annotated.filter(function(item) { return item.themes.length === 0; }).length
+  };
+}
+
+function renderThemes(posts) {
+  const grid = document.getElementById('theme-grid');
+  const table = document.getElementById('theme-table-wrap');
+  const note = document.getElementById('theme-note');
+  const analysis = document.getElementById('theme-analysis');
+  if (!grid || !table || !note || !analysis) return;
+  if (!posts.length) {
+    grid.innerHTML = ''; table.innerHTML = ''; analysis.textContent = 'No posts are available for theme analysis.'; note.textContent = ''; return;
+  }
+
+  const result = getThemeStats(posts);
+  const eligible = result.rows.filter(function(row) { return row.organicCount >= THEME_MIN_SAMPLE; });
+  const strongestReach = eligible.slice().sort(function(a,b) { return b.medianReach - a.medianReach; })[0];
+  const strongestEngagement = eligible.slice().sort(function(a,b) { return b.medianEngagement - a.medianEngagement; })[0];
+  const highestLowShare = eligible.slice().sort(function(a,b) { return b.lowShare - a.lowShare; })[0];
+  const platformLabel = currentFilter === 'ig' ? 'Instagram' : currentFilter === 'fb' ? 'Facebook' : 'All platforms';
+
+  grid.innerHTML = result.rows.map(function(row) {
+    const enough = row.organicCount >= THEME_MIN_SAMPLE;
+    return '<div class="theme-card" style="--theme-color:' + row.color + '">'
+      + '<div class="theme-card-label">' + escapeHTML(row.label) + '</div>'
+      + '<div class="theme-card-count">' + row.count + '</div>'
+      + '<div class="theme-card-sub">' + Math.round(row.share * 100) + '% of posts tagged with this theme</div>'
+      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</strong><span>Median organic reach</span></div>'
+      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</strong><span>Median organic engagement</span></div>'
+      + '<div style="margin-top:10px"><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + (enough ? 'Sufficient sample' : 'Limited sample') + '</span></div></div>';
+  }).join('');
+
+  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Posts</th><th>Organic sample</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Example</th></tr></thead><tbody>'
+    + result.rows.map(function(row) {
+      const enough = row.organicCount >= THEME_MIN_SAMPLE;
+      const example = row.topPost && row.topPost.permalink ? '<a class="post-link" href="' + escapeHTML(row.topPost.permalink) + '" target="_blank">View post ↗</a>' : '—';
+      return '<tr><td><span class="theme-swatch" style="background:' + row.color + '"></span><strong>' + escapeHTML(row.label) + '</strong></td>'
+        + '<td>' + row.count + '</td><td><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + row.organicCount + ' organic</span></td>'
+        + '<td>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</td><td>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</td>'
+        + '<td>' + (row.organicCount ? Math.round(row.lowShare * 100) + '%' : '—') + '</td><td>' + example + '</td></tr>';
+    }).join('') + '</tbody></table>';
+
+  const statements = [];
+  if (strongestEngagement) statements.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
+  if (strongestReach) statements.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median organic reach at <strong>' + fmt(strongestReach.medianReach) + '</strong> per post.');
+  if (highestLowShare && highestLowShare.lowShare >= 0.4) statements.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> is most concentrated in the bottom engagement quartile at <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong>; treat this as a signal to review, not proof that the theme caused lower performance.');
+  if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' estimated organic posts, so the current data does not support a reliable theme comparison.');
+
+  analysis.setAttribute('data-edit-key', 'theme-analysis-' + currentFilter);
+  analysis.innerHTML = statements.join(' ');
+  const coverage = result.totalPosts ? Math.round((result.classifiedCount / result.totalPosts) * 100) : 0;
+  note.textContent = platformLabel + ': ' + coverage + '% classification coverage · ' + result.unclassifiedCount + ' unclassified · comparisons require at least ' + THEME_MIN_SAMPLE + ' estimated organic posts per theme.';
+}
+
+function buildThemeAIBrief(posts) {
+  const result = getThemeStats(posts);
+  const evidence = {
+    filter: currentFilter,
+    minimumOrganicSampleForClaims: THEME_MIN_SAMPLE,
+    classificationCoveragePercent: result.totalPosts ? Math.round((result.classifiedCount / result.totalPosts) * 100) : 0,
+    unclassifiedPosts: result.unclassifiedCount,
+    themes: result.rows.map(function(row) {
+      return { theme: row.label, totalPosts: row.count, organicPosts: row.organicCount, medianOrganicReach: Math.round(row.medianReach), medianOrganicEngagementRate: Number(row.medianEngagement.toFixed(2)), bottomEngagementQuartileSharePercent: Math.round(row.lowShare * 100), examples: row.examples };
+    })
+  };
+  return [
+    'Analyze the following social-media theme evidence for a client report.',
+    'Theme assignment and all metrics are deterministic. Use only the supplied evidence.',
+    'Do not infer causation. Do not make comparative claims for themes with fewer than ' + THEME_MIN_SAMPLE + ' organic posts.',
+    'Return: (1) one executive takeaway, (2) two concise repeat/increase recommendations, (3) one reduce/test recommendation only if supported, and (4) one limitation note.',
+    'Keep the response under 140 words and reference the relevant numbers.',
+    '',
+    JSON.stringify(evidence, null, 2)
+  ].join('\n');
+}
+
+async function copyThemeAIBrief() {
+  if (!allPosts.length) { alert('Load the dashboard first so there is theme evidence to analyze.'); return; }
+  const copied = await copyTextToClipboard(buildThemeAIBrief(filtered()));
+  const button = document.getElementById('btn-ai-brief');
+  if (button) {
+    const original = button.textContent;
+    button.textContent = copied ? '✓ AI brief copied' : '⚠ Copy failed';
+    setTimeout(function() { button.textContent = original; }, 1800);
+  }
+  if (!copied) alert('Copy failed in this browser. Clipboard access was blocked.');
+}
+
+function switchDashboardView(view, button) {
+  document.querySelectorAll('.dashboard-view').forEach(function(panel) { panel.classList.toggle('active', panel.id === 'view-' + view); });
+  document.querySelectorAll('.dashboard-tab').forEach(function(tab) { tab.classList.remove('active'); });
+  if (button) button.classList.add('active');
+  requestAnimationFrame(function() {
+    Object.keys(charts).forEach(function(key) { if (charts[key] && typeof charts[key].resize === 'function') charts[key].resize(); });
+  });
+}
+
 
 // ── Auto-detect platform from CSV headers ──
 function detectPlatform(csv) {
@@ -1662,6 +1978,7 @@ function renderAll() {
   renderKPIs(posts);
   renderComparison(posts);
   renderInsights(posts);
+  renderThemes(posts);
   renderReachOverTime(posts);
   renderContentMix(posts);
   renderEngByType(organicPosts);
@@ -1862,53 +2179,32 @@ function renderComparison(posts) {
 function renderInsights(posts) {
   const el = document.getElementById('insight-grid');
   if (posts.length === 0) { el.innerHTML = ''; return; }
-
-  // Best post type by avg engagement
+  const organicPosts = posts.filter(function(post) { return !isLikelyBoostedPost(post) && post.reach > 0; });
   const byType = {};
-  posts.forEach(p => {
-    if (!byType[p.type]) byType[p.type] = { eng: [], reach: [] };
-    if (p.reach > 0) byType[p.type].eng.push(p.engRate);
-    byType[p.type].reach.push(p.reach);
+  organicPosts.forEach(function(post) {
+    if (!byType[post.type]) byType[post.type] = { count: 0, engagement: [], reach: [], follows: [] };
+    byType[post.type].count += 1;
+    byType[post.type].engagement.push(post.engRate);
+    byType[post.type].reach.push(post.reach);
+    if (post.platform === 'ig') byType[post.type].follows.push(post.follows || 0);
   });
-  let bestType = '', bestEng = 0;
-  Object.entries(byType).forEach(([t, v]) => {
-    const avg = v.eng.length > 0 ? v.eng.reduce((a,b)=>a+b,0)/v.eng.length : 0;
-    if (avg > bestEng) { bestEng = avg; bestType = t; }
-  });
-
-  // Best single post
-  const best = [...posts].sort((a,b) => b.engRate - a.engRate)[0];
-
-  // Avg engagement by platform
-  const igPosts2 = posts.filter(p=>p.platform==='ig' && p.reach>0);
-  const fbPosts2 = posts.filter(p=>p.platform==='fb' && p.reach>0);
-  const igAvgEng = igPosts2.length ? igPosts2.reduce((s,p)=>s+p.engRate,0)/igPosts2.length : 0;
-  const fbAvgEng = fbPosts2.length ? fbPosts2.reduce((s,p)=>s+p.engRate,0)/fbPosts2.length : 0;
-
-  el.innerHTML = `
-    <div class="insight-box green">
-      <div class="insight-label">🏅 Top Post Type</div>
-      <div class="insight-value">${bestType}</div>
-      <div class="insight-desc">Avg ${fmtPct(bestEng)} engagement rate</div>
-    </div>
-    <div class="insight-box purple">
-      <div class="insight-label">⭐ Best Single Post</div>
-      <div class="insight-value">${fmtPct(best.engRate)}</div>
-      <div class="insight-desc">${best.type} · ${best.dateStr} · ${fmt(best.reach)} reach</div>
-      ${best.permalink ? `<a href="${best.permalink}" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>` : ''}
-    </div>
-    ${igPosts2.length && fbPosts2.length ? `
-    <div class="insight-box">
-      <div class="insight-label">📱 IG vs FB Engagement</div>
-      <div class="insight-value">IG ${fmtPct(igAvgEng)}</div>
-      <div class="insight-desc">FB avg ${fmtPct(fbAvgEng)} · IG has ${igAvgEng > fbAvgEng ? 'higher' : 'lower'} avg ER</div>
-    </div>` : ''}
-    <div class="insight-box orange">
-      <div class="insight-label">📅 Period</div>
-      <div class="insight-value">${posts.length} Posts</div>
-      <div class="insight-desc">${posts.filter(p=>p.platform==='ig').length} IG · ${posts.filter(p=>p.platform==='fb').length} FB</div>
-    </div>
-  `;
+  const rows = Object.keys(byType).map(function(type) {
+    const item = byType[type];
+    return { type: type, count: item.count,
+      avgEngagement: item.engagement.length ? item.engagement.reduce(function(a,b){return a+b;},0) / item.engagement.length : 0,
+      avgReach: item.reach.length ? item.reach.reduce(function(a,b){return a+b;},0) / item.reach.length : 0,
+      avgFollows: item.follows.length ? item.follows.reduce(function(a,b){return a+b;},0) / item.follows.length : 0 };
+  }).filter(function(row) { return row.count >= 3; });
+  const bestEngagement = rows.slice().sort(function(a,b){return b.avgEngagement-a.avgEngagement;})[0];
+  const bestReach = rows.slice().sort(function(a,b){return b.avgReach-a.avgReach;})[0];
+  const bestFollows = rows.filter(function(row){return row.avgFollows>0;}).sort(function(a,b){return b.avgFollows-a.avgFollows;})[0];
+  const bestPost = organicPosts.slice().sort(function(a,b){return b.engRate-a.engRate;})[0];
+  const cards = [];
+  if (bestEngagement) cards.push('<div class="insight-box green"><div class="insight-label">Strongest Engagement Format</div><div class="insight-value">' + escapeHTML(bestEngagement.type) + '</div><div class="insight-desc">' + fmtPct(bestEngagement.avgEngagement) + ' average organic engagement · ' + bestEngagement.count + ' posts</div></div>');
+  if (bestReach) cards.push('<div class="insight-box"><div class="insight-label">Strongest Organic Reach Format</div><div class="insight-value">' + escapeHTML(bestReach.type) + '</div><div class="insight-desc">' + fmt(Math.round(bestReach.avgReach)) + ' average reach · ' + bestReach.count + ' posts</div></div>');
+  if (bestFollows) cards.push('<div class="insight-box orange"><div class="insight-label">Strongest Follower Format</div><div class="insight-value">' + escapeHTML(bestFollows.type) + '</div><div class="insight-desc">' + bestFollows.avgFollows.toFixed(1) + ' Instagram follows per post</div></div>');
+  if (bestPost) cards.push('<div class="insight-box purple"><div class="insight-label">Best Organic Post</div><div class="insight-value">' + fmtPct(bestPost.engRate) + '</div><div class="insight-desc">' + escapeHTML(bestPost.type) + ' · ' + escapeHTML(bestPost.dateStr) + ' · ' + fmt(bestPost.reach) + ' reach</div>' + (bestPost.permalink ? '<a href="' + escapeHTML(bestPost.permalink) + '" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>' : '') + '</div>');
+  el.innerHTML = cards.join('');
 }
 
 // ── Reach Over Time (weekly) ──
@@ -2488,6 +2784,11 @@ function sortTable(key) {
 }
 
 // ── Top Posts Table ──
+function toggleTopPosts() {
+  topPostsExpanded = !topPostsExpanded;
+  renderTopPosts(filtered());
+}
+
 function renderTopPosts(posts) {
   const validPosts = [...posts].filter(p => p.reach > 0);
   validPosts.sort((a, b) => {
@@ -2495,9 +2796,13 @@ function renderTopPosts(posts) {
     if (tableSortKey === 'date') { va = a.date ? a.date.getTime() : 0; vb = b.date ? b.date.getTime() : 0; }
     return tableSortDir === 'desc' ? vb - va : va - vb;
   });
-  const sorted = validPosts.slice(0, 30);
+  const sorted = validPosts.slice(0, topPostsExpanded ? 30 : 10);
   const maxEng = sorted.length > 0 ? sorted[0].engRate : 1;
   const tbody = document.getElementById('top-posts-body');
+  const toggle = document.getElementById('btn-top-posts-toggle');
+  const hint = document.getElementById('table-sort-hint');
+  if (toggle) toggle.textContent = topPostsExpanded ? 'Show top 10' : 'View all ' + Math.min(30, validPosts.length);
+  if (hint) hint.textContent = (topPostsExpanded ? 'Showing up to 30 posts' : 'Showing the top 10 posts') + ' · click any column header to sort';
 
   const typeClass = t => {
     if (t === 'IG reel') return 'reel';
@@ -2511,6 +2816,7 @@ function renderTopPosts(posts) {
     <tr>
       <td style="font-weight:700; color:#94a3b8; font-size:12px">${i+1}</td>
       <td><span class="platform-tag ${p.platform}">${p.platform === 'ig' ? '📸 IG' : '🔵 FB'}</span></td>
+      <td><span class="theme-tag">${classifyThemes(p).length ? classifyThemes(p).map(function(theme) { return theme.label; }).join(' · ') : 'Unclassified'}</span></td>
       <td><span class="type-tag ${typeClass(p.type)}">${p.type}</span></td>
       <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">${p.dateStr}</td>
       <td><div class="post-caption" title="${p.caption.replace(/"/g,"'")}">${p.caption || '—'}</div></td>
@@ -2525,7 +2831,7 @@ function renderTopPosts(posts) {
       </td>
       <td>${p.permalink ? `<a class="post-link" href="${p.permalink}" target="_blank">View ↗</a>` : '—'}</td>
     </tr>
-  `).join('') || '<tr><td colspan="10" class="no-data">No posts found for this filter.</td></tr>';
+  `).join('') || '<tr><td colspan="11" class="no-data">No posts found for this filter.</td></tr>';
 }
 
 // ── Executive Summary ──
@@ -2789,12 +3095,15 @@ function buildStrategyDocExport() {
       + '<div style="font-size:12px;line-height:1.65;color:#111111;">' + body + '</div>'
       + '</section>';
   }).join('');
+  const themeAnalysis = document.getElementById('theme-analysis');
+  const themeText = themeAnalysis ? normalizeCopyText(themeAnalysis.innerText || '') : '';
+  const themeHTML = themeText ? '<section style="margin:0 0 22px 0;"><h2 style="font-size:15px;line-height:1.35;margin:0 0 10px 0;font-weight:700;color:#111111;">Content Themes</h2><div style="font-size:12px;line-height:1.65;color:#111111;">' + cleanDocHTML(themeAnalysis.innerHTML) + '</div></section>' : '';
   const plainSummary = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
-  const plainText = [title, meta, '', ...plainSummary].join('\n\n');
+  const plainText = [title, meta, '', ...plainSummary, ...(themeText ? ['Content Themes', themeText] : [])].join('\n\n');
   const richHTML = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111111;">'
     + '<h1 style="font-size:20px;margin:0 0 8px 0;font-weight:700;color:#111111;">' + escapeHTML(title) + '</h1>'
     + (meta ? '<p style="margin:0 0 20px 0;font-size:11px;color:#111111;">' + escapeHTML(meta) + '</p>' : '')
-    + summaryHTML + '</div>';
+    + summaryHTML + themeHTML + '</div>';
   return { html: richHTML, text: plainText };
 }
 
@@ -2863,8 +3172,7 @@ async function copyTextToClipboard(text, richHTML) {
 
 async function copyStrategyForDoc() {
   const execSummary = document.getElementById('exec-summary-body');
-  const calendar = document.getElementById('content-calendar');
-  if (!execSummary || !calendar || !execSummary.innerText.trim()) {
+  if (!execSummary || !execSummary.innerText.trim()) {
     alert('Load the dashboard first so there is strategy text to copy.');
     return;
   }
@@ -2937,8 +3245,8 @@ function buildClientHTML() {
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
     #upload-screen, #github-modal, #analyst-notes,
-    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #edit-banner,
-    .btn-outline, #btn-github, .toolbar-right { display: none !important; }
+    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-brief, #edit-banner,
+    #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
     :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
     .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
