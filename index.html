@@ -934,7 +934,7 @@
     <div class="chart-note" id="theme-note"></div>
     <details class="methodology">
       <summary>How themes are detected</summary>
-      Captions are scored against a fixed weighted-keyword dictionary. A theme is assigned when it scores at least four points and reaches at least 80% of the post’s strongest theme score; closely matched posts may carry more than one theme. Posts with no qualifying match remain unclassified. AI is used only after classification to interpret the evidence.
+      Captions are scored against a fixed weighted-keyword dictionary. A theme is assigned when it scores at least four points and reaches at least 80% of the post’s strongest theme score; closely matched posts may carry more than one theme. Theme examples must use that theme as the post’s primary match and are ranked by theme strength weighted toward score purity before engagement. Posts with no qualifying match remain unclassified. AI is used only after classification to interpret the evidence.
     </details>
   </div>
   </div><!-- /view-overview -->
@@ -1245,9 +1245,9 @@ function normalizeThemeText(value) {
   return (' ' + String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ');
 }
 
-function classifyThemes(post) {
+function scoreThemes(post) {
   const text = normalizeThemeText(post && post.caption);
-  const ranked = THEME_CONFIG.map(function(theme, index) {
+  return THEME_CONFIG.map(function(theme, index) {
     const matched = [];
     let score = 0;
     theme.terms.forEach(function(entry) {
@@ -1261,6 +1261,10 @@ function classifyThemes(post) {
   }).sort(function(a, b) {
     return b.score - a.score || a.order - b.order;
   });
+}
+
+function classifyThemes(post) {
+  const ranked = scoreThemes(post);
   const strongestScore = ranked.length ? ranked[0].score : 0;
   if (strongestScore < 4) return [];
   return ranked.filter(function(theme) {
@@ -1280,8 +1284,37 @@ function medianValue(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+function rankThemeExamples(items, themeId) {
+  return items.map(function(item) {
+    const themeScore = item.scores.find(function(score) { return score.id === themeId; });
+    const positiveTotal = item.scores.reduce(function(total, score) { return total + Math.max(0, score.score); }, 0);
+    const strongestOther = item.scores.find(function(score) { return score.id !== themeId; });
+    const score = themeScore ? themeScore.score : 0;
+    const otherScore = strongestOther ? strongestOther.score : 0;
+    return {
+      item: item,
+      isPrimary: item.scores.length > 0 && item.scores[0].id === themeId,
+      purity: positiveTotal > 0 ? score / positiveTotal : 0,
+      purityStrength: positiveTotal > 0 ? score * Math.pow(score / positiveTotal, 2) : 0,
+      margin: score - otherScore,
+      score: score,
+      matched: themeScore ? themeScore.matched : []
+    };
+  }).sort(function(a, b) {
+    return Number(b.isPrimary) - Number(a.isPrimary)
+      || b.purityStrength - a.purityStrength
+      || b.purity - a.purity
+      || b.margin - a.margin
+      || b.score - a.score
+      || b.item.post.engRate - a.item.post.engRate
+      || b.item.post.reach - a.item.post.reach;
+  });
+}
+
 function getThemeStats(posts) {
-  const annotated = posts.map(function(post) { return { post: post, themes: classifyThemes(post) }; });
+  const annotated = posts.map(function(post) {
+    return { post: post, scores: scoreThemes(post), themes: classifyThemes(post) };
+  });
   const eligibleOrganic = annotated.filter(function(item) {
     return !isLikelyBoostedPost(item.post) && item.post.reach > 0 && Number.isFinite(Number(item.post.engRate));
   });
@@ -1294,9 +1327,24 @@ function getThemeStats(posts) {
   });
 
   const rows = THEME_CONFIG.map(function(theme) {
-    const assigned = annotated.filter(function(item) { return item.themes.some(function(match) { return match.id === theme.id; }); });
-    const organic = eligibleOrganic.filter(function(item) { return item.themes.some(function(match) { return match.id === theme.id; }); });
-    const topPost = organic.slice().sort(function(a,b) { return b.post.engRate - a.post.engRate || b.post.reach - a.post.reach; })[0];
+    const assigned = annotated.filter(function(item) {
+      return item.themes.some(function(match) { return match.id === theme.id; });
+    });
+    const organic = eligibleOrganic.filter(function(item) {
+      return item.themes.some(function(match) { return match.id === theme.id; });
+    });
+    const rankedOrganicExamples = rankThemeExamples(organic, theme.id);
+    const rankedAllExamples = rankThemeExamples(assigned, theme.id);
+    const purestOrganic = rankedOrganicExamples.find(function(candidate) { return candidate.isPrimary; }) || rankedOrganicExamples[0];
+    const pureExamples = rankedAllExamples.filter(function(candidate) { return candidate.isPrimary; });
+    const examplePool = pureExamples.length ? pureExamples : rankedAllExamples;
+    const seenExampleCaptions = new Set();
+    const uniqueExamples = examplePool.filter(function(candidate) {
+      const key = normalizeThemeText(candidate.item.post.caption);
+      if (!key.trim() || seenExampleCaptions.has(key)) return false;
+      seenExampleCaptions.add(key);
+      return true;
+    });
     const lowCount = organic.filter(function(item) { return lowPosts.has(item.post); }).length;
     return {
       id: theme.id,
@@ -1308,9 +1356,20 @@ function getThemeStats(posts) {
       medianReach: medianValue(organic.map(function(item) { return item.post.reach; })),
       medianEngagement: medianValue(organic.map(function(item) { return item.post.engRate; })),
       lowShare: organic.length ? lowCount / organic.length : 0,
-      topPost: topPost ? topPost.post : null,
-      examples: assigned.slice().sort(function(a,b) { return b.post.engRate - a.post.engRate; }).slice(0,3).map(function(item) {
-        return { platform: item.post.platform, date: item.post.dateStr, caption: String(item.post.caption || '').slice(0, 220), reach: item.post.reach, engagementRate: Number(item.post.engRate.toFixed(2)), link: item.post.permalink || '' };
+      topPost: purestOrganic ? purestOrganic.item.post : null,
+      examplePurity: purestOrganic ? purestOrganic.purity : 0,
+      examples: uniqueExamples.slice(0,3).map(function(candidate) {
+        return {
+          platform: candidate.item.post.platform,
+          date: candidate.item.post.dateStr,
+          caption: String(candidate.item.post.caption || '').slice(0, 220),
+          reach: candidate.item.post.reach,
+          engagementRate: Number(candidate.item.post.engRate.toFixed(2)),
+          link: candidate.item.post.permalink || '',
+          themeScore: candidate.score,
+          purityPercent: Math.round(candidate.purity * 100),
+          matchedTerms: candidate.matched
+        };
       })
     };
   });
@@ -1350,7 +1409,7 @@ function renderThemes(posts) {
       + '<div style="margin-top:10px"><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + (enough ? 'Sufficient sample' : 'Limited sample') + '</span></div></div>';
   }).join('');
 
-  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Posts</th><th>Organic sample</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Example</th></tr></thead><tbody>'
+  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Posts</th><th>Organic sample</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Clearest example</th></tr></thead><tbody>'
     + result.rows.map(function(row) {
       const enough = row.organicCount >= THEME_MIN_SAMPLE;
       const example = row.topPost && row.topPost.permalink ? '<a class="post-link" href="' + escapeHTML(row.topPost.permalink) + '" target="_blank">View post ↗</a>' : '—';
