@@ -1169,7 +1169,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-08-10.7'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-08-10.8'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1651,12 +1651,14 @@ function applyAISummary(summary) {
   const values = {
     'performance-overview': summary.performanceOverview,
     'whats-working': summary.whatsWorking,
-    'whats-needs-attention': summary.whatsNotWorking
+    'whats-needs-attention': summary.whatsNotWorking,
+    'recommended-direction': summary.recommendedDirection
   };
   Object.keys(values).forEach(function(key) {
     const element = document.querySelector('[data-edit-key="' + key + '"]');
-    if (!element) return;
-    element.textContent = String(values[key] || '').trim();
+    const value = String(values[key] || '').trim();
+    if (!element || !value) return;
+    element.textContent = value;
   });
   summaryMode = 'ai';
   captureSharedEditableContent();
@@ -3300,6 +3302,19 @@ function renderExecSummary() {
   const whatsNeedsAttentionFallback = attentionParts.length
     ? attentionParts.join(' ')
     : 'No eligible theme is consistently concentrated among the lowest-engagement posts.';
+  const directionParts = [];
+  if (strongestEngagement) {
+    directionParts.push('Use <strong>' + escapeHTML(strongestEngagement.label) + '</strong> as the primary engagement pillar.');
+  }
+  if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
+    directionParts.push('Retain <strong>' + escapeHTML(strongestReach.label) + '</strong> for awareness, supported by specific proof and audience relevance.');
+  }
+  if (weakestEngagement) {
+    directionParts.push('Refine <strong>' + escapeHTML(weakestEngagement.label) + '</strong> before increasing its share of the content plan.');
+  }
+  const recommendedDirectionFallback = directionParts.length
+    ? directionParts.join(' ')
+    : 'Use the next reporting period to establish reliable theme samples before changing the content mix.';
 
   const dated = allPosts.filter(post => post.date).sort((a, b) => a.date - b.date);
   const dateRange = dated.length
@@ -3311,7 +3326,7 @@ function renderExecSummary() {
     : '';
   el.innerHTML = `
     <div class="exec-block">
-      <div class="exec-block-label">Performance Overview</div>
+      <div class="exec-block-label">Overview</div>
       <div class="exec-block-body editable-field" data-edit-key="performance-overview" contenteditable="false">
         The account recorded <strong>${fmt(totalReach)} total post reach</strong> across <strong>${totalPosts} posts</strong>, with <strong>${fmt(totalFollows)} Instagram follows attributed to posts</strong> and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' Facebook link clicks' : 'no Facebook link-click data recorded'}</strong>.${boostNote}
         Estimated organic posts averaged <strong>${fmt(avgOrganicReach)} reach</strong>${avgBoostedReach ? `, while posts flagged as likely boosted averaged <strong>${fmt(avgBoostedReach)} reach</strong>` : ''}.
@@ -3321,17 +3336,18 @@ function renderExecSummary() {
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
-      <div class="exec-block-label">Theme-Led Strategic Analysis</div>
-      <div class="exec-block-body" style="display:flex;flex-direction:column;gap:16px">
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#15803d">What’s Working</div>
-          <div class="editable-field" data-edit-key="whats-working" contenteditable="false" style="font-size:13.5px;line-height:1.7">${whatsWorkingFallback}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">What Needs Attention</div>
-          <div class="editable-field" data-edit-key="whats-needs-attention" contenteditable="false" style="font-size:13.5px;line-height:1.7">${whatsNeedsAttentionFallback}</div>
-        </div>
-      </div>
+      <div class="exec-block-label">What’s Working</div>
+      <div class="exec-block-body editable-field" data-edit-key="whats-working" contenteditable="false">${whatsWorkingFallback}</div>
+    </div>
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">Needs Attention</div>
+      <div class="exec-block-body editable-field" data-edit-key="whats-needs-attention" contenteditable="false">${whatsNeedsAttentionFallback}</div>
+    </div>
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">Recommended Direction</div>
+      <div class="exec-block-body editable-field" data-edit-key="recommended-direction" contenteditable="false">${recommendedDirectionFallback}</div>
     </div>
   `;
 }
