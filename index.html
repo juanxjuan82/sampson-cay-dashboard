@@ -192,6 +192,45 @@
   .kpi-sub { font-size: 12px; color: var(--text-muted); }
   .kpi-icon { position: absolute; top: 20px; right: 20px; font-size: 22px; opacity: .15; }
 
+  /* ── PERIOD-OVER-PERIOD (90d vs prior 90d) ── */
+  .pop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .pop-tile {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    background: var(--bg);
+  }
+  .pop-metric { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+  .pop-current { font-size: 26px; font-weight: 800; letter-spacing: -.5px; margin: 6px 0 2px; color: var(--text); }
+  .pop-prior { font-size: 12px; color: var(--text-muted); }
+  .pop-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    margin-top: 8px;
+  }
+  .pop-delta.up   { color: #047857; background: #d1fae5; }
+  .pop-delta.down { color: #b91c1c; background: #fee2e2; }
+  .pop-delta.flat { color: var(--text-muted); background: var(--border); }
+  .pop-empty {
+    margin-top: 14px;
+    padding: 16px 18px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text-muted);
+    background: var(--bg);
+  }
+
   /* ── CHARTS GRID ── */
   .charts-grid {
     display: grid;
@@ -806,6 +845,17 @@
       <div class="kpi-label" id="kpi-followers-label">New Followers</div>
       <div class="kpi-value" id="kpi-followers">—</div>
       <div class="kpi-sub" id="kpi-followers-sub">Gained from posts</div>
+    </div>
+  </div>
+
+  <!-- 90-DAY PERIOD-OVER-PERIOD COMPARISON -->
+  <div class="charts-grid">
+    <div class="chart-card col-12">
+      <div class="chart-title">Last 90 Days vs Prior 90 Days</div>
+      <div class="chart-sub" id="pop-sub">Most recent 90-day window compared with the 90 days before it</div>
+      <div class="pop-grid" id="pop-grid"></div>
+      <div class="pop-empty" id="pop-empty" style="display:none"></div>
+      <div class="chart-note" id="pop-note"></div>
     </div>
   </div>
 
@@ -1738,6 +1788,7 @@ function renderAll() {
   const posts = filtered();
   const organicPosts = posts.filter(p => !isLikelyBoostedPost(p));
   renderKPIs(posts);
+  renderComparison(posts);
   renderInsights(posts);
   renderReachOverTime(posts);
   renderContentMix(posts);
@@ -1796,6 +1847,99 @@ function renderKPIs(posts) {
   document.getElementById('kpi-reach-sub').textContent = sub;
   document.getElementById('kpi-posts-sub').textContent =
     currentFilter === 'all' ? `IG: ${ig.length} · FB: ${fb.length}` : `Posts published`;
+}
+
+// ── 90-day period-over-period comparison ──
+function renderComparison(posts) {
+  const grid  = document.getElementById('pop-grid');
+  const empty = document.getElementById('pop-empty');
+  const sub   = document.getElementById('pop-sub');
+  const note  = document.getElementById('pop-note');
+  const dated = posts.filter(p => p.date instanceof Date && !isNaN(p.date));
+
+  if (dated.length === 0) {
+    grid.innerHTML = ''; grid.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'No dated posts available for this filter.';
+    note.textContent = '';
+    return;
+  }
+
+  const DAY = 86400000, WINDOW = 90 * DAY;
+  const maxDate    = new Date(Math.max(...dated.map(p => p.date.getTime())));
+  const currStart  = new Date(maxDate.getTime() - WINDOW);   // last 90 days
+  const priorStart = new Date(maxDate.getTime() - 2 * WINDOW); // 90 days before that
+
+  const current = dated.filter(p => p.date > currStart  && p.date <= maxDate);
+  const prior   = dated.filter(p => p.date > priorStart && p.date <= currStart);
+
+  const fmtRange = (a, b) => {
+    const f = d => d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    return `${f(a)} – ${f(b)}`;
+  };
+  const currLabel  = fmtRange(new Date(currStart.getTime() + DAY), maxDate);
+  const priorLabel = fmtRange(new Date(priorStart.getTime() + DAY), currStart);
+  sub.textContent = `${currLabel}  vs  ${priorLabel}`;
+
+  // If there is no prior-period data, we can't compare.
+  if (prior.length === 0) {
+    grid.innerHTML = ''; grid.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'Only one 90-day period detected. Upload an earlier 90-day export to compare against the prior period.';
+    note.textContent = '';
+    return;
+  }
+
+  grid.style.display = 'grid';
+  empty.style.display = 'none';
+
+  const sum      = (arr, fn) => arr.reduce((s, p) => s + fn(p), 0);
+  const avgEng   = arr => {
+    const r = arr.filter(p => p.reach > 0);
+    return r.length ? r.reduce((s, p) => s + p.engRate, 0) / r.length : 0;
+  };
+
+  const metrics = [
+    { label: 'Total Reach',    curr: sum(current, p => p.reach),        prior: sum(prior, p => p.reach),        fmt: fmt },
+    { label: 'Total Views',    curr: sum(current, p => p.views),        prior: sum(prior, p => p.views),        fmt: fmt },
+    { label: 'Avg Eng. Rate',  curr: avgEng(current),                   prior: avgEng(prior),                   fmt: fmtPct },
+    { label: 'Interactions',   curr: sum(current, p => p.interactions), prior: sum(prior, p => p.interactions), fmt: fmt },
+    { label: 'Posts Published',curr: current.length,                    prior: prior.length,                    fmt: v => v },
+  ];
+
+  // New IG followers is only meaningful when Instagram posts are in view.
+  if (currentFilter !== 'fb') {
+    const igCurr  = current.filter(p => p.platform === 'ig');
+    const igPrior = prior.filter(p => p.platform === 'ig');
+    metrics.push({
+      label: 'New IG Followers',
+      curr: sum(igCurr, p => p.follows),
+      prior: sum(igPrior, p => p.follows),
+      fmt: fmt,
+    });
+  }
+
+  grid.innerHTML = metrics.map(m => {
+    let cls = 'flat', arrow = '→', deltaText = 'No change';
+    if (m.prior > 0) {
+      const pct = ((m.curr - m.prior) / m.prior) * 100;
+      if (Math.abs(pct) < 0.05) { cls = 'flat'; arrow = '→'; deltaText = '0.0%'; }
+      else if (pct > 0)         { cls = 'up';   arrow = '▲'; deltaText = '+' + pct.toFixed(1) + '%'; }
+      else                      { cls = 'down'; arrow = '▼'; deltaText = pct.toFixed(1) + '%'; }
+    } else if (m.curr > 0) {
+      cls = 'up'; arrow = '▲'; deltaText = 'New';
+    }
+    return `
+      <div class="pop-tile">
+        <div class="pop-metric">${m.label}</div>
+        <div class="pop-current">${m.fmt(m.curr)}</div>
+        <div class="pop-prior">Prior: ${m.fmt(m.prior)}</div>
+        <div><span class="pop-delta ${cls}">${arrow} ${deltaText}</span></div>
+      </div>`;
+  }).join('');
+
+  note.textContent = `Last 90 days: ${current.length} posts · Prior 90 days: ${prior.length} posts. `
+    + `Percentages compare the most recent 90-day window to the 90 days immediately before it.`;
 }
 
 // ── Insights ──
