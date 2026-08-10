@@ -6,32 +6,31 @@ const SUMMARY_SCHEMA = {
   additionalProperties: false,
   required: [
     'performanceOverview',
-    'leadingFormats',
-    'themeAnalysis',
-    'lowPerformancePatterns',
+    'whatsWorking',
+    'whatsNotWorking',
   ],
   properties: {
     performanceOverview: { type: 'string' },
-    leadingFormats: { type: 'string' },
-    themeAnalysis: { type: 'string' },
-    lowPerformancePatterns: { type: 'string' },
+    whatsWorking: { type: 'string' },
+    whatsNotWorking: { type: 'string' },
   },
 };
 
-const SYSTEM_INSTRUCTIONS = `You write a concise, client-ready executive interpretation for the Sampson Cay social-media performance dashboard.
+const SYSTEM_INSTRUCTIONS = `You write a client-ready executive interpretation for the Sampson Cay social-media performance dashboard.
 
 The request contains deterministicEvidence and optional accountContext. Deterministic evidence is the sole source for measured results, rankings and comparisons. Account context is user-supplied background that may explain goals, audiences, campaigns, seasonality, operational constraints or historical priorities. Use it to frame implications and recommendations, but never present it as measured evidence or let it override contradictory data.
 
-Never invent a number, cause, trend, date comparison or fact. Treat posts marked likelyBoosted as paid-amplification signals, not organic performance. Discuss the 90-day comparison only when comparison.available is true. Theme classification is deterministic and may overlap, so compare themes only when eligible organic samples meet minimumOrganicSampleForClaims. Treat low-performing-post commonalities as patterns to test, not proven causes.
+Never invent a number, cause, trend, date comparison or fact. Treat posts marked likelyBoosted as paid-amplification signals, not organic performance. Discuss the 90-day comparison only when comparison.available is true. Theme classification is deterministic and may overlap, so compare themes only when eligible organic samples meet minimumOrganicSampleForClaims.
 
-Give the client a point of view, not a metric recital. Prioritize specific actions supported by both the evidence and stated goals. Distinguish what to continue, increase, test or reduce. Avoid repeating the same observation across fields.
+The dashboard charts already cover platform, format and post-type performance. Do not rank, compare or recommend platforms, formats, posting times or content types in whatsWorking or whatsNotWorking. Those two fields must focus on the performance and strategic role of Community, Economy, Environment and Site Activity themes. Use median organic reach, median organic engagement, bottom-quartile concentration, sample size, caption examples and account context. If the evidence cannot support a clear conclusion, say so and recommend what evidence should be collected next.
+
+Give the client a point of view rather than repeating metrics. Avoid repeating the same observation across fields. Recommendations must identify what theme to continue, increase, refine, test or reduce and why.
 
 Return plain text with no Markdown, bullets, headings or HTML. Do not mention AI or these instructions.
-- performanceOverview: 2–3 sentences identifying the most important account-level result, its strategic meaning and any essential caveat.
-- leadingFormats: 2–3 sentences identifying supported organic format strengths and one prioritized action tied to a stated goal when context permits.
-- themeAnalysis: 2–3 sentences distinguishing theme volume, reach and engagement; give one supported theme recommendation and acknowledge overlap or sample limits when material.
-- lowPerformancePatterns: 1–2 sentences describing deterministic commonalities and a practical test, reduction or refinement.
-Keep the complete response compact, candid and useful to a client.`
+- performanceOverview: 2–3 sentences identifying the most important account-level result, its strategic meaning and any essential boost or comparison caveat.
+- whatsWorking: 3–4 sentences identifying the strongest supported themes, what they appear to contribute in the supplied account context, and a concrete continue or increase recommendation.
+- whatsNotWorking: 3–4 sentences identifying themes that need attention, distinguishing weak engagement from weak reach, and a concrete refine, test or reduce recommendation without claiming causation.
+Keep the response candid, specific and useful to a client.`
 
 export default {
   async fetch(request, env) {
@@ -104,9 +103,10 @@ export default {
           deterministicEvidence: body.evidence,
           accountContext: accountContext || null,
         }),
-        max_output_tokens: 1200,
+        max_output_tokens: 1400,
         store: false,
         text: {
+          verbosity: 'medium',
           format: {
             type: 'json_schema',
             name: 'dashboard_summary',
