@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en"><head>
+<html lang="en">
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Social Media Performance Dashboard</title>
@@ -548,7 +549,8 @@
   }
   .exec-summary-title { font-size: 17px; font-weight: 800; color: var(--text); }
   .exec-summary-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-  .summary-source-badge { display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#e8f1f3;color:var(--accent);font-size:9px;font-weight:800;letter-spacing:.45px;text-transform:uppercase;white-space:nowrap; }
+  .summary-source-badge { display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#e8f1f3;color:var(--accent);border:1px solid #bed2d0;font-size:9px;font-weight:800;letter-spacing:.45px;text-transform:uppercase;white-space:nowrap; }
+  .summary-source-badge.ai { background:#ecfdf5;color:#047857;border-color:#86efac;box-shadow:0 0 0 2px rgba(16,185,129,.08); }
   .exec-block { margin-bottom: 20px; }
   .exec-block-label {
     font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -699,13 +701,15 @@
   .modal h3 { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
   .modal p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
   .modal label { font-size: 12px; font-weight: 600; color: var(--text); display: block; margin-bottom: 5px; }
-  .modal input[type="text"], .modal input[type="url"], .modal input[type="password"] {
+  .modal input[type="text"], .modal input[type="url"], .modal input[type="password"], .modal textarea {
     width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
     border-radius: 8px; font-size: 13px; margin-bottom: 14px;
     outline: none; transition: border .15s;
     font-family: monospace;
   }
-  .modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,90,108,.1); }
+  .modal textarea { min-height:150px;resize:vertical;line-height:1.5;font-family:inherit; }
+  .modal input:focus, .modal textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,90,108,.1); }
+  .modal-field-note { margin:-6px 0 14px !important;font-size:11px !important;line-height:1.45 !important; }
   .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
   .modal-link { font-size: 12px; color: var(--accent); text-decoration: none; }
   .modal-link:hover { text-decoration: underline; }
@@ -811,20 +815,20 @@
 
     <div class="upload-zones">
       <div class="upload-zone" id="zone-fb">
-        <input type="file" accept=".csv" multiple="" id="file-fb" onchange="handleFile('fb', this)">
+        <input type="file" accept=".csv" multiple id="file-fb" onchange="handleFile('fb', this)">
         <div class="icon">🔵</div>
         <div class="label" id="label-fb">Facebook CSV</div>
         <div class="sub">Select one or more 90-day exports</div>
       </div>
       <div class="upload-zone" id="zone-ig">
-        <input type="file" accept=".csv" multiple="" id="file-ig" onchange="handleFile('ig', this)">
+        <input type="file" accept=".csv" multiple id="file-ig" onchange="handleFile('ig', this)">
         <div class="icon">📸</div>
         <div class="label" id="label-ig">Instagram CSV</div>
         <div class="sub">Select one or more 90-day exports</div>
       </div>
     </div>
 
-    <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()" disabled="">
+    <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()" disabled>
       Generate Dashboard →
     </button>
 
@@ -894,26 +898,12 @@
     </div>
   </div>
 
-  <!-- 90-DAY PERIOD-OVER-PERIOD COMPARISON -->
-  <div class="charts-grid">
-    <div class="chart-card col-12">
-      <div class="chart-title">Performance Change</div>
-      <div class="chart-sub" id="pop-sub">Most recent 90-day window compared with the 90 days before it</div>
-      <div class="pop-grid" id="pop-grid"></div>
-      <div class="pop-empty" id="pop-empty" style="display:none"></div>
-      <div class="chart-note" id="pop-note"></div>
-    </div>
-  </div>
-
-  <!-- INSIGHT BOXES -->
-  <div class="insight-grid" id="insight-grid"></div>
-
   <!-- EXEC SUMMARY -->
   <div id="exec-summary" style="display:none">
     <div class="exec-summary-card">
       <div class="exec-summary-header">
         <div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div><span class="summary-source-badge" id="summary-source-badge" title="Calculated from uploaded post data">Deterministic summary</span></div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div><span class="summary-source-badge" id="summary-source-badge" title="Calculated from uploaded post data" aria-live="polite">Deterministic summary</span></div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
@@ -930,6 +920,22 @@
       <div id="exec-summary-body"></div>
     </div>
   </div>
+
+
+  <!-- 90-DAY PERIOD-OVER-PERIOD COMPARISON -->
+  <div class="charts-grid">
+    <div class="chart-card col-12">
+      <div class="chart-title">Performance Change</div>
+      <div class="chart-sub" id="pop-sub">Most recent 90-day window compared with the 90 days before it</div>
+      <div class="pop-grid" id="pop-grid"></div>
+      <div class="pop-empty" id="pop-empty" style="display:none"></div>
+      <div class="chart-note" id="pop-note"></div>
+    </div>
+  </div>
+
+  <!-- INSIGHT BOXES -->
+  <div class="insight-grid" id="insight-grid"></div>
+
 
 
   <div class="summary-heading">
@@ -1117,13 +1123,15 @@
     <div class="push-status" id="push-status"></div>
 
     <label>GitHub Personal Access Token</label>
-    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" oninput="saveGHSettings()" autocomplete="off">
+    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+      oninput="saveGHSettings()" autocomplete="off">
 
     <label>Repository (owner/repo)</label>
-    <input type="text" id="gh-repo" placeholder="juanxjuan82/sampson-cay-dashboard" oninput="saveGHSettings()">
+    <input type="text" id="gh-repo" placeholder="juanxjuan82/sampson-cay-dashboard"
+      oninput="saveGHSettings()">
 
     <p style="margin-bottom:12px">
-      <a class="modal-link" href="https://github.com/settings/tokens/new?scopes=repo&amp;description=Social+Dashboard" target="_blank">
+      <a class="modal-link" href="https://github.com/settings/tokens/new?scopes=repo&description=Social+Dashboard" target="_blank">
         Generate a token on GitHub →
       </a>
       &nbsp;(check the <strong>repo</strong> scope, set expiration to your preference)
@@ -1148,6 +1156,10 @@
     <label>Dashboard access token</label>
     <input type="password" id="ai-access-token" placeholder="Paste DASHBOARD_AI_TOKEN" autocomplete="off">
 
+    <label>Account context and priorities</label>
+    <textarea id="ai-account-context" maxlength="6000" placeholder="Add account history, business goals, priority audiences, important campaigns or events, known paid activity, constraints, and what recommendations should optimize for."></textarea>
+    <p class="modal-field-note">Saved only in this browser. It guides interpretation and recommendations but does not override the dashboard’s measured evidence.</p>
+
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closeAISettings()">Cancel</button>
       <button class="btn btn-edit btn-sm" onclick="saveAISettingsAndGenerate()">Save &amp; Generate</button>
@@ -1170,7 +1182,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-08-10.5'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-08-10.6'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1670,9 +1682,10 @@ function updateSummarySourceBadge() {
   const badge = document.getElementById('summary-source-badge');
   if (!badge) return;
   const isAI = summaryMode === 'ai';
-  badge.textContent = isAI ? 'AI-assisted summary' : 'Deterministic summary';
+  badge.textContent = isAI ? 'AI-generated · editable' : 'Deterministic summary';
+  badge.classList.toggle('ai', isAI);
   badge.title = isAI
-    ? 'Generated from deterministic dashboard evidence; text remains editable'
+    ? 'Generated by AI from deterministic dashboard evidence and optional account context; text remains editable'
     : 'Calculated from uploaded post data; not written by AI';
 }
 
@@ -1680,6 +1693,7 @@ function openAISettings(generateAfterSave) {
   aiGenerateAfterSettings = Boolean(generateAfterSave);
   document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
   document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
+  document.getElementById('ai-account-context').value = localStorage.getItem('dashboard_ai_context') || '';
   document.getElementById('ai-modal').classList.add('open');
 }
 
@@ -1691,12 +1705,15 @@ function closeAISettings() {
 function saveAISettingsAndGenerate() {
   const endpoint = document.getElementById('ai-endpoint').value.trim().replace(/\/+$/, '');
   const token = document.getElementById('ai-access-token').value.trim();
+  const accountContext = document.getElementById('ai-account-context').value.trim();
   if (!/^https:\/\//i.test(endpoint) || !token) {
     alert('Enter the HTTPS Worker URL and the DASHBOARD_AI_TOKEN value.');
     return;
   }
   localStorage.setItem('dashboard_ai_endpoint', endpoint);
   sessionStorage.setItem('dashboard_ai_token', token);
+  if (accountContext) localStorage.setItem('dashboard_ai_context', accountContext);
+  else localStorage.removeItem('dashboard_ai_context');
   document.getElementById('ai-modal').classList.remove('open');
   const shouldGenerate = aiGenerateAfterSettings;
   aiGenerateAfterSettings = false;
@@ -1750,7 +1767,10 @@ async function generateAISummary() {
         Authorization: 'Bearer ' + token,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ evidence: buildAISummaryEvidence(allPosts) })
+      body: JSON.stringify({
+        evidence: buildAISummaryEvidence(allPosts),
+        accountContext: localStorage.getItem('dashboard_ai_context') || ''
+      })
     });
     const payload = await response.json().catch(function() { return {}; });
     if (!response.ok) {
@@ -3759,6 +3779,5 @@ async function downloadShareable() {
 }
 </script>
 
-
-
-</body></html>
+</body>
+</html>
