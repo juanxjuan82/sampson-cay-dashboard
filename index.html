@@ -1851,95 +1851,140 @@ function renderKPIs(posts) {
 
 // ── 90-day period-over-period comparison ──
 function renderComparison(posts) {
-  const grid  = document.getElementById('pop-grid');
+  const grid = document.getElementById('pop-grid');
   const empty = document.getElementById('pop-empty');
-  const sub   = document.getElementById('pop-sub');
-  const note  = document.getElementById('pop-note');
+  const sub = document.getElementById('pop-sub');
+  const note = document.getElementById('pop-note');
   const dated = posts.filter(p => p.date instanceof Date && !isNaN(p.date));
 
   if (dated.length === 0) {
-    grid.innerHTML = ''; grid.style.display = 'none';
+    grid.innerHTML = '';
+    grid.style.display = 'none';
     empty.style.display = 'block';
     empty.textContent = 'No dated posts available for this filter.';
     note.textContent = '';
     return;
   }
 
-  const DAY = 86400000, WINDOW = 90 * DAY;
-  const maxDate    = new Date(Math.max(...dated.map(p => p.date.getTime())));
-  const currStart  = new Date(maxDate.getTime() - WINDOW);   // last 90 days
-  const priorStart = new Date(maxDate.getTime() - 2 * WINDOW); // 90 days before that
+  const DAY = 86400000;
+  const WINDOW = 90 * DAY;
+  const COVERAGE_TOLERANCE = 14 * DAY;
+  const maxDate = new Date(Math.max(...dated.map(p => p.date.getTime())));
+  const currStart = new Date(maxDate.getTime() - WINDOW);
+  const priorStart = new Date(maxDate.getTime() - 2 * WINDOW);
 
-  const current = dated.filter(p => p.date > currStart  && p.date <= maxDate);
-  const prior   = dated.filter(p => p.date > priorStart && p.date <= currStart);
+  const fmtRangeDate = date => date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const current = dated.filter(p => p.date > currStart && p.date <= maxDate);
+  const prior = dated.filter(p => p.date > priorStart && p.date <= currStart);
+  const platforms = [...new Set(dated.map(p => p.platform))];
 
-  const fmtRange = (a, b) => {
-    const f = d => d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-    return `${f(a)} – ${f(b)}`;
-  };
-  const currLabel  = fmtRange(new Date(currStart.getTime() + DAY), maxDate);
-  const priorLabel = fmtRange(new Date(priorStart.getTime() + DAY), currStart);
-  sub.textContent = `${currLabel}  vs  ${priorLabel}`;
+  const coverage = platforms.map(platform => {
+    const platformPosts = dated.filter(p => p.platform === platform);
+    const minDate = new Date(Math.min(...platformPosts.map(p => p.date.getTime())));
+    const platformMaxDate = new Date(Math.max(...platformPosts.map(p => p.date.getTime())));
+    const currentCount = current.filter(p => p.platform === platform).length;
+    const priorCount = prior.filter(p => p.platform === platform).length;
+    return { platform, minDate, maxDate: platformMaxDate, currentCount, priorCount };
+  });
 
-  // If there is no prior-period data, we can't compare.
-  if (prior.length === 0) {
-    grid.innerHTML = ''; grid.style.display = 'none';
+  const incompleteCoverage = coverage.some(item =>
+    item.minDate.getTime() > priorStart.getTime() + COVERAGE_TOLERANCE ||
+    item.maxDate.getTime() < maxDate.getTime() - COVERAGE_TOLERANCE ||
+    item.currentCount === 0 ||
+    item.priorCount === 0
+  );
+  const starts = coverage.map(item => item.minDate.getTime());
+  const ends = coverage.map(item => item.maxDate.getTime());
+  const platformDatesMisaligned = coverage.length > 1 && (
+    Math.max(...starts) - Math.min(...starts) > COVERAGE_TOLERANCE ||
+    Math.max(...ends) - Math.min(...ends) > COVERAGE_TOLERANCE
+  );
+
+  if (incompleteCoverage || platformDatesMisaligned) {
+    const names = { ig: 'Instagram', fb: 'Facebook' };
+    const coverageText = coverage.map(item =>
+      `${names[item.platform] || item.platform}: ${fmtRangeDate(item.minDate)} – ${fmtRangeDate(item.maxDate)}`
+    ).join(' · ');
+    grid.innerHTML = '';
+    grid.style.display = 'none';
     empty.style.display = 'block';
-    empty.textContent = 'Only one 90-day period detected. Upload an earlier 90-day export to compare against the prior period.';
-    note.textContent = '';
+    empty.textContent = `Comparison unavailable because the selected data does not contain aligned coverage for both complete 90-day windows. ${coverageText}.`;
+    note.textContent = 'Upload exports covering the same dates for every selected platform. A 14-day boundary tolerance is allowed.';
+    sub.textContent = 'Date coverage check';
     return;
   }
+
+  const fmtRange = (a, b) => `${fmtRangeDate(a)} – ${fmtRangeDate(b)}`;
+  const currLabel = fmtRange(new Date(currStart.getTime() + DAY), maxDate);
+  const priorLabel = fmtRange(new Date(priorStart.getTime() + DAY), currStart);
+  sub.textContent = `${currLabel}  vs  ${priorLabel}`;
 
   grid.style.display = 'grid';
   empty.style.display = 'none';
 
-  const sum      = (arr, fn) => arr.reduce((s, p) => s + fn(p), 0);
-  const avgEng   = arr => {
-    const r = arr.filter(p => p.reach > 0);
-    return r.length ? r.reduce((s, p) => s + p.engRate, 0) / r.length : 0;
+  const sum = (arr, fn) => arr.reduce((total, post) => total + fn(post), 0);
+  const avgEng = arr => {
+    const withReach = arr.filter(p => p.reach > 0);
+    return withReach.length
+      ? withReach.reduce((total, post) => total + post.engRate, 0) / withReach.length
+      : 0;
   };
 
   const metrics = [
-    { label: 'Total Reach',    curr: sum(current, p => p.reach),        prior: sum(prior, p => p.reach),        fmt: fmt },
-    { label: 'Total Views',    curr: sum(current, p => p.views),        prior: sum(prior, p => p.views),        fmt: fmt },
-    { label: 'Avg Eng. Rate',  curr: avgEng(current),                   prior: avgEng(prior),                   fmt: fmtPct },
-    { label: 'Interactions',   curr: sum(current, p => p.interactions), prior: sum(prior, p => p.interactions), fmt: fmt },
-    { label: 'Posts Published',curr: current.length,                    prior: prior.length,                    fmt: v => v },
+    { label: 'Total Reach', curr: sum(current, p => p.reach), prior: sum(prior, p => p.reach), fmt },
+    { label: 'Total Views', curr: sum(current, p => p.views), prior: sum(prior, p => p.views), fmt },
+    { label: 'Avg Eng. Rate', curr: avgEng(current), prior: avgEng(prior), fmt: fmtPct },
+    { label: 'Interactions', curr: sum(current, p => p.interactions), prior: sum(prior, p => p.interactions), fmt },
+    { label: 'Posts Published', curr: current.length, prior: prior.length, fmt: value => value },
   ];
 
-  // New IG followers is only meaningful when Instagram posts are in view.
   if (currentFilter !== 'fb') {
-    const igCurr  = current.filter(p => p.platform === 'ig');
+    const igCurrent = current.filter(p => p.platform === 'ig');
     const igPrior = prior.filter(p => p.platform === 'ig');
     metrics.push({
       label: 'New IG Followers',
-      curr: sum(igCurr, p => p.follows),
+      curr: sum(igCurrent, p => p.follows),
       prior: sum(igPrior, p => p.follows),
-      fmt: fmt,
+      fmt,
     });
   }
 
-  grid.innerHTML = metrics.map(m => {
-    let cls = 'flat', arrow = '→', deltaText = 'No change';
-    if (m.prior > 0) {
-      const pct = ((m.curr - m.prior) / m.prior) * 100;
-      if (Math.abs(pct) < 0.05) { cls = 'flat'; arrow = '→'; deltaText = '0.0%'; }
-      else if (pct > 0)         { cls = 'up';   arrow = '▲'; deltaText = '+' + pct.toFixed(1) + '%'; }
-      else                      { cls = 'down'; arrow = '▼'; deltaText = pct.toFixed(1) + '%'; }
-    } else if (m.curr > 0) {
-      cls = 'up'; arrow = '▲'; deltaText = 'New';
+  grid.innerHTML = metrics.map(metric => {
+    let cls = 'flat';
+    let arrow = '→';
+    let deltaText = 'No change';
+    if (metric.prior > 0) {
+      const pct = ((metric.curr - metric.prior) / metric.prior) * 100;
+      if (Math.abs(pct) < 0.05) {
+        deltaText = '0.0%';
+      } else if (pct > 0) {
+        cls = 'up';
+        arrow = '▲';
+        deltaText = `+${pct.toFixed(1)}%`;
+      } else {
+        cls = 'down';
+        arrow = '▼';
+        deltaText = `${pct.toFixed(1)}%`;
+      }
+    } else if (metric.curr > 0) {
+      cls = 'up';
+      arrow = '▲';
+      deltaText = 'New';
     }
     return `
       <div class="pop-tile">
-        <div class="pop-metric">${m.label}</div>
-        <div class="pop-current">${m.fmt(m.curr)}</div>
-        <div class="pop-prior">Prior: ${m.fmt(m.prior)}</div>
+        <div class="pop-metric">${metric.label}</div>
+        <div class="pop-current">${metric.fmt(metric.curr)}</div>
+        <div class="pop-prior">Prior: ${metric.fmt(metric.prior)}</div>
         <div><span class="pop-delta ${cls}">${arrow} ${deltaText}</span></div>
       </div>`;
   }).join('');
 
-  note.textContent = `Last 90 days: ${current.length} posts · Prior 90 days: ${prior.length} posts. `
-    + `Percentages compare the most recent 90-day window to the 90 days immediately before it.`;
+  note.textContent = `Last 90 days: ${current.length} posts · Prior 90 days: ${prior.length} posts. Percentages compare aligned 90-day windows.`;
 }
 
 // ── Insights ──
@@ -2613,6 +2658,102 @@ function renderTopPosts(posts) {
 }
 
 // ── Executive Summary ──
+function buildLowPerformanceFinding(organicPosts) {
+  const eligible = organicPosts.filter(p => p.reach > 0 && Number.isFinite(Number(p.engRate)));
+  const lowPosts = [];
+
+  ['ig', 'fb'].forEach(platform => {
+    const group = eligible
+      .filter(p => p.platform === platform)
+      .sort((a, b) => a.engRate - b.engRate);
+    if (group.length < 4) return;
+    lowPosts.push(...group.slice(0, Math.max(1, Math.ceil(group.length * 0.25))));
+  });
+
+  if (lowPosts.length < 3) {
+    return 'There are not enough comparable organic posts to identify a reliable low-performance pattern yet.';
+  }
+
+  const timeBucket = hour => {
+    if (!Number.isFinite(Number(hour)) || Number(hour) < 0) return null;
+    if (hour < 5) return 'overnight';
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    if (hour < 23) return 'evening';
+    return 'overnight';
+  };
+  const captionBucket = caption => {
+    const length = (caption || '').trim().length;
+    if (length < 80) return 'captions under 80 characters';
+    if (length < 200) return 'captions between 80 and 199 characters';
+    return 'captions of 200+ characters';
+  };
+
+  const dimensions = [
+    {
+      label: 'format',
+      value: p => p.platform === 'fb' ? `Facebook ${p.type}` : p.type,
+      describe: value => `used the <strong>${escapeHTML(value)}</strong> format`,
+    },
+    {
+      label: 'publishing time',
+      value: p => timeBucket(p.hour),
+      describe: value => `were published in the <strong>${escapeHTML(value)}</strong>`,
+    },
+    {
+      label: 'caption length',
+      value: p => captionBucket(p.caption),
+      describe: value => `used <strong>${escapeHTML(value)}</strong>`,
+    },
+  ];
+
+  const findings = [];
+  dimensions.forEach(dimension => {
+    const lowValues = lowPosts.map(dimension.value).filter(Boolean);
+    const allValues = eligible.map(dimension.value).filter(Boolean);
+    if (!lowValues.length || !allValues.length) return;
+
+    const lowCounts = {};
+    const allCounts = {};
+    lowValues.forEach(value => { lowCounts[value] = (lowCounts[value] || 0) + 1; });
+    allValues.forEach(value => { allCounts[value] = (allCounts[value] || 0) + 1; });
+
+    Object.entries(lowCounts).forEach(([value, count]) => {
+      const lowShare = count / lowValues.length;
+      const allShare = (allCounts[value] || 0) / allValues.length;
+      const overrepresentation = lowShare - allShare;
+      if (count >= 2 && lowShare >= 0.4 && overrepresentation >= 0.15) {
+        findings.push({
+          dimension: dimension.label,
+          describe: dimension.describe,
+          value,
+          count,
+          lowShare,
+          allShare,
+          overrepresentation,
+        });
+      }
+    });
+  });
+
+  findings.sort((a, b) =>
+    b.overrepresentation - a.overrepresentation ||
+    b.lowShare - a.lowShare ||
+    b.count - a.count
+  );
+
+  const definition = `The low-performing group is the bottom engagement-rate quartile within each platform, excluding posts flagged as likely boosted.`;
+  if (!findings.length) {
+    return `${definition} No format, publishing-time, or caption-length trait is materially overrepresented in that group, so the data does not support a single common weakness.`;
+  }
+
+  const detail = findings.slice(0, 2).map(finding =>
+    `<strong>${Math.round(finding.lowShare * 100)}%</strong> of low-performing posts ${finding.describe(finding.value)}, compared with <strong>${Math.round(finding.allShare * 100)}%</strong> of eligible organic posts overall`
+  ).join('; ');
+
+  return `${definition} Across ${lowPosts.length} low-performing posts, ${detail}. These are measurable associations, not proof that the trait caused lower performance.`;
+}
+
 function renderExecSummary() {
   const el = document.getElementById('exec-summary-body');
   if (!el || allPosts.length === 0) return;
@@ -2683,6 +2824,7 @@ function renderExecSummary() {
   const jobsAvgER    = avg(jobsPosts.filter(p=>p.reach>0).map(p=>p.engRate));
   const partnerSaves = partnerPosts.reduce((s,p)=>s+(p.saves||0),0);
   const partnerOrgER = avg(partnerPosts.filter(p=>!isBoosted(p)&&p.reach>0).map(p=>p.engRate));
+  const lowPerformanceFinding = buildLowPerformanceFinding(organicPosts);
 
   // ── Example posts: best post per focus area (with permalink) ──
   const examplePost = (posts, scoreFn) => {
@@ -2731,8 +2873,8 @@ function renderExecSummary() {
         </div>
 
         <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">What's working against it</div>
-          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">At <strong>${postsPerWeek} posts per week</strong>, the account is below the threshold for meaningful organic follower growth. Two posts per week maintains visibility but does not compound. Organic reach is naturally capped for an account this size without paid amplification. ${boostedPosts.length ? `Boosting has extended reach on ${boostedPosts.length} posts but masks true organic performance in aggregate data.` : ''} Externally, the Save Exuma Alliance campaign has secured high-profile endorsements including Rafael Nadal (21M followers), significantly amplifying opposition reach in the same period.</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">Patterns among low-performing posts</div>
+          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">${lowPerformanceFinding}</div>
         </div>
 
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
