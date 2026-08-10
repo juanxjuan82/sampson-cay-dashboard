@@ -8,11 +8,13 @@ const SUMMARY_SCHEMA = {
     'performanceOverview',
     'whatsWorking',
     'whatsNotWorking',
+    'recommendedDirection',
   ],
   properties: {
     performanceOverview: { type: 'string' },
     whatsWorking: { type: 'string' },
     whatsNotWorking: { type: 'string' },
+    recommendedDirection: { type: 'string' },
   },
 };
 
@@ -22,14 +24,15 @@ The request contains deterministicEvidence and optional accountContext. Determin
 
 Never invent a number, cause, trend, date comparison or fact. Treat posts marked likelyBoosted as paid-amplification signals, not organic performance. Discuss the 90-day comparison only when comparison.available is true. Theme classification is deterministic and may overlap, so compare themes only when eligible organic samples meet minimumOrganicSampleForClaims.
 
-The dashboard charts already cover platform, format and post-type performance. Do not rank, compare or recommend platforms, formats, posting times or content types in whatsWorking or whatsNotWorking. Those two fields must focus on the performance and strategic role of Community, Economy, Environment and Site Activity themes. Use median organic reach, median organic engagement, bottom-quartile concentration, sample size, caption examples and account context. If the evidence cannot support a clear conclusion, say so and recommend what evidence should be collected next.
+The dashboard charts already cover platform, format and post-type performance. Do not rank, compare or recommend platforms, formats, posting times or content types in whatsWorking, whatsNotWorking or recommendedDirection. Those three fields must focus on the performance and strategic role of Community, Economy, Environment and Site Activity themes. Use median organic reach, median organic engagement, bottom-quartile concentration, sample size, caption examples and account context. Respect operational constraints in accountContext, including any theme that is no longer available. If the evidence cannot support a clear conclusion, say so and recommend what evidence should be collected next.
 
 Give the client a point of view rather than repeating metrics. Avoid repeating the same observation across fields. Recommendations must identify what theme to continue, increase, refine, test or reduce and why.
 
 Return plain text with no Markdown, bullets, headings or HTML. Do not mention AI or these instructions.
 - performanceOverview: 2–3 sentences identifying the most important account-level result, its strategic meaning and any essential boost or comparison caveat.
 - whatsWorking: 3–4 sentences identifying the strongest supported themes, what they appear to contribute in the supplied account context, and a concrete continue or increase recommendation.
-- whatsNotWorking: 3–4 sentences identifying themes that need attention, distinguishing weak engagement from weak reach, and a concrete refine, test or reduce recommendation without claiming causation.
+- whatsNotWorking: 3–4 sentences identifying themes that need attention, distinguishing weak engagement from weak reach, without claiming causation.
+- recommendedDirection: 2–3 strong, concrete recommendations that identify which themes to prioritize, refine or reduce, what to change and why. Respect the supplied account context and do not recommend an unavailable theme.
 Keep the response candid, specific and useful to a client.`
 
 export default {
@@ -103,7 +106,7 @@ export default {
           deterministicEvidence: body.evidence,
           accountContext: accountContext || null,
         }),
-        max_output_tokens: 1400,
+        max_output_tokens: 1800,
         store: false,
         text: {
           verbosity: 'medium',
