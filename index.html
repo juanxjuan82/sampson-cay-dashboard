@@ -798,7 +798,7 @@
     <div class="exec-summary-card">
       <div class="exec-summary-header">
         <div>
-          <div class="exec-summary-title">Strategic Performance Review: Sampson Cay Project</div>
+          <div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
@@ -998,16 +998,6 @@
     </div>
   </div>
 
-  <!-- STRATEGY SECTION (calendar only) -->
-  <div class="strategy-section" id="strategy-section" style="display:none">
-    <!-- CONTENT CALENDAR -->
-    <div>
-      <div class="section-header" style="margin-bottom:4px">📅 Content Roadmap</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">High-level view of what goes out, roughly when it happens, and what role it plays</div>
-      <div id="content-calendar"></div>
-    </div>
-  </div>
-
   <!-- ANALYST NOTES — hidden from client report -->
   <div id="analyst-notes" style="display:none">
     <div class="analyst-notes-hdr" onclick="toggleAnalystNotes()">
@@ -1064,61 +1054,39 @@ let embeddedData = null;
 let tableSortKey = 'engRate';
 let tableSortDir = 'desc';
 let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
-let sharedEditableContent = { execSummaryHTML: '', calendarHTML: '' };
+let sharedEditableContent = {};
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
 let _pageTemplate = null;
 window.addEventListener('DOMContentLoaded', () => {
   _pageTemplate = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-
-  // ── Client report mode ──
-  // If window.__EMBEDDED_DATA__ was injected (by buildClientHTML), auto-load it.
-  // This runs in the SAME script scope as igPosts/fbPosts/currentFilter so let
-  // re-assignment works correctly and renderAll() sees real data.
   if (window.__EMBEDDED_DATA__) {
     const embedded = window.__EMBEDDED_DATA__;
-    igPosts = embedded.igPosts.map(p => ({...p, date: p.date ? new Date(p.date) : null}));
-    fbPosts = embedded.fbPosts.map(p => ({...p, date: p.date ? new Date(p.date) : null}));
-    allPosts = [...igPosts, ...fbPosts].sort((a,b) => ((a.date?.getTime()||0) - (b.date?.getTime()||0)));
-    const validDates = allPosts.filter(p => p.date).map(p => p.date.getTime());
+    igPosts = embedded.igPosts.map(post => ({ ...post, date: post.date ? new Date(post.date) : null }));
+    fbPosts = embedded.fbPosts.map(post => ({ ...post, date: post.date ? new Date(post.date) : null }));
+    allPosts = [...igPosts, ...fbPosts].sort((a, b) => ((a.date?.getTime() || 0) - (b.date?.getTime() || 0)));
+    const validDates = allPosts.filter(post => post.date).map(post => post.date.getTime());
     if (validDates.length) {
-      const minDate = new Date(Math.min(...validDates));
-      const maxDate = new Date(Math.max(...validDates));
-      const fmt = d => d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-      const el = document.getElementById('header-period');
-      if (el) el.textContent = 'Social Media Performance · ' + fmt(minDate) + ' – ' + fmt(maxDate);
+      const minDate = new Date(Math.min(...validDates)), maxDate = new Date(Math.max(...validDates));
+      const formatDate = date => date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+      const period = document.getElementById('header-period');
+      if (period) period.textContent = 'Social Media Performance · ' + formatDate(minDate) + ' – ' + formatDate(maxDate);
     }
-    const badgesEl = document.getElementById('header-badges');
-    if (badgesEl) badgesEl.innerHTML =
+    const badges = document.getElementById('header-badges');
+    if (badges) badges.innerHTML =
       `<span class="badge badge-ig"><span class="badge-dot"></span> Instagram · ${igPosts.length} posts</span>` +
       `<span class="badge badge-fb"><span class="badge-dot"></span> Facebook · ${fbPosts.length} posts</span>`;
-    const uploadScreen = document.getElementById('upload-screen');
-    if (uploadScreen) uploadScreen.style.display = 'none';
-    const dash = document.getElementById('dashboard');
-    if (dash) dash.style.display = 'block';
-    const footer = document.getElementById('footer');
-    if (footer) footer.style.display = 'block';
+    const uploadScreen = document.getElementById('upload-screen'); if (uploadScreen) uploadScreen.style.display = 'none';
+    const dashboard = document.getElementById('dashboard'); if (dashboard) dashboard.style.display = 'block';
+    const footer = document.getElementById('footer'); if (footer) footer.style.display = 'block';
     currentFilter = 'all';
-    // Apply client brand colors before rendering charts
+    sharedEditableContent = embedded.editableOverrides || {};
     if (embedded.brandColors) {
       Object.assign(TYPE_COLORS, embedded.brandColors.typeColors);
       Object.assign(PLATFORM_COLORS, embedded.brandColors.platformColors);
     }
     renderAll();
-    // Restore edited exec summary and calendar (captures any analyst edits before push)
-    if (embedded.execSummaryHTML) {
-      const eb = document.getElementById('exec-summary-body');
-      if (eb) eb.innerHTML = embedded.execSummaryHTML;
-      const es = document.getElementById('exec-summary');
-      if (es) es.style.display = 'block';
-    }
-    if (embedded.calendarHTML) {
-      const cal = document.getElementById('content-calendar');
-      if (cal) cal.innerHTML = embedded.calendarHTML;
-    }
-    const ss = document.getElementById('strategy-section');
-    if (ss) ss.style.display = 'block';
   }
 });
 
@@ -1188,6 +1156,7 @@ function handleFile(hintPlatform, input) {
 function showUpload() {
   // Reset state for a fresh upload
   rawIG = []; rawFB = [];
+  sharedEditableContent = {};
   ['ig','fb'].forEach(p => {
     document.getElementById(`label-${p}`).textContent = p === 'ig' ? 'Instagram CSV' : 'Facebook CSV';
     document.getElementById(`zone-${p}`).classList.remove('loaded');
@@ -1461,7 +1430,7 @@ function renderAnalystNotes(posts) {
   if (caveatEl) {
     if (likelyBoosted.length > 0) {
       caveatEl.style.display = 'flex';
-      caveatEl.innerHTML = `<span style="font-size:16px;flex-shrink:0">ℹ️</span><span><strong>Context on reach figures:</strong> ${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} in this period generated significantly above-average reach, consistent with paid promotion. Those posts are noted with ⚡ in the performance table. Reach and engagement rate figures for boosted posts reflect a paid audience — organic performance baselines are lower. Recommendations below are designed to build on both organic resonance and targeted paid distribution.</span>`;
+      caveatEl.innerHTML = `<span style="font-size:16px;flex-shrink:0">ℹ️</span><span><strong>Context on reach figures:</strong> ${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} in this period generated significantly above-average reach, consistent with paid promotion. Those posts are noted with ⚡ in the performance table. Reach and engagement rate figures for boosted posts reflect a paid audience — organic performance baselines are lower. Keep likely paid distribution separate from the organic baseline when interpreting results.</span>`;
     } else {
       caveatEl.style.display = 'none';
     }
@@ -1487,7 +1456,7 @@ function renderAnalystNotes(posts) {
   const fbCt = posts.filter(p=>p.platform==='fb').length;
   const totalLoadedReach = posts.reduce((s,p)=>s+p.reach,0);
 
-  document.getElementById('analyst-notes-body').innerHTML = renderStrategyCompliance() + `
+  document.getElementById('analyst-notes-body').innerHTML = `
     <div class="audit-card">
       <div class="audit-card-title">📊 Format Confidence Check</div>
       <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:2px">Formats with &lt;5 posts should be excluded from strategic format recommendations.</div>
@@ -1520,103 +1489,6 @@ function renderAnalystNotes(posts) {
       <div class="audit-item"><strong>Reach split:</strong> IG ${fmt(igPosts.reduce((s,p)=>s+p.reach,0))} · FB ${fmt(fbPosts.reduce((s,p)=>s+p.reach,0))}</div>
     </div>
   `;
-}
-
-// ── Strategy Compliance Review ──
-// Scans rendered recommendation text against rules derived from the SEO & Advertising Audit.
-// Called after renderStrategy() has populated the DOM so it reads live text.
-function renderStrategyCompliance() {
-  const grid = document.getElementById('strategy-grid');
-  if (!grid) return '';
-
-  const recText = grid.innerText || grid.textContent || '';
-  const lower = recText.toLowerCase();
-
-  const RULES = [
-    {
-      id: 'cadence-24h',
-      label: 'Cadence — 24–48hr follow-up language',
-      pattern: /24.{0,5}48|follow.up.{0,20}later|additional post/i,
-      severity: 'awarn',
-      fix: 'Remove any language implying a post 24–48hrs after another. Within a 2/week schedule, Slot 2 is the follow-up — it must be framed as the scheduled second post, not an add-on.',
-    },
-    {
-      id: 'cadence-sequence',
-      label: 'Cadence — 3-post or multi-step sequence',
-      pattern: /3.post sequence|three.post|teaser.{0,30}recap.{0,30}follow/i,
-      severity: 'awarn',
-      fix: 'Replace any 3-post sequence with a 2-post paired approach (Slot 1 + Slot 2 within the same week).',
-    },
-    {
-      id: 'caption-length',
-      label: 'Caption length — 150–300 words required',
-      pattern: /150.{0,5}300/,
-      severity: 'aok',
-      missing: true,
-      fix: 'Every recommendation must include caption length guidance: 150–300 words. IG is the world\'s 2nd largest search engine — short captions undermine SEO.',
-    },
-    {
-      id: 'keywords',
-      label: 'Keyword integration — 5 priority terms',
-      pattern: /yntegra group|sampson cay|rosewood exuma|bahamas|environment/i,
-      severity: 'aok',
-      missing: true,
-      fix: 'Every recommendation must name the 5 mandatory search terms: Yntegra Group · Sampson Cay · Rosewood Exuma · Bahamas · Environment.',
-    },
-    {
-      id: 'crosslink',
-      label: 'Cross-linking — sampsoncayproject.com or yntegragroup.com',
-      pattern: /sampsoncayproject\.com|yntegragroup\.com/i,
-      severity: 'aok',
-      missing: true,
-      fix: 'Every recommendation must direct captions to close with a link to sampsoncayproject.com or yntegragroup.com.',
-    },
-    {
-      id: 'alttext',
-      label: 'Alt text — keyword-integrated alt text on all assets',
-      pattern: /alt text/i,
-      severity: 'aok',
-      missing: true,
-      fix: 'Every recommendation must include alt text guidance. Both platforms and Google index alt text — it is a direct SEO lever.',
-    },
-    {
-      id: 'counter-narrative',
-      label: 'Counter-narrative framing — environmental search space',
-      pattern: /counter.narr|search queries|opposition|sea campaign|search (landscape|space|visibility)|search term/i,
-      severity: 'aflag',
-      missing: true,
-      fix: 'At least one recommendation per card should explicitly frame content as counter-narrative for environmental search queries currently dominated by the SEA campaign.',
-    },
-  ];
-
-  const results = RULES.map(rule => {
-    const matched = rule.pattern.test(lower);
-    // "missing: true" means the rule flags when the pattern is ABSENT (required element missing)
-    // default (missing undefined/false) means the rule flags when the pattern IS present (prohibited element found)
-    const isFail = rule.missing ? !matched : matched;
-    return { ...rule, pass: !isFail };
-  });
-
-  const passing = results.filter(r => r.pass);
-  const failing = results.filter(r => !r.pass);
-
-  const rows = results.map(r => `
-    <div class="audit-item">
-      ${r.pass ? '<span class="aok">✓</span>' : `<span class="${r.severity}">✗</span>`}
-      <strong>${r.label}</strong>
-      ${!r.pass ? `<br><span style="font-size:11px;color:#374151;margin-left:14px">→ ${r.fix}</span>` : ''}
-    </div>`).join('');
-
-  const status = failing.length === 0
-    ? `<span class="aok">All ${passing.length} checks passed — safe to publish.</span>`
-    : `<span class="awarn">${failing.length} issue${failing.length>1?'s':''} require attention before publishing.</span>`;
-
-  return `
-    <div class="audit-card" style="grid-column: 1 / -1; border-color: ${failing.length ? '#fca5a5' : '#86efac'}; background: ${failing.length ? '#fff5f5' : '#f0fdf4'}">
-      <div class="audit-card-title" style="color:${failing.length ? '#991b1b' : '#166534'}">📋 Strategy Compliance Review — SEO &amp; Advertising Audit</div>
-      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:6px">Checks rendered recommendation copy against parameters from the Yntegra SEO &amp; Advertising Audit (Dec 2025). ${status}</div>
-      ${rows}
-    </div>`;
 }
 
 function isLikelyBoostedPost(p) {
@@ -1803,7 +1675,6 @@ function renderAll() {
   renderInterpretationNotes(posts, organicPosts);
   renderTopPosts(posts);
   renderExecSummary();
-  renderStrategy();
   restoreSharedEditableContent();
   renderAnalystNotes(posts);
 }
@@ -2757,249 +2628,105 @@ function buildLowPerformanceFinding(organicPosts) {
 function renderExecSummary() {
   const el = document.getElementById('exec-summary-body');
   if (!el || allPosts.length === 0) return;
-
   document.getElementById('exec-summary').style.display = 'block';
-
-  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
-
-  // ── Key metrics ──
-  const withReach = allPosts.filter(p => p.reach > 0);
-  const totalReach = allPosts.reduce((s,p) => s+p.reach, 0);
-  const rawAvgER = avg(withReach.map(p => p.engRate));
+  const avg = values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+  const totalReach = allPosts.reduce((sum, post) => sum + post.reach, 0);
   const totalPosts = allPosts.length;
-  const totalFollows = igPosts.reduce((s,p) => s+(p.follows||0), 0);
-  const totalLinkClicks = allPosts.reduce((s,p) => s+(p.linkClicks||0), 0);
-
-  // ── Organic vs boosted ──
+  const totalFollows = igPosts.reduce((sum, post) => sum + (post.follows || 0), 0);
+  const totalLinkClicks = allPosts.reduce((sum, post) => sum + (post.linkClicks || 0), 0);
   const medianReach = platform => {
-    const r = (platform === 'ig' ? igPosts : fbPosts)
-      .filter(p => p.reach > 0).map(p => p.reach).sort((a,b) => a-b);
-    if (!r.length) return 0;
-    const m = Math.floor(r.length / 2);
-    return r.length % 2 ? r[m] : (r[m-1]+r[m])/2;
+    const reaches = (platform === 'ig' ? igPosts : fbPosts).filter(post => post.reach > 0).map(post => post.reach).sort((a, b) => a - b);
+    if (!reaches.length) return 0;
+    const middle = Math.floor(reaches.length / 2);
+    return reaches.length % 2 ? reaches[middle] : (reaches[middle - 1] + reaches[middle]) / 2;
   };
-  const igMed = medianReach('ig'), fbMed = medianReach('fb');
-  const isBoosted = p => p.reach > (p.platform==='ig' ? igMed : fbMed) * 4;
+  const medians = { ig: medianReach('ig'), fb: medianReach('fb') };
+  const isBoosted = post => post.reach > medians[post.platform] * 4;
   const boostedPosts = allPosts.filter(isBoosted);
-  const organicPosts = allPosts.filter(p => !isBoosted(p));
-  const avgOrgReach = Math.round(avg(organicPosts.map(p=>p.reach)));
-  const avgBoostReach = boostedPosts.length ? Math.round(avg(boostedPosts.map(p=>p.reach))) : 0;
-
-  // ── Per-platform organic ER ──
-  const igOrganic = organicPosts.filter(p => p.platform==='ig' && p.reach>0);
-  const fbOrganic = organicPosts.filter(p => p.platform==='fb' && p.reach>0);
-  const igOrgER = avg(igOrganic.map(p=>p.engRate));
-  const fbOrgER = avg(fbOrganic.map(p=>p.engRate));
-
-  // ── Top formats ──
-  const orgByType = {};
-  organicPosts.filter(p=>p.reach>0).forEach(p => {
-    if (!orgByType[p.type]) orgByType[p.type] = { er:[], reach:[], follows:[] };
-    orgByType[p.type].er.push(p.engRate);
-    orgByType[p.type].reach.push(p.reach);
-    orgByType[p.type].follows.push(p.follows||0);
+  const organicPosts = allPosts.filter(post => !isBoosted(post));
+  const avgOrganicReach = Math.round(avg(organicPosts.map(post => post.reach)));
+  const avgBoostedReach = boostedPosts.length ? Math.round(avg(boostedPosts.map(post => post.reach))) : 0;
+  const igOrganic = organicPosts.filter(post => post.platform === 'ig' && post.reach > 0);
+  const fbOrganic = organicPosts.filter(post => post.platform === 'fb' && post.reach > 0);
+  const igOrganicER = avg(igOrganic.map(post => post.engRate));
+  const fbOrganicER = avg(fbOrganic.map(post => post.engRate));
+  const organicByType = {};
+  organicPosts.filter(post => post.reach > 0).forEach(post => {
+    if (!organicByType[post.type]) organicByType[post.type] = { engagement: [], reach: [], follows: [] };
+    organicByType[post.type].engagement.push(post.engRate);
+    organicByType[post.type].reach.push(post.reach);
+    organicByType[post.type].follows.push(post.follows || 0);
   });
-  const sortedByER    = Object.entries(orgByType).sort((a,b) => avg(b[1].er)-avg(a[1].er));
-  const sortedByReach = Object.entries(orgByType).sort((a,b) => avg(b[1].reach)-avg(a[1].reach));
-  const sortedByFollows = Object.entries(orgByType).filter(([,v])=>avg(v.follows)>0).sort((a,b)=>avg(b[1].follows)-avg(a[1].follows));
-  const topER      = sortedByER[0];
-  const topReach   = sortedByReach[0];
-  const topFollows = sortedByFollows[0];
-
-  // ── Posting cadence ──
-  const dated = allPosts.filter(p=>p.date).sort((a,b)=>a.date-b.date);
-  const spanWeeks = dated.length >= 2
-    ? Math.max(1, Math.round((dated[dated.length-1].date - dated[0].date) / (7*24*60*60*1000)))
-    : 1;
-  const postsPerWeek = (totalPosts / spanWeeks).toFixed(1);
-
-  // ── Content theme buckets ──
-  const sitePosts    = allPosts.filter(p => /site|construction|ground|build|progress|milestone|crew|team|work/i.test(p.caption||''));
-  const jobsPosts    = allPosts.filter(p => /job|employ|hire|hiring|staff|workforce/i.test(p.caption||''));
-  const partnerPosts = allPosts.filter(p => /ESS|XCO|partner|sponsor|collab|regatta|gathering/i.test(p.caption||''));
-  const siteOrgER    = avg(sitePosts.filter(p=>!isBoosted(p)&&p.reach>0).map(p=>p.engRate));
-  const siteFollows  = sitePosts.reduce((s,p)=>s+(p.follows||0),0);
-  const jobsLinkClicks = jobsPosts.reduce((s,p)=>s+(p.linkClicks||0),0);
-  const jobsAvgReach = jobsPosts.length ? Math.round(avg(jobsPosts.filter(p=>p.reach>0).map(p=>p.reach))) : 0;
-  const jobsAvgER    = avg(jobsPosts.filter(p=>p.reach>0).map(p=>p.engRate));
-  const partnerSaves = partnerPosts.reduce((s,p)=>s+(p.saves||0),0);
-  const partnerOrgER = avg(partnerPosts.filter(p=>!isBoosted(p)&&p.reach>0).map(p=>p.engRate));
+  const byEngagement = Object.entries(organicByType).sort((a, b) => avg(b[1].engagement) - avg(a[1].engagement));
+  const byReach = Object.entries(organicByType).sort((a, b) => avg(b[1].reach) - avg(a[1].reach));
+  const byFollows = Object.entries(organicByType).filter(([, values]) => avg(values.follows) > 0).sort((a, b) => avg(b[1].follows) - avg(a[1].follows));
+  const topEngagement = byEngagement[0];
+  const topReach = byReach[0];
+  const topFollows = byFollows[0];
   const lowPerformanceFinding = buildLowPerformanceFinding(organicPosts);
-
-  // ── Example posts: best post per focus area (with permalink) ──
-  const examplePost = (posts, scoreFn) => {
-    const p = [...posts].filter(x => x.permalink && x.reach > 0).sort((a,b) => scoreFn(b)-scoreFn(a))[0];
-    return p || null;
-  };
-  const siteExample    = examplePost(sitePosts,    p => !isBoosted(p) ? p.engRate : -1);
-  const jobsExample    = examplePost(jobsPosts,    p => (p.linkClicks||0) > 0 ? p.linkClicks : p.reach);
-  const partnerExample = examplePost(partnerPosts, p => (p.saves||0) > 0 ? p.saves : p.engRate);
-
-  const postLink = (p, label='View example post ↗') => p?.permalink
-    ? `<a href="${p.permalink}" target="_blank" style="font-size:11px;font-weight:600;color:var(--accent);text-decoration:none;display:inline-block;margin-top:6px">${label}</a>`
-    : '';
-
-  // ── Date range label ──
+  const dated = allPosts.filter(post => post.date).sort((a, b) => a.date - b.date);
   const dateRange = dated.length
-    ? `${dated[0].date.toLocaleDateString('en-US',{month:'short',year:'numeric'})} – ${dated[dated.length-1].date.toLocaleDateString('en-US',{month:'short',year:'numeric'})}`
+    ? `${dated[0].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} – ${dated[dated.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
     : 'Period on file';
   document.getElementById('exec-summary-meta').textContent = `${dateRange} · ${totalPosts} posts · ONWRD`;
-
   const boostNote = boostedPosts.length
-    ? ` ${boostedPosts.length} of ${totalPosts} posts show reach consistent with paid promotion; organic figures used throughout unless stated.`
+    ? ` ${boostedPosts.length} of ${totalPosts} posts show reach consistent with paid promotion; organic figures are separated where stated.`
     : '';
-
   el.innerHTML = `
     <div class="exec-block">
       <div class="exec-block-label">Performance Overview</div>
-      <div class="exec-block-body editable-field" contenteditable="false">The account generated <strong>${fmt(totalReach)} total reach</strong> across <strong>${totalPosts} posts</strong> over the period, with <strong>${fmt(totalFollows)} new followers</strong> gained on Instagram and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' link clicks' : 'no link click data recorded'}</strong> on Facebook.${boostNote} Organically, posts averaged <strong>${fmt(avgOrgReach)} reach</strong>${avgBoostReach ? `, rising to <strong>${fmt(avgBoostReach)}</strong> when boosted` : ''}.
-      ${igOrgER > 0 ? `Instagram organic engagement rate averaged <strong>${fmtPct(igOrgER)}</strong>, which gives us a useful internal baseline for future content decisions.` : ''}
-      ${fbOrgER > 0 ? `Facebook organic engagement rate averaged <strong>${fmtPct(fbOrgER)}</strong>, which is best read as a directional baseline for this page.` : ''}
-      The clearest value here is trend tracking over time and by format, especially as site-related communications shift from approvals into visible activity.</div>
-    </div>
-    <div class="exec-divider"></div>
-    <div class="exec-block">
-      <div class="exec-block-label">Trends &amp; Content Strategy</div>
-      <div class="exec-block-body" style="display:flex;flex-direction:column;gap:14px">
-
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#15803d">What's driving growth</div>
-          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">
-            ${topER ? `<strong>${topER[0]}</strong> leads on organic engagement at <strong>${fmtPct(avg(topER[1].er))}</strong>. This is your strongest signal of what audiences respond to most actively.` : ''}
-            ${topFollows ? ` <strong>${topFollows[0]}</strong> is the strongest follower acquisition format, averaging <strong>${avg(topFollows[1].follows).toFixed(1)} follows per post</strong>.` : ''}
-            ${topReach && topReach[0] !== topFollows?.[0] ? ` <strong>${topReach[0]}</strong> generates the widest organic reach at <strong>${fmt(Math.round(avg(topReach[1].reach)))}</strong> avg per post.` : ''}
-            ${totalLinkClicks > 0 ? ` Link clicks — the key conversion metric for the jobs content — are present in the dataset at <strong>${fmt(totalLinkClicks)} total</strong>.` : ''}
-          </div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">Patterns among low-performing posts</div>
-          <div class="editable-field" contenteditable="false" style="font-size:13.5px;line-height:1.7">${lowPerformanceFinding}</div>
-        </div>
-
-        <div style="height:1px;background:var(--border);margin:2px 0"></div>
-
-        <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);margin-bottom:10px">Content Focus Areas</div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-
-            <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #0d5a6c;border-radius:0 6px 6px 0">
-              <div style="font-size:12px;font-weight:700;margin-bottom:5px">🏗️ Site Activity</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">Historically, approvals and project-readiness content is the account's strongest organic performer${siteOrgER > 0 ? ` at <strong>${fmtPct(siteOrgER)} organic ER</strong>` : ''} and drives the most follower gains${siteFollows > 0 ? ` (${fmt(siteFollows)} total in period)` : ''}. Because on-site activity and construction are still ahead, the immediate job is to publish a clear overview of what is about to happen, what the milestones are, and what safeguards are in place before Turtlegrass or other critics fill that vacuum themselves. As regular updated footage starts to come in, the content mix should shift from approvals into visible site activity, anchored by clear milestone updates and approved access footage.</div>
-              ${postLink(siteExample)}
-            </div>
-
-            <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #1d7a90;border-radius:0 6px 6px 0">
-              <div style="font-size:12px;font-weight:700;margin-bottom:5px">💼 Job Creation</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${jobsPosts.length ? `Employment content averaged <strong>${fmt(jobsAvgReach)} reach</strong> and <strong>${fmtPct(jobsAvgER)} engagement</strong>${jobsLinkClicks > 0 ? `, generating <strong>${fmt(jobsLinkClicks)} link clicks</strong>` : ''}. The link click metric, not ER, is the correct measure of success for this content type because it represents real downstream intent.` : 'Employment content is underrepresented in the current dataset.'} In roughly four weeks, site activity is expected to require hiring, so the jobs announcement should already be treated as a planned campaign beat for the end of May. Lead with the number ("500+ jobs. Starting in Exuma.") and frame the hiring message as concrete local economic evidence rather than a general brand post. Because Facebook and Instagram are cross-posted with the same asset, the creative should work as one unified post across both channels.</div>
-              ${postLink(jobsExample)}
-            </div>
-
-            <div style="padding:12px 14px;background:#f8fafc;border-left:3px solid #4ea3b8;border-radius:0 6px 6px 0">
-              <div style="font-size:12px;font-weight:700;margin-bottom:5px">🤝 Environmental &amp; Third-Party Credibility</div>
-              <div class="editable-field" contenteditable="false" style="font-size:13px;line-height:1.65;color:var(--text)">${partnerPosts.length ? `Partnership content generated <strong>${fmt(partnerSaves)} saves</strong>${partnerOrgER > 0 ? ` and <strong>${fmtPct(partnerOrgER)} organic ER</strong>` : ''}. The save rate signals this content is being bookmarked for reference, not just passively consumed.` : 'Partnership content is present but underperforming its potential.'} In the coming weeks, this credibility layer should expand beyond standard partner content. If BRON or ESS provides technical video, voiceovers, or expert framing, use it to explain what is happening on site, what environmental regulation applies, and what mitigation steps are being followed. ESS content led by Valin Bodie has already performed well, so that voice should be treated as a proven credibility asset. Sponsorships should also be treated as proof-of-presence content because they reinforce local ties and give the account more third-party credibility in the same period.</div>
-              ${postLink(partnerExample)}
-            </div>
-
-          </div>
-        </div>
-
+      <div class="exec-block-body editable-field" data-edit-key="performance-overview" contenteditable="false">
+        The account recorded <strong>${fmt(totalReach)} total post reach</strong> across <strong>${totalPosts} posts</strong>, with <strong>${fmt(totalFollows)} Instagram follows attributed to posts</strong> and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' Facebook link clicks' : 'no Facebook link-click data recorded'}</strong>.${boostNote}
+        Estimated organic posts averaged <strong>${fmt(avgOrganicReach)} reach</strong>${avgBoostedReach ? `, while posts flagged as likely boosted averaged <strong>${fmt(avgBoostedReach)} reach</strong>` : ''}.
+        ${igOrganicER > 0 ? `Instagram estimated organic engagement rate averaged <strong>${fmtPct(igOrganicER)}</strong>.` : ''}
+        ${fbOrganicER > 0 ? `Facebook estimated organic engagement rate averaged <strong>${fmtPct(fbOrganicER)}</strong>.` : ''}
       </div>
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
-      <div class="exec-block-label">Priority Actions — Next 6 Weeks</div>
-      <div class="exec-actions">
-        <div class="exec-action"><span class="exec-action-num">1</span><span class="editable-field" contenteditable="false"><strong>Publish the on-site overview before others define the story.</strong> As soon as the project team has the approved outline of on-site activities, turn it into a clear explainer covering what will happen, what the milestones are, and what viewers should expect to see. The goal is to fill the information vacuum before Turtlegrass uses visible activity to imply something improper is happening.</span></div>
-        <div class="exec-action"><span class="exec-action-num">2</span><span class="editable-field" contenteditable="false"><strong>Build a repeatable footage pipeline now.</strong> Once on-site footage starts arriving, review it quickly with Alice and turn it into a recurring content series rather than one-off posts. Plan for project footage, drone footage where approved, and regular updated footage so the account consistently shows controlled, current site activity.</span></div>
-        <div class="exec-action"><span class="exec-action-num">3</span><span class="editable-field" contenteditable="false"><strong>Stage the jobs announcement for the end of May.</strong> Hiring tied to on-site activity is expected in roughly four weeks, so the creative, copy, and calendar placement should be prepared now. Run the hiring message as a dedicated campaign beat with one cross-posted creative across Facebook and Instagram, and use link clicks as the primary KPI.</span></div>
-        <div class="exec-action"><span class="exec-action-num">4</span><span class="editable-field" contenteditable="false"><strong>Use BRON or ESS as credibility assets the moment they are available.</strong> If BRON or ESS provides video, voiceover support, or expert framing, package it as plain-language explainers on environmental regulation, mitigation, and what is actually happening on site. This is stronger than reactive rebuttal because it lets third-party expertise carry the message.</span></div>
-        <div class="exec-action"><span class="exec-action-num">5</span><span class="editable-field" contenteditable="false"><strong>Thread sponsorships and partnerships into the same narrative window.</strong> Upcoming sponsorships should not sit off to the side of the dashboard strategy. They should be scheduled as proof-of-community-presence moments that sit alongside site activity and environmental content, reinforcing local ties while the project enters a more visible phase.</span></div>
+      <div class="exec-block-label">Data-Backed Performance Patterns</div>
+      <div class="exec-block-body" style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#15803d">Leading formats</div>
+          <div class="editable-field" data-edit-key="leading-formats" contenteditable="false" style="font-size:13.5px;line-height:1.7">
+            ${topEngagement ? `<strong>${topEngagement[0]}</strong> has the highest average estimated organic engagement rate at <strong>${fmtPct(avg(topEngagement[1].engagement))}</strong>.` : ''}
+            ${topFollows ? ` <strong>${topFollows[0]}</strong> has the highest average Instagram follower acquisition at <strong>${avg(topFollows[1].follows).toFixed(1)} follows per post</strong>.` : ''}
+            ${topReach ? ` <strong>${topReach[0]}</strong> has the highest average estimated organic reach at <strong>${fmt(Math.round(avg(topReach[1].reach)))}</strong> per post.` : ''}
+            ${totalLinkClicks > 0 ? ` Facebook posts recorded <strong>${fmt(totalLinkClicks)} link clicks</strong> in the loaded data.` : ''}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">Patterns among low-performing posts</div>
+          <div class="editable-field" data-edit-key="low-performance-patterns" contenteditable="false" style="font-size:13.5px;line-height:1.7">${lowPerformanceFinding}</div>
+        </div>
       </div>
     </div>
   `;
 }
 
-// ── Strategy Section ──
-function renderStrategy() {
-  if (allPosts.length === 0) return;
-  document.getElementById('strategy-section').style.display = 'block';
-  renderCalendar();
+// ── Editable narrative persistence ──
+function collectEditableOverrides() {
+  const overrides = {};
+  document.querySelectorAll('[data-edit-key]').forEach(element => {
+    const key = element.getAttribute('data-edit-key');
+    if (key) overrides[key] = element.innerHTML;
+  });
+  return overrides;
+}
+
+function applyEditableOverrides(overrides = {}) {
+  Object.entries(overrides).forEach(([key, html]) => {
+    const element = document.querySelector(`[data-edit-key="${key}"]`);
+    if (element && typeof html === 'string') element.innerHTML = html;
+  });
 }
 
 function captureSharedEditableContent() {
-  const execSummary = document.getElementById('exec-summary-body');
-  if (execSummary && execSummary.innerHTML.trim()) sharedEditableContent.execSummaryHTML = execSummary.innerHTML;
-  const calendar = document.getElementById('content-calendar');
-  if (calendar && calendar.innerHTML.trim()) sharedEditableContent.calendarHTML = calendar.innerHTML;
+  sharedEditableContent = { ...sharedEditableContent, ...collectEditableOverrides() };
 }
 
 function restoreSharedEditableContent() {
-  const execSummary = document.getElementById('exec-summary-body');
-  if (execSummary && sharedEditableContent.execSummaryHTML) execSummary.innerHTML = sharedEditableContent.execSummaryHTML;
-  const calendar = document.getElementById('content-calendar');
-  if (calendar && sharedEditableContent.calendarHTML) calendar.innerHTML = sharedEditableContent.calendarHTML;
-}
-
-// ── Content Calendar ──
-function renderCalendar() {
-  const el = document.getElementById('content-calendar');
-  if (!el) return;
-
-  const roadmap = [
-    {
-      timing: 'Now',
-      focus: 'On-site activity overview',
-      purpose: 'Define what is happening on site before outside voices frame visible activity as a problem or a controversy.',
-      execution: 'A clear explainer post or short sequence outlining approved on-site activity, milestones, and safeguards.',
-    },
-    {
-      timing: 'As footage lands',
-      focus: 'Site progress and milestone updates',
-      purpose: 'Use approved footage to show visible site activity once it begins and keep the narrative grounded in what is actually happening on the ground.',
-      execution: 'Short site-activity updates built from approved footage, with follow-up explanation when a milestone or mitigation step needs context.',
-    },
-    {
-      timing: 'End of May',
-      focus: 'Job creation announcement',
-      purpose: 'Connect site activity to local economic benefit and make the hiring story concrete, not abstract.',
-      execution: 'One cross-posted creative centered on the 500+ jobs message and local impact, adapted only where platform formatting requires it.',
-    },
-    {
-      timing: 'Coming weeks',
-      focus: 'Environmental and technical credibility',
-      purpose: 'Use third-party expertise to reduce ambiguity and strengthen trust as site activity becomes more visible.',
-      execution: 'BRON or ESS explainers, voiceovers, or expert framing translated into plain-language content on regulation, mitigation, and what is happening on site.',
-    },
-    {
-      timing: 'Ongoing',
-      focus: 'Community presence and sponsorships',
-      purpose: 'Reinforce local ties between major project updates and keep the account visibly active in the community.',
-      execution: 'Sponsorship moments, partnership updates, and regular updated footage to maintain current proof points.',
-    },
-  ];
-
-  el.innerHTML = `<div class="cal-grid">${roadmap.map((item, index) => `
-    <div class="cal-week ${item.timing === 'End of May' ? 'cal-highlight' : ''}">
-      <div class="cal-week-header">
-        <span>${item.timing}</span>
-        <span class="cal-dates">Phase ${index + 1}</span>
-      </div>
-      <div class="cal-slot">
-        <div class="cal-slot-num">Content Focus</div>
-        <div class="cal-slot-theme editable-field" contenteditable="false">${item.focus}</div>
-      </div>
-      <div class="cal-slot">
-        <div class="cal-slot-num">Strategic Role</div>
-        <div class="cal-slot-detail editable-field" contenteditable="false">${item.purpose}</div>
-      </div>
-      <div class="cal-slot">
-        <div class="cal-slot-num">Likely Execution</div>
-        <div class="cal-slot-detail editable-field" contenteditable="false">${item.execution}</div>
-      </div>
-    </div>
-  `).join('')}</div>`;
-
+  applyEditableOverrides(sharedEditableContent);
 }
 
 // ── Edit mode for strategy recommendations ──
@@ -3052,70 +2779,22 @@ function cleanDocHTML(html) {
 
 function buildStrategyDocExport() {
   const execSummary = document.getElementById('exec-summary-body');
-  const calendar = document.getElementById('content-calendar');
-  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Strategic Performance Review: Sampson Cay Project'));
+  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Social Media Performance Review: Sampson Cay Project'));
   const meta = stripDocEmoji(normalizeCopyText(document.getElementById('exec-summary-meta')?.innerText || ''));
-
-  const summaryHTML = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => {
+  const summaryHTML = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => {
     const label = stripDocEmoji(block.querySelector('.exec-block-label')?.innerText?.trim() || '');
-    const actions = block.querySelectorAll('.exec-action');
-    if (actions.length) {
-      const items = Array.from(actions).map(action => {
-        const body = cleanDocHTML(action.querySelector('.editable-field, span:last-child')?.innerHTML?.trim() || action.innerHTML);
-        return '<li style="margin:0 0 8px 0; line-height:1.55;">' + body + '</li>';
-      }).join('');
-      return '<section style="margin:0 0 22px 0;">'
-        + '<h2 style="font-size:15px; line-height:1.35; margin:0 0 10px 0; font-weight:700; color:#111111;">' + escapeHTML(label) + '</h2>'
-        + '<ol style="margin:0; padding-left:20px;">' + items + '</ol>'
-        + '</section>';
-    }
-
     const body = cleanDocHTML(block.querySelector('.exec-block-body')?.innerHTML?.trim() || '');
     return '<section style="margin:0 0 22px 0;">'
-      + '<h2 style="font-size:15px; line-height:1.35; margin:0 0 10px 0; font-weight:700; color:#111111;">' + escapeHTML(label) + '</h2>'
-      + '<div style="font-size:12px; line-height:1.65; color:#111111;">' + body + '</div>'
+      + '<h2 style="font-size:15px;line-height:1.35;margin:0 0 10px 0;font-weight:700;color:#111111;">' + escapeHTML(label) + '</h2>'
+      + '<div style="font-size:12px;line-height:1.65;color:#111111;">' + body + '</div>'
       + '</section>';
   }).join('');
-
-  const roadmapRows = Array.from(calendar.querySelectorAll('.cal-week')).map(card => {
-    const timing = stripDocEmoji(card.querySelector('.cal-week-header span')?.innerText?.trim() || '');
-    const slots = Array.from(card.querySelectorAll('.cal-slot'));
-    const focus = cleanDocHTML(slots[0]?.querySelector('.editable-field, .cal-slot-theme, .cal-slot-detail')?.innerHTML?.trim() || '');
-    const role = cleanDocHTML(slots[1]?.querySelector('.editable-field, .cal-slot-theme, .cal-slot-detail')?.innerHTML?.trim() || '');
-    const execution = cleanDocHTML(slots[2]?.querySelector('.editable-field, .cal-slot-theme, .cal-slot-detail')?.innerHTML?.trim() || '');
-    return '<tr>'
-      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px; font-weight:700;">' + escapeHTML(timing) + '</td>'
-      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px;">' + focus + '</td>'
-      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px;">' + role + '</td>'
-      + '<td style="border:1px solid #d9d9d9; padding:8px; vertical-align:top; font-size:12px;">' + execution + '</td>'
-      + '</tr>';
-  }).join('');
-
-  const roadmapHTML = '<table style="border-collapse:collapse; width:100%; margin-top:8px;">'
-    + '<thead><tr>'
-    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Timing</th>'
-    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Content Focus</th>'
-    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Strategic Role</th>'
-    + '<th style="border:1px solid #d9d9d9; padding:8px; text-align:left; font-size:12px; font-weight:700;">Likely Execution</th>'
-    + '</tr></thead>'
-    + '<tbody>' + roadmapRows + '</tbody>'
-    + '</table>';
-
-  const plainSummary = Array.from(execSummary.querySelectorAll('.exec-block')).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
-  const plainRoadmap = Array.from(calendar.querySelectorAll('.cal-week')).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
-
-  const plainText = [title, meta, '', ...plainSummary, '', 'Content Roadmap', ...plainRoadmap].join('\n\n');
-
-  const richHTML = '<div style="font-family:Arial, Helvetica, sans-serif; color:#111111;">'
-    + '<h1 style="font-size:20px; margin:0 0 8px 0; font-weight:700; color:#111111;">' + escapeHTML(title) + '</h1>'
-    + (meta ? '<p style="margin:0 0 20px 0; font-size:11px; color:#111111;">' + escapeHTML(meta) + '</p>' : '')
-    + summaryHTML
-    + '<section style="margin-top:24px;">'
-    + '<h2 style="font-size:16px; margin:0 0 12px 0; font-weight:700; color:#111111;">Content Roadmap</h2>'
-    + roadmapHTML
-    + '</section>'
-    + '</div>';
-
+  const plainSummary = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
+  const plainText = [title, meta, '', ...plainSummary].join('\n\n');
+  const richHTML = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111111;">'
+    + '<h1 style="font-size:20px;margin:0 0 8px 0;font-weight:700;color:#111111;">' + escapeHTML(title) + '</h1>'
+    + (meta ? '<p style="margin:0 0 20px 0;font-size:11px;color:#111111;">' + escapeHTML(meta) + '</p>' : '')
+    + summaryHTML + '</div>';
   return { html: richHTML, text: plainText };
 }
 
@@ -3243,76 +2922,31 @@ function setPushStatus(type, msg) {
 }
 
 function buildClientHTML() {
-  const execSummaryHTML = document.getElementById('exec-summary-body')?.innerHTML || '';
-  const calendarHTML    = document.getElementById('content-calendar')?.innerHTML    || '';
+  captureSharedEditableContent();
   const data = {
-    igPosts: igPosts.map(p => ({...p, date: p.date ? p.date.toISOString() : null})),
-    fbPosts: fbPosts.map(p => ({...p, date: p.date ? p.date.toISOString() : null})),
-    execSummaryHTML,
-    calendarHTML,
-    // Brand palette — applied to all charts in the client report
+    igPosts: igPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
+    fbPosts: fbPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
+    editableOverrides: { ...sharedEditableContent },
     brandColors: {
-      typeColors: {
-        'IG reel':     '#0a2a30',
-        'IG image':    '#0d5a6c',
-        'IG carousel': '#1d7a90',
-        'Videos':      '#4ea3b8',
-        'Photos':      '#8ec8d5',
-      },
+      typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
     },
   };
   const dataJSON = JSON.stringify(data);
-  // Use the template captured at page load (before charts rendered) — avoids cloning live DOM
   const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
-
-  // Inject as a true global so the main script's let-scoped variables are accessible.
-  // A separate <script> tag cannot reassign `let` vars declared in another script tag.
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
-    /* ── hide internal-only elements ── */
     #upload-screen, #github-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #edit-banner,
     .btn-outline, #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
-
-    /* ── brand color overrides ── */
-    :root {
-      --ig:       #0d5a6c;
-      --fb:       #4ea3b8;
-      --reel:     #0a2a30;
-      --image:    #0d5a6c;
-      --carousel: #1d7a90;
-      --video:    #4ea3b8;
-      --photo:    #8ec8d5;
-      --ig-grad:  linear-gradient(135deg, #0a2a30 0%, #0d5a6c 100%);
-    }
-    /* insight spotlight cards */
-    .insight-box.green  { border-left-color: #0d5a6c; }
-    .insight-box.purple { border-left-color: #0a2a30; }
-    .insight-box.orange { border-left-color: #1d7a90; }
-    /* platform badges */
-    .badge-ig {
-      background: rgba(13,90,108,.1);
-      color: #0d5a6c;
-      border: 1px solid rgba(13,90,108,.25);
-    }
-    .badge-ig .badge-dot { background: #0d5a6c; }
-    .badge-fb {
-      background: rgba(78,163,184,.12);
-      color: #1d7a90;
-      border: 1px solid rgba(78,163,184,.3);
-    }
-    .badge-fb .badge-dot { background: #4ea3b8; }
-    /* tab active state */
-    .tab-btn.active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
+    :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
+    .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
+    .badge-ig{background:rgba(13,90,108,.1);color:#0d5a6c;border:1px solid rgba(13,90,108,.25)}.badge-ig .badge-dot{background:#0d5a6c}
+    .badge-fb{background:rgba(78,163,184,.12);color:#1d7a90;border:1px solid rgba(78,163,184,.3)}.badge-fb .badge-dot{background:#4ea3b8}
+    .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   </style>`;
-  return currentHTML
-      .replace('</head>', dataScript + '\n' + clientStyles + '\n</head>');
+  return currentHTML.replace('</head>', dataScript + '\n' + clientStyles + '\n</head>');
 }
 
 async function pushToGitHub() {
