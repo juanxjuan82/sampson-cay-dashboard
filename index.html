@@ -549,8 +549,6 @@
   }
   .exec-summary-title { font-size: 17px; font-weight: 800; color: var(--text); }
   .exec-summary-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-  .summary-source-badge { display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#e8f1f3;color:var(--accent);border:1px solid #bed2d0;font-size:9px;font-weight:800;letter-spacing:.45px;text-transform:uppercase;white-space:nowrap; }
-  .summary-source-badge.ai { background:#ecfdf5;color:#047857;border-color:#86efac;box-shadow:0 0 0 2px rgba(16,185,129,.08); }
   .exec-block { margin-bottom: 20px; }
   .exec-block-label {
     font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -892,7 +890,7 @@
     <div class="exec-summary-card">
       <div class="exec-summary-header">
         <div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div><span class="summary-source-badge" id="summary-source-badge" title="Calculated from uploaded post data" aria-live="polite">Deterministic summary</span></div>
+          <div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
@@ -935,7 +933,7 @@
   <div class="chart-card col-12" id="theme-section" style="margin-bottom:28px">
     <div class="chart-title">How Each Theme Performs</div>
     <div class="chart-sub">Organic results only where stated · median values reduce distortion from unusually large posts</div>
-    <div class="theme-analysis editable-field" id="theme-analysis" data-edit-key="theme-analysis-all" contenteditable="false"></div>
+    <div class="theme-analysis" id="theme-analysis"></div>
     <div class="theme-table-wrap" id="theme-table-wrap"></div>
     <div class="chart-note" id="theme-note"></div>
     <details class="methodology">
@@ -1171,7 +1169,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-08-10.6'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-08-10.7'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1458,7 +1456,6 @@ function renderThemes(posts) {
   if (highestLowShare && highestLowShare.lowShare >= 0.4) statements.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> is most concentrated in the bottom engagement quartile at <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong>; treat this as a signal to review, not proof that the theme caused lower performance.');
   if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' estimated organic posts, so the current data does not support a reliable theme comparison.');
 
-  analysis.setAttribute('data-edit-key', 'theme-analysis-' + currentFilter);
   analysis.innerHTML = statements.join(' ');
   const coverage = result.totalPosts ? Math.round((result.classifiedCount / result.totalPosts) * 100) : 0;
   note.textContent = platformLabel + ': ' + coverage + '% classification coverage · ' + result.unclassifiedCount + ' unclassified · comparisons require at least ' + THEME_MIN_SAMPLE + ' estimated organic posts per theme.';
@@ -1569,44 +1566,10 @@ function buildAISummaryEvidence(posts) {
   const sum = function(items, value) {
     return items.reduce(function(total, post) { return total + value(post); }, 0);
   };
-  const averageValue = function(items, value) {
-    return items.length ? sum(items, value) / items.length : 0;
-  };
-  const platformRows = ['ig', 'fb'].map(function(platform) {
-    const platformPosts = posts.filter(function(post) { return post.platform === platform; });
-    const organicPlatformPosts = organicPosts.filter(function(post) { return post.platform === platform; });
-    return {
-      platform: platform,
-      posts: platformPosts.length,
-      totalReach: sum(platformPosts, function(post) { return post.reach; }),
-      totalViews: sum(platformPosts, function(post) { return post.views; }),
-      totalInteractions: sum(platformPosts, function(post) { return post.interactions; }),
-      averageEstimatedOrganicReach: Math.round(averageValue(organicPlatformPosts, function(post) { return post.reach; })),
-      averageEstimatedOrganicEngagementRate: Number(averageValue(organicPlatformPosts, function(post) { return post.engRate; }).toFixed(2)),
-      attributedFollows: sum(platformPosts, function(post) { return post.follows || 0; }),
-      linkClicks: sum(platformPosts, function(post) { return post.linkClicks || 0; })
-    };
-  });
-
-  const formatGroups = {};
-  organicPosts.forEach(function(post) {
-    if (!formatGroups[post.type]) formatGroups[post.type] = [];
-    formatGroups[post.type].push(post);
-  });
-  const formatRows = Object.keys(formatGroups).map(function(type) {
-    const group = formatGroups[type];
-    const igGroup = group.filter(function(post) { return post.platform === 'ig'; });
-    return {
-      format: type,
-      estimatedOrganicPosts: group.length,
-      averageReach: Math.round(averageValue(group, function(post) { return post.reach; })),
-      averageEngagementRate: Number(averageValue(group, function(post) { return post.engRate; }).toFixed(2)),
-      averageInstagramFollows: igGroup.length ? Number(averageValue(igGroup, function(post) { return post.follows || 0; }).toFixed(2)) : null
-    };
-  }).sort(function(a, b) { return b.averageEngagementRate - a.averageEngagementRate; });
-
   const themeResult = getThemeStats(posts);
-  const dated = posts.filter(function(post) { return post.date instanceof Date && !isNaN(post.date); }).sort(function(a, b) { return a.date - b.date; });
+  const dated = posts.filter(function(post) {
+    return post.date instanceof Date && !isNaN(post.date);
+  }).sort(function(a, b) { return a.date - b.date; });
 
   return {
     evidenceVersion: DASHBOARD_VERSION,
@@ -1628,11 +1591,6 @@ function buildAISummaryEvidence(posts) {
       instagramFollowsAttributedToPosts: sum(posts.filter(function(post) { return post.platform === 'ig'; }), function(post) { return post.follows || 0; }),
       facebookLinkClicks: sum(posts.filter(function(post) { return post.platform === 'fb'; }), function(post) { return post.linkClicks || 0; })
     },
-    platforms: platformRows,
-    formats: {
-      minimumOrganicSampleForClaims: 3,
-      rows: formatRows
-    },
     themes: {
       minimumOrganicSampleForClaims: THEME_MIN_SAMPLE,
       classificationMethod: 'Fixed weighted-keyword scoring; overlaps are allowed; examples are ranked for primary-theme purity.',
@@ -1650,32 +1608,8 @@ function buildAISummaryEvidence(posts) {
         };
       })
     },
-    comparison: buildAlignedComparisonEvidence(posts),
-    deterministicLowPerformancePattern: htmlToPlainText(buildLowPerformanceFinding(organicPosts)),
-    topEstimatedOrganicPosts: organicPosts.slice().sort(function(a, b) {
-      return b.engRate - a.engRate || b.reach - a.reach;
-    }).slice(0, 5).map(function(post) {
-      return {
-        platform: post.platform,
-        format: post.type,
-        date: post.dateStr,
-        reach: post.reach,
-        engagementRate: Number(post.engRate.toFixed(2)),
-        caption: String(post.caption || '').slice(0, 180)
-      };
-    })
+    comparison: buildAlignedComparisonEvidence(posts)
   };
-}
-
-function updateSummarySourceBadge() {
-  const badge = document.getElementById('summary-source-badge');
-  if (!badge) return;
-  const isAI = summaryMode === 'ai';
-  badge.textContent = isAI ? 'AI-generated · editable' : 'Deterministic summary';
-  badge.classList.toggle('ai', isAI);
-  badge.title = isAI
-    ? 'Generated by AI from deterministic dashboard evidence and optional account context; text remains editable'
-    : 'Calculated from uploaded post data; not written by AI';
 }
 
 function openAISettings(generateAfterSave) {
@@ -1716,9 +1650,8 @@ function applyAISummary(summary) {
   }
   const values = {
     'performance-overview': summary.performanceOverview,
-    'leading-formats': summary.leadingFormats,
-    'theme-analysis-all': summary.themeAnalysis,
-    'low-performance-patterns': summary.lowPerformancePatterns
+    'whats-working': summary.whatsWorking,
+    'whats-needs-attention': summary.whatsNotWorking
   };
   Object.keys(values).forEach(function(key) {
     const element = document.querySelector('[data-edit-key="' + key + '"]');
@@ -1727,7 +1660,6 @@ function applyAISummary(summary) {
   });
   summaryMode = 'ai';
   captureSharedEditableContent();
-  updateSummarySourceBadge();
 }
 
 async function generateAISummary() {
@@ -2369,7 +2301,6 @@ function renderAll() {
   renderTopPosts(posts);
   renderExecSummary();
   restoreSharedEditableContent();
-  updateSummarySourceBadge();
   renderAnalystNotes(posts);
 }
 
@@ -3333,20 +3264,43 @@ function renderExecSummary() {
   const fbOrganic = organicPosts.filter(post => post.platform === 'fb' && post.reach > 0);
   const igOrganicER = avg(igOrganic.map(post => post.engRate));
   const fbOrganicER = avg(fbOrganic.map(post => post.engRate));
-  const organicByType = {};
-  organicPosts.filter(post => post.reach > 0).forEach(post => {
-    if (!organicByType[post.type]) organicByType[post.type] = { engagement: [], reach: [], follows: [] };
-    organicByType[post.type].engagement.push(post.engRate);
-    organicByType[post.type].reach.push(post.reach);
-    organicByType[post.type].follows.push(post.follows || 0);
+  const themeResult = getThemeStats(allPosts);
+  const eligibleThemes = themeResult.rows.filter(function(row) {
+    return row.organicCount >= THEME_MIN_SAMPLE;
   });
-  const byEngagement = Object.entries(organicByType).sort((a, b) => avg(b[1].engagement) - avg(a[1].engagement));
-  const byReach = Object.entries(organicByType).sort((a, b) => avg(b[1].reach) - avg(a[1].reach));
-  const byFollows = Object.entries(organicByType).filter(([, values]) => avg(values.follows) > 0).sort((a, b) => avg(b[1].follows) - avg(a[1].follows));
-  const topEngagement = byEngagement[0];
-  const topReach = byReach[0];
-  const topFollows = byFollows[0];
-  const lowPerformanceFinding = buildLowPerformanceFinding(organicPosts);
+  const strongestEngagement = eligibleThemes.slice().sort(function(a, b) {
+    return b.medianEngagement - a.medianEngagement;
+  })[0];
+  const strongestReach = eligibleThemes.slice().sort(function(a, b) {
+    return b.medianReach - a.medianReach;
+  })[0];
+  const weakestEngagement = eligibleThemes.slice().sort(function(a, b) {
+    return a.medianEngagement - b.medianEngagement;
+  })[0];
+  const highestLowShare = eligibleThemes.slice().sort(function(a, b) {
+    return b.lowShare - a.lowShare;
+  })[0];
+  const workingParts = [];
+  if (strongestEngagement) {
+    workingParts.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median estimated organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
+  }
+  if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
+    workingParts.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median estimated organic reach at <strong>' + fmt(Math.round(strongestReach.medianReach)) + '</strong> per post.');
+  }
+  const whatsWorkingFallback = workingParts.length
+    ? workingParts.join(' ')
+    : 'No theme has enough estimated organic posts for a reliable comparison.';
+  const attentionParts = [];
+  if (weakestEngagement) {
+    attentionParts.push('<strong>' + escapeHTML(weakestEngagement.label) + '</strong> has the lowest eligible median estimated organic engagement rate at <strong>' + fmtPct(weakestEngagement.medianEngagement) + '</strong>.');
+  }
+  if (highestLowShare && highestLowShare.lowShare >= 0.25) {
+    attentionParts.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> appears in the bottom engagement quartile for <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong> of its estimated organic posts; treat this as a review signal, not proof of cause.');
+  }
+  const whatsNeedsAttentionFallback = attentionParts.length
+    ? attentionParts.join(' ')
+    : 'No eligible theme is consistently concentrated among the lowest-engagement posts.';
+
   const dated = allPosts.filter(post => post.date).sort((a, b) => a.date - b.date);
   const dateRange = dated.length
     ? `${dated[0].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} – ${dated[dated.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
@@ -3367,20 +3321,15 @@ function renderExecSummary() {
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
-      <div class="exec-block-label">Data-Backed Performance Patterns</div>
-      <div class="exec-block-body" style="display:flex;flex-direction:column;gap:14px">
+      <div class="exec-block-label">Theme-Led Strategic Analysis</div>
+      <div class="exec-block-body" style="display:flex;flex-direction:column;gap:16px">
         <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#15803d">Leading formats</div>
-          <div class="editable-field" data-edit-key="leading-formats" contenteditable="false" style="font-size:13.5px;line-height:1.7">
-            ${topEngagement ? `<strong>${topEngagement[0]}</strong> has the highest average estimated organic engagement rate at <strong>${fmtPct(avg(topEngagement[1].engagement))}</strong>.` : ''}
-            ${topFollows ? ` <strong>${topFollows[0]}</strong> has the highest average Instagram follower acquisition at <strong>${avg(topFollows[1].follows).toFixed(1)} follows per post</strong>.` : ''}
-            ${topReach ? ` <strong>${topReach[0]}</strong> has the highest average estimated organic reach at <strong>${fmt(Math.round(avg(topReach[1].reach)))}</strong> per post.` : ''}
-            ${totalLinkClicks > 0 ? ` Facebook posts recorded <strong>${fmt(totalLinkClicks)} link clicks</strong> in the loaded data.` : ''}
-          </div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#15803d">What’s Working</div>
+          <div class="editable-field" data-edit-key="whats-working" contenteditable="false" style="font-size:13.5px;line-height:1.7">${whatsWorkingFallback}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">Patterns among low-performing posts</div>
-          <div class="editable-field" data-edit-key="low-performance-patterns" contenteditable="false" style="font-size:13.5px;line-height:1.7">${lowPerformanceFinding}</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b45309">What Needs Attention</div>
+          <div class="editable-field" data-edit-key="whats-needs-attention" contenteditable="false" style="font-size:13.5px;line-height:1.7">${whatsNeedsAttentionFallback}</div>
         </div>
       </div>
     </div>
@@ -3472,15 +3421,12 @@ function buildStrategyDocExport() {
       + '<div style="font-size:12px;line-height:1.65;color:#111111;">' + body + '</div>'
       + '</section>';
   }).join('');
-  const themeAnalysis = document.getElementById('theme-analysis');
-  const themeText = themeAnalysis ? normalizeCopyText(themeAnalysis.innerText || '') : '';
-  const themeHTML = themeText ? '<section style="margin:0 0 22px 0;"><h2 style="font-size:15px;line-height:1.35;margin:0 0 10px 0;font-weight:700;color:#111111;">Content Themes</h2><div style="font-size:12px;line-height:1.65;color:#111111;">' + cleanDocHTML(themeAnalysis.innerHTML) + '</div></section>' : '';
   const plainSummary = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
-  const plainText = [title, meta, '', ...plainSummary, ...(themeText ? ['Content Themes', themeText] : [])].join('\n\n');
+  const plainText = [title, meta, '', ...plainSummary].join('\n\n');
   const richHTML = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111111;">'
     + '<h1 style="font-size:20px;margin:0 0 8px 0;font-weight:700;color:#111111;">' + escapeHTML(title) + '</h1>'
     + (meta ? '<p style="margin:0 0 20px 0;font-size:11px;color:#111111;">' + escapeHTML(meta) + '</p>' : '')
-    + summaryHTML + themeHTML + '</div>';
+    + summaryHTML + '</div>';
   return { html: richHTML, text: plainText };
 }
 
