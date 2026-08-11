@@ -948,7 +948,7 @@
     <div class="chart-note" id="theme-note"></div>
     <details class="methodology">
       <summary>How themes are detected</summary>
-      Captions are scored against a fixed weighted-keyword dictionary. A theme is assigned when it scores at least four points and reaches at least 80% of the post’s strongest theme score; closely matched posts may carry more than one theme. Theme examples must use that theme as the post’s primary match and are ranked by theme strength weighted toward score purity before engagement. Posts with no qualifying match remain unclassified. AI is used only after classification to interpret the evidence.
+      Community, Economy and Environment are scored against a fixed weighted-keyword dictionary. Site Activity uses a separate high-confidence rule: content must be dated June 1, 2026 or later and describe one of the validated Sampson Cay fieldwork or preparation activities; generic project, construction and location references do not qualify. Matching Facebook and Instagram captions count as one content item, while their organic results remain separate platform observations. Closely matched content may carry more than one theme. AI is used only after classification to interpret the evidence.
     </details>
   </div>
   </div><!-- /view-overview -->
@@ -1177,7 +1177,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-08-10.8'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-08-11.9'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1267,21 +1267,36 @@ const THEME_CONFIG = [
     id: 'site-activity',
     label: 'Site Activity',
     color: '#4c51bf',
-    terms: [
-      ['site activity', 5], ['on site', 3], ['worksite', 4], ['construction', 4], ['construction site', 5],
-      ['site preparation', 5], ['preparatory work', 4], ['work has begun', 4], ['work begins', 3], ['work underway', 4],
-      ['modular construction', 5], ['early work', 2], ['moving forward', 2], ['preparation', 2],
-      ['building', 2], ['build', 2], ['progress update', 4], ['project update', 4], ['project milestone', 4], ['milestone', 3],
-      ['infrastructure', 3], ['equipment', 3], ['machinery', 3], ['installation', 3], ['installing', 3],
-      ['excavation', 4], ['foundation', 3], ['foundations', 3], ['concrete', 3], ['engineering', 3],
-      ['crew', 2], ['roadwork', 4], ['roadworks', 4], ['utilities', 3], ['groundbreaking', 4],
-      ['underway', 2], ['completed', 1], ['completion', 2], ['site', 1], ['progress', 1]
-    ]
+    terms: []
   }
+];
+
+const SITE_ACTIVITY_START_UTC = Date.UTC(2026, 5, 1);
+const SITE_ACTIVITY_SIGNALS = [
+  ['detailed land and habitat surveys', 'mapping critical habitats', 'tracking bird life'],
+  ['recording the natural soundscape', 'sound readings', 'collecting sound data'],
+  ['preparatory work has begun'],
+  ['early site preparation'],
+  ['advancing our site preparation']
 ];
 
 function normalizeThemeText(value) {
   return (' ' + String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ');
+}
+
+function getSiteActivitySignals(post) {
+  const date = post && post.date instanceof Date && !isNaN(post.date) ? post.date : null;
+  if (!date || date.getTime() < SITE_ACTIVITY_START_UTC) return [];
+  const text = normalizeThemeText(post.caption);
+  if (text.indexOf(' black point community center ') >= 0 || text.indexOf(' black point community centre ') >= 0) return [];
+  return SITE_ACTIVITY_SIGNALS.reduce(function(matches, signalGroup) {
+    const match = signalGroup.find(function(phrase) {
+      const term = normalizeThemeText(phrase).trim();
+      return text.indexOf(' ' + term + ' ') >= 0;
+    });
+    if (match) matches.push(match);
+    return matches;
+  }, []);
 }
 
 function scoreThemes(post) {
@@ -1289,6 +1304,10 @@ function scoreThemes(post) {
   return THEME_CONFIG.map(function(theme, index) {
     const matched = [];
     let score = 0;
+    if (theme.id === 'site-activity') {
+      const signals = getSiteActivitySignals(post);
+      return { id: theme.id, label: theme.label, color: theme.color, score: signals.length ? 100 : 0, matched: signals, order: index };
+    }
     theme.terms.forEach(function(entry) {
       const term = normalizeThemeText(entry[0]).trim();
       if (term && text.indexOf(' ' + term + ' ') >= 0) {
@@ -1304,11 +1323,14 @@ function scoreThemes(post) {
 
 function classifyThemes(post) {
   const ranked = scoreThemes(post);
-  const strongestScore = ranked.length ? ranked[0].score : 0;
-  if (strongestScore < 4) return [];
-  return ranked.filter(function(theme) {
+  const siteActivity = ranked.find(function(theme) { return theme.id === 'site-activity' && theme.score > 0; });
+  const weighted = ranked.filter(function(theme) { return theme.id !== 'site-activity'; });
+  const strongestScore = weighted.length ? weighted[0].score : 0;
+  const matches = strongestScore < 4 ? [] : weighted.filter(function(theme) {
     return theme.score >= 4 && theme.score >= strongestScore * 0.8;
   });
+  if (siteActivity) matches.push(siteActivity);
+  return matches.sort(function(a, b) { return b.score - a.score || a.order - b.order; });
 }
 
 function classifyTheme(post) {
@@ -1350,10 +1372,23 @@ function rankThemeExamples(items, themeId) {
   });
 }
 
+function uniqueThemeContent(items) {
+  const seen = new Set();
+  return items.filter(function(item) {
+    const captionKey = normalizeThemeText(item.post.caption).trim();
+    const fallbackKey = [item.post.platform, item.post.id || '', item.post.dateStr || '', item.post.permalink || ''].join('|');
+    const key = captionKey || fallbackKey;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getThemeStats(posts) {
   const annotated = posts.map(function(post) {
     return { post: post, scores: scoreThemes(post), themes: classifyThemes(post) };
   });
+  const contentItems = uniqueThemeContent(annotated);
   const eligibleOrganic = annotated.filter(function(item) {
     return !isLikelyBoostedPost(item.post) && item.post.reach > 0 && Number.isFinite(Number(item.post.engRate));
   });
@@ -1369,9 +1404,11 @@ function getThemeStats(posts) {
     const assigned = annotated.filter(function(item) {
       return item.themes.some(function(match) { return match.id === theme.id; });
     });
+    const assignedContent = uniqueThemeContent(assigned);
     const organic = eligibleOrganic.filter(function(item) {
       return item.themes.some(function(match) { return match.id === theme.id; });
     });
+    const organicContent = uniqueThemeContent(organic);
     const rankedOrganicExamples = rankThemeExamples(organic, theme.id);
     const rankedAllExamples = rankThemeExamples(assigned, theme.id);
     const purestOrganic = rankedOrganicExamples.find(function(candidate) { return candidate.isPrimary; }) || rankedOrganicExamples[0];
@@ -1389,9 +1426,10 @@ function getThemeStats(posts) {
       id: theme.id,
       label: theme.label,
       color: theme.color,
-      count: assigned.length,
-      share: posts.length ? assigned.length / posts.length : 0,
+      count: assignedContent.length,
+      share: contentItems.length ? assignedContent.length / contentItems.length : 0,
       organicCount: organic.length,
+      organicContentCount: organicContent.length,
       medianReach: medianValue(organic.map(function(item) { return item.post.reach; })),
       medianEngagement: medianValue(organic.map(function(item) { return item.post.engRate; })),
       lowShare: organic.length ? lowCount / organic.length : 0,
@@ -1415,8 +1453,9 @@ function getThemeStats(posts) {
   return {
     rows: rows,
     totalPosts: posts.length,
-    classifiedCount: annotated.filter(function(item) { return item.themes.length > 0; }).length,
-    unclassifiedCount: annotated.filter(function(item) { return item.themes.length === 0; }).length
+    totalContentItems: contentItems.length,
+    classifiedCount: contentItems.filter(function(item) { return item.themes.length > 0; }).length,
+    unclassifiedCount: contentItems.filter(function(item) { return item.themes.length === 0; }).length
   };
 }
 
@@ -1442,18 +1481,18 @@ function renderThemes(posts) {
     return '<div class="theme-card" style="--theme-color:' + row.color + '">'
       + '<div class="theme-card-label">' + escapeHTML(row.label) + '</div>'
       + '<div class="theme-card-count">' + row.count + '</div>'
-      + '<div class="theme-card-sub">' + Math.round(row.share * 100) + '% of posts tagged with this theme</div>'
+      + '<div class="theme-card-sub">content items · ' + Math.round(row.share * 100) + '% tagged with this theme</div>'
       + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</strong><span>Median organic reach</span></div>'
       + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</strong><span>Median organic engagement</span></div>'
       + '<div style="margin-top:10px"><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + (enough ? 'Sufficient sample' : 'Limited sample') + '</span></div></div>';
   }).join('');
 
-  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Posts</th><th>Organic sample</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Clearest example</th></tr></thead><tbody>'
+  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Content items</th><th>Organic observations</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Clearest example</th></tr></thead><tbody>'
     + result.rows.map(function(row) {
       const enough = row.organicCount >= THEME_MIN_SAMPLE;
       const example = row.topPost && row.topPost.permalink ? '<a class="post-link" href="' + escapeHTML(row.topPost.permalink) + '" target="_blank">View post ↗</a>' : '—';
       return '<tr><td><span class="theme-swatch" style="background:' + row.color + '"></span><strong>' + escapeHTML(row.label) + '</strong></td>'
-        + '<td>' + row.count + '</td><td><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + row.organicCount + ' organic</span></td>'
+        + '<td>' + row.count + '</td><td><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + row.organicCount + ' platform observations</span></td>'
         + '<td>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</td><td>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</td>'
         + '<td>' + (row.organicCount ? Math.round(row.lowShare * 100) + '%' : '—') + '</td><td>' + example + '</td></tr>';
     }).join('') + '</tbody></table>';
@@ -1465,8 +1504,8 @@ function renderThemes(posts) {
   if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' estimated organic posts, so the current data does not support a reliable theme comparison.');
 
   analysis.innerHTML = statements.join(' ');
-  const coverage = result.totalPosts ? Math.round((result.classifiedCount / result.totalPosts) * 100) : 0;
-  note.textContent = platformLabel + ': ' + coverage + '% classification coverage · ' + result.unclassifiedCount + ' unclassified · comparisons require at least ' + THEME_MIN_SAMPLE + ' estimated organic posts per theme.';
+  const coverage = result.totalContentItems ? Math.round((result.classifiedCount / result.totalContentItems) * 100) : 0;
+  note.textContent = platformLabel + ': ' + coverage + '% content-item classification coverage · ' + result.unclassifiedCount + ' unclassified content items · performance comparisons require at least ' + THEME_MIN_SAMPLE + ' estimated organic platform observations per theme.';
 }
 
 function buildAlignedComparisonEvidence(posts) {
@@ -1601,14 +1640,15 @@ function buildAISummaryEvidence(posts) {
     },
     themes: {
       minimumOrganicSampleForClaims: THEME_MIN_SAMPLE,
-      classificationMethod: 'Fixed weighted-keyword scoring; overlaps are allowed; examples are ranked for primary-theme purity.',
-      classificationCoveragePercent: themeResult.totalPosts ? Math.round((themeResult.classifiedCount / themeResult.totalPosts) * 100) : 0,
-      unclassifiedPosts: themeResult.unclassifiedCount,
+      classificationMethod: 'Community, Economy and Environment use fixed weighted-keyword scoring. Site Activity requires a validated June 2026-or-later fieldwork or preparation signal. Cross-platform caption matches count once for volume; performance keeps separate platform observations. Theme overlaps are allowed.',
+      classificationCoveragePercent: themeResult.totalContentItems ? Math.round((themeResult.classifiedCount / themeResult.totalContentItems) * 100) : 0,
+      unclassifiedContentItems: themeResult.unclassifiedCount,
       rows: themeResult.rows.map(function(row) {
         return {
           theme: row.label,
-          totalPosts: row.count,
-          estimatedOrganicPosts: row.organicCount,
+          contentItems: row.count,
+          estimatedOrganicPlatformObservations: row.organicCount,
+          estimatedOrganicContentItems: row.organicContentCount,
           medianEstimatedOrganicReach: Math.round(row.medianReach),
           medianEstimatedOrganicEngagementRate: Number(row.medianEngagement.toFixed(2)),
           bottomEngagementQuartileSharePercent: Math.round(row.lowShare * 100),
