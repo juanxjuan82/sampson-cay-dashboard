@@ -64,16 +64,9 @@ test('CORS, stale editor saves and unconfigured AI preserve draft',async()=>{
  assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:1})).status,503);
  assert.equal(canPublish({draft:'x',edited:1,version:1,basis_hash:'old'},1,'new'),false);
 });
-test('AI creates private draft only; concurrent changes reject generated overwrite',async()=>{
- const {env,sql}=setup();env.OPENAI_API_KEY='test-key';env.OPENAI_MODEL='account-configured-model';
- const original=globalThis.fetch;let calls=0;
- try {
-  globalThis.fetch=async(url,opts)=>{calls++;assert.equal(url,'https://api.openai.com/v1/responses');const input=JSON.parse(opts.body);assert.equal(input.store,false);assert.ok(input.instructions.includes('untrusted'));return new Response(JSON.stringify({status:'completed',model:'test',output:[{content:[{type:'output_text',text:'AI recommendation remains private'}]}]}),{headers:{'Content-Type':'application/json'}});};
-  assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:0})).status,200);
-  let feed=await (await call(env,'/feed','GET',null,'client-secret')).json();assert.equal(feed.items[0].recommendation,null);assert.ok(!JSON.stringify(feed).includes('AI recommendation remains private'));
-  assert.equal((await call(env,'/editor/items/'+id+'/publish','POST',{version:1})).status,409);
-  globalThis.fetch=async()=>{sql.prepare('UPDATE recommendations SET version=version+1,draft=? WHERE item_id=?').run('Concurrent saved draft',id);return new Response(JSON.stringify({status:'completed',output:[{content:[{type:'output_text',text:'Must not overwrite'}]}]}));};
-  assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:1,replace:true})).status,409);
-  assert.equal(sql.prepare('SELECT draft FROM recommendations WHERE item_id=?').get(id).draft,'Concurrent saved draft');assert.equal(calls,1);
- } finally {globalThis.fetch=original;}
+test('AI drafting stays disabled even when API credentials exist', async()=>{
+ const {env}=setup();env.OPENAI_API_KEY='test-key';env.OPENAI_MODEL='test-model';
+ assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:0})).status,503);
+ const feed=await (await call(env,'/feed','GET',null,'client-secret')).json();
+ assert.equal(feed.items[0].recommendation,null);
 });

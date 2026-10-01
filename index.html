@@ -895,8 +895,7 @@
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-sm btn-edit" id="btn-ai-generate" onclick="generateAISummary()" title="Generate an editable narrative from the dashboard’s deterministic evidence">✨ Generate AI Summary</button>
-          <button class="btn btn-sm btn-edit" id="btn-ai-settings" onclick="openAISettings(false)" title="Configure the Cloudflare Worker connection">⚙ AI</button>
+          <button class="btn btn-sm btn-edit" id="btn-summary-generate" onclick="generateBuiltInSummary()" title="Regenerate the editable summary from the dashboard data">Generate Summary</button>
           <button class="btn btn-sm btn-edit" id="btn-copy-doc" onclick="copyStrategyForDoc()">📋 Copy for Google Doc</button>
           <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
           <button class="btn btn-sm btn-done" id="btn-done-recs" onclick="toggleEditMode(false)" style="display:none">✓ Done</button>
@@ -1132,29 +1131,6 @@
   </div>
 </div>
 
-<!-- ══════════════════ AI SUMMARY MODAL ══════════════════ -->
-<div class="modal-overlay" id="ai-modal">
-  <div class="modal">
-    <h3>✨ Generate AI Summary</h3>
-    <p>Connect the dashboard to the protected Cloudflare Worker. The Worker URL is saved in this browser; the access token is kept only for this tab.</p>
-
-    <label>Worker URL</label>
-    <input type="url" id="ai-endpoint" placeholder="https://sampson-cay-dashboard-ai.your-subdomain.workers.dev" autocomplete="url">
-
-    <label>Dashboard access token</label>
-    <input type="password" id="ai-access-token" placeholder="Paste DASHBOARD_AI_TOKEN" autocomplete="off">
-
-    <label>Account context and priorities</label>
-    <textarea id="ai-account-context" maxlength="6000" placeholder="Add account history, business goals, priority audiences, important campaigns or events, known paid activity, constraints, and what recommendations should optimize for."></textarea>
-    <p class="modal-field-note">Saved only in this browser. It guides interpretation and recommendations but does not override the dashboard’s measured evidence.</p>
-
-    <div class="modal-footer">
-      <button class="btn btn-outline btn-sm" onclick="closeAISettings()">Cancel</button>
-      <button class="btn btn-edit btn-sm" onclick="saveAISettingsAndGenerate()">Save &amp; Generate</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══════════════════ JAVASCRIPT ══════════════════ -->
 <script>
 // ── State ──
@@ -1169,7 +1145,6 @@ let topPostsExpanded = false;
 let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
-let aiGenerateAfterSettings = false;
 const DASHBOARD_VERSION = '2026-08-11.9'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
@@ -1653,107 +1628,14 @@ function buildAISummaryEvidence(posts) {
   };
 }
 
-function openAISettings(generateAfterSave) {
-  aiGenerateAfterSettings = Boolean(generateAfterSave);
-  document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
-  document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
-  document.getElementById('ai-account-context').value = localStorage.getItem('dashboard_ai_context') || '';
-  document.getElementById('ai-modal').classList.add('open');
-}
-
-function closeAISettings() {
-  aiGenerateAfterSettings = false;
-  document.getElementById('ai-modal').classList.remove('open');
-}
-
-function saveAISettingsAndGenerate() {
-  const endpoint = document.getElementById('ai-endpoint').value.trim().replace(/\/+$/, '');
-  const token = document.getElementById('ai-access-token').value.trim();
-  const accountContext = document.getElementById('ai-account-context').value.trim();
-  if (!/^https:\/\//i.test(endpoint) || !token) {
-    alert('Enter the HTTPS Worker URL and the DASHBOARD_AI_TOKEN value.');
-    return;
-  }
-  localStorage.setItem('dashboard_ai_endpoint', endpoint);
-  sessionStorage.setItem('dashboard_ai_token', token);
-  if (accountContext) localStorage.setItem('dashboard_ai_context', accountContext);
-  else localStorage.removeItem('dashboard_ai_context');
-  document.getElementById('ai-modal').classList.remove('open');
-  const shouldGenerate = aiGenerateAfterSettings;
-  aiGenerateAfterSettings = false;
-  if (shouldGenerate || allPosts.length) generateAISummary();
-}
-
-function applyAISummary(summary) {
-  if (currentFilter !== 'all') {
-    const allButton = document.querySelector('.pill');
-    if (allButton) setFilter('all', allButton);
-  }
-  const values = {
-    'performance-overview': summary.performanceOverview,
-    'whats-working': summary.whatsWorking,
-    'whats-needs-attention': summary.whatsNotWorking,
-    'recommended-direction': summary.recommendedDirection
-  };
-  Object.keys(values).forEach(function(key) {
-    const element = document.querySelector('[data-edit-key="' + key + '"]');
-    const value = String(values[key] || '').trim();
-    if (!element || !value) return;
-    element.textContent = value;
-  });
-  summaryMode = 'ai';
-  captureSharedEditableContent();
-}
-
-async function generateAISummary() {
+function generateBuiltInSummary() {
   if (!allPosts.length) {
     alert('Load the dashboard first so there is evidence to summarize.');
     return;
   }
-  const endpoint = (localStorage.getItem('dashboard_ai_endpoint') || '').replace(/\/+$/, '');
-  const token = sessionStorage.getItem('dashboard_ai_token') || '';
-  if (!endpoint || !token) {
-    openAISettings(true);
-    return;
-  }
-
-  const button = document.getElementById('btn-ai-generate');
-  const original = button ? button.textContent : '';
-  if (button) {
-    button.disabled = true;
-    button.textContent = 'Generating…';
-  }
-
-  try {
-    const response = await fetch(endpoint.endsWith('/summary') ? endpoint : endpoint + '/summary', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        evidence: buildAISummaryEvidence(allPosts),
-        accountContext: localStorage.getItem('dashboard_ai_context') || ''
-      })
-    });
-    const payload = await response.json().catch(function() { return {}; });
-    if (!response.ok) {
-      const detail = payload.requestId ? ' Request ID: ' + payload.requestId : '';
-      throw new Error((payload.error || 'Summary generation failed.') + detail);
-    }
-    applyAISummary(payload.summary);
-    if (button) button.textContent = '✓ AI Summary Updated';
-  } catch (error) {
-    if (button) button.textContent = '⚠ Generation failed';
-    alert(error.message || 'AI summary generation failed.');
-  } finally {
-    if (button) {
-      setTimeout(function() {
-        button.disabled = false;
-        button.textContent = original || '✨ Generate AI Summary';
-      }, 1800);
-    }
-  }
+  renderExecSummary();
+  summaryMode = 'deterministic';
+  captureSharedEditableContent();
 }
 
 function switchDashboardView(view, button) {
@@ -3626,7 +3508,7 @@ function buildClientHTML() {
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
     #upload-screen, #github-modal, #ai-modal, #analyst-notes,
-    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
+    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-summary-generate, #edit-banner,
     #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
     :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
@@ -3744,9 +3626,7 @@ async function pushToGitHub() {
 // Close modal on overlay click
 document.addEventListener('click', e => {
   const githubModal = document.getElementById('github-modal');
-  const aiModal = document.getElementById('ai-modal');
   if (e.target === githubModal) closeGitHubModal();
-  if (e.target === aiModal) closeAISettings();
 });
 
 // ── Chart cleanup ──

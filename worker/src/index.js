@@ -42,7 +42,7 @@ export default {
   async fetch(request, env) {
     const monitorPath = new URL(request.url).pathname;
     if (monitorPath === '/feed' || monitorPath === '/refresh' || monitorPath.startsWith('/editor/')) {
-      return monitor.fetch(request, { ...env, EDITOR_TOKEN: env.DASHBOARD_AI_TOKEN, CLIENT_TOKEN: env.MONITOR_CLIENT_TOKEN, OPENAI_MODEL: env.OPENAI_MODEL || DEFAULT_MODEL });
+      return monitor.fetch(request, { ...env, EDITOR_TOKEN: env.MONITOR_EDITOR_TOKEN, CLIENT_TOKEN: env.MONITOR_CLIENT_TOKEN });
     }
     const origin = request.headers.get('Origin') || '';
     const corsHeaders = getCorsHeaders(origin, env.ALLOWED_ORIGINS);
