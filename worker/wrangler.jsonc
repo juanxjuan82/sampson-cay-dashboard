@@ -6,5 +6,18 @@
   "vars": {
     "OPENAI_MODEL": "gpt-5.6-terra",
     "ALLOWED_ORIGINS": "https://juanxjuan82.github.io,http://localhost:8000,http://127.0.0.1:8000"
-  }
+  },
+  "triggers": {
+    "crons": [
+      "0 */6 * * *"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sampson-cay-monitor",
+      "database_id": "e3994f38-b2a1-4b9a-b1a0-505332d0e06d",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

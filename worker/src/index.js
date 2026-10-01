@@ -1,3 +1,5 @@
+import monitor from './monitor/index.js';
+import {collect} from './monitor/collector.js';
 const DEFAULT_MODEL = 'gpt-5.6-terra';
 const MAX_BODY_BYTES = 100_000;
 
@@ -36,7 +38,12 @@ Return plain text with no Markdown, bullets, headings or HTML. Do not mention AI
 Keep the response candid, specific and useful to a client.`
 
 export default {
+  async scheduled(event, env, ctx) { ctx.waitUntil(collect(env)); },
   async fetch(request, env) {
+    const monitorPath = new URL(request.url).pathname;
+    if (monitorPath === '/feed' || monitorPath === '/refresh' || monitorPath.startsWith('/editor/')) {
+      return monitor.fetch(request, { ...env, EDITOR_TOKEN: env.MONITOR_EDITOR_TOKEN, CLIENT_TOKEN: env.MONITOR_CLIENT_TOKEN });
+    }
     const origin = request.headers.get('Origin') || '';
     const corsHeaders = getCorsHeaders(origin, env.ALLOWED_ORIGINS);
 

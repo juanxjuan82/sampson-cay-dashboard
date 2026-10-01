@@ -788,6 +788,7 @@
 <!-- ══════════════════ HEADER ══════════════════ -->
 <div class="header">
   <div class="header-left">
+    <a href="monitor.html" style="color:#b6dfe4;font-size:12px;text-decoration:none">Media &amp; Public Claims Monitor →</a>
     <h1 id="header-client">Sampson Cay Project</h1>
     <p id="header-period">Social Media Performance Report &nbsp;·&nbsp; Upload CSVs to populate</p>
   </div>
@@ -1654,7 +1655,7 @@ function buildAISummaryEvidence(posts) {
 
 function openAISettings(generateAfterSave) {
   aiGenerateAfterSettings = Boolean(generateAfterSave);
-  document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
+  document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || 'https://sampson-cay-dashboard-ai.john-aymes.workers.dev';
   document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
   document.getElementById('ai-account-context').value = localStorage.getItem('dashboard_ai_context') || '';
   document.getElementById('ai-modal').classList.add('open');
@@ -1709,7 +1710,7 @@ async function generateAISummary() {
     alert('Load the dashboard first so there is evidence to summarize.');
     return;
   }
-  const endpoint = (localStorage.getItem('dashboard_ai_endpoint') || '').replace(/\/+$/, '');
+  const endpoint = (localStorage.getItem('dashboard_ai_endpoint') || 'https://sampson-cay-dashboard-ai.john-aymes.workers.dev').replace(/\/+$/, '');
   const token = sessionStorage.getItem('dashboard_ai_token') || '';
   if (!endpoint || !token) {
     openAISettings(true);
@@ -3772,3 +3773,4 @@ async function downloadShareable() {
 
 </body>
 </html>
+
