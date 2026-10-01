@@ -15,7 +15,7 @@ A deterministic monitor linked from the three dashboard pages, with feed routes 
 
 1. In `worker`, install dependencies: `npm install`.
 2. Use the existing Cloudflare deployment credentials: `npx wrangler login`.
-3. The database ID supplied by the owner is already configured: `e3994f38-b2a1-4b9a-b1a0-505332d0e06d`.
+3. The database ID supplied by the owner is already configured: `1ab626b5-2df2-417a-b222-67db861dc20e`.
 4. Confirm this database belongs to the deployment account; preserve existing AI secrets when deploying.
 5. Apply migration: `npx wrangler d1 migrations apply sampson-cay-monitor --remote`.
 6. Set different, randomly generated MONITOR_EDITOR_TOKEN and MONITOR_CLIENT_TOKEN secrets. Share only MONITOR_CLIENT_TOKEN with the client. The monitor's editor access is independent of AI credentials; never embed either token in HTML or repository files.

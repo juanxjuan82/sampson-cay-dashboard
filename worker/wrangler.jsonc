@@ -16,7 +16,7 @@
     {
       "binding": "DB",
       "database_name": "sampson-cay-monitor",
-      "database_id": "e3994f38-b2a1-4b9a-b1a0-505332d0e06d",
+      "database_id": "1ab626b5-2df2-417a-b222-67db861dc20e",
       "migrations_dir": "migrations"
     }
   ]
