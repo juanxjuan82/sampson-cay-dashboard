@@ -9,6 +9,7 @@ const id='a'.repeat(64);
 function setup(){
  const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../migrations/0001_monitor.sql',import.meta.url),'utf8'));
  sql.exec(readFileSync(new URL('../migrations/0002_item_collection_status.sql',import.meta.url),'utf8'));
+ sql.exec(readFileSync(new URL('../migrations/0003_discovery_attempts.sql',import.meta.url),'utf8'));
  const DB={prepare(query){let params=[];const stmt=sql.prepare(query);return {bind(...values){params=values;return this;},async first(){return stmt.get(...params)||null;},async all(){return {results:stmt.all(...params)};},async run(){const r=stmt.run(...params);return {meta:{changes:Number(r.changes)}};}};},async batch(statements){return Promise.all(statements.map(s=>s.run()));}};
  sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('turtlegrass','Turtlegrass','https://www.turtlegrassresort.com/');
  sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)').run(id,'turtlegrass','https://www.turtlegrassresort.com/blog/example','Sampson Cay consultation','2026-10-01','2026-10-01','2026-10-01','hash1','Original source statement','[]');
@@ -41,6 +42,7 @@ test('client cannot access editorial routes; missing/equal tokens fail closed',a
 });
 test('human edit gate; only published snapshot enters client feed; revisions remain private',async()=>{
  const {env,sql}=setup();
+ sql.prepare("UPDATE items SET review_status='reviewed' WHERE id=?").run(id);
  sql.prepare('INSERT INTO recommendations(item_id,ai_text,draft,version,edited,basis_hash) VALUES(?,?,?,?,?,?)').run(id,'Private AI words','Private AI words',1,0,'hash1');
  assert.equal((await call(env,'/editor/items/'+id+'/publish','POST',{version:1})).status,409);
  assert.equal((await call(env,'/editor/items/'+id+'/draft','PUT',{text:'Private AI words',version:1,basisHash:'hash1'})).status,200);
@@ -63,7 +65,7 @@ test('CORS, stale editor saves and unconfigured AI preserve draft',async()=>{
  assert.equal((await call(env,'/editor/items/'+id+'/draft','PUT',{text:'Manual recommendation',version:0,basisHash:'hash1'})).status,200);
  assert.equal((await call(env,'/editor/items/'+id+'/draft','PUT',{text:'Overwrite',version:0,basisHash:'hash1'})).status,409);
  assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:1})).status,503);
- assert.equal(canPublish({draft:'x',edited:1,version:1,basis_hash:'old'},1,'new'),false);
+ assert.equal(canPublish({draft:'x',edited:1,version:1,basis_hash:'old'},1,'new','reviewed'),false);
 });
 test('AI drafting stays disabled even when API credentials exist', async()=>{
  const {env}=setup();env.OPENAI_API_KEY='test-key';env.OPENAI_MODEL='test-model';
@@ -81,4 +83,40 @@ test('feed preserves independent source and advisor publication timestamps',asyn
  sql.prepare('INSERT INTO recommendations(item_id,published,published_at) VALUES(?,?,?)').run(id,'Published advisor response','2026-10-01T16:00:00.000Z');
  feed=await (await call(env,'/feed','GET',null,'client-secret')).json();
  assert.equal(feed.items[0].source_published_at,'2026-09-28T12:00:00.000Z');assert.equal(feed.items[0].recommendation_published_at,'2026-10-01T16:00:00.000Z');
+});
+
+test('publishing requires review of the current source, including after unchanged advice is resaved',async()=>{
+ const {env,sql}=setup();
+ const path='/editor/items/'+id;
+ assert.equal((await call(env,path+'/draft','PUT',{text:'Manual recommendation',version:0,basisHash:'hash1'})).status,200);
+ assert.equal((await call(env,path+'/publish','POST',{version:1})).status,409);
+ assert.equal((await call(env,path+'/review','POST',{status:'counsel',basisHash:'hash1'})).status,200);
+ assert.equal((await call(env,path+'/publish','POST',{version:1})).status,409);
+ assert.equal((await call(env,path+'/review','POST',{status:'reviewed',basisHash:'hash1'})).status,200);
+ assert.equal((await call(env,path+'/publish','POST',{version:1})).status,200);
+ sql.prepare("UPDATE items SET content_hash='hash2',review_status='unreviewed' WHERE id=?").run(id);
+ assert.equal((await call(env,path+'/draft','PUT',{text:'Manual recommendation',version:1,basisHash:'hash2'})).status,200);
+ assert.equal((await call(env,path+'/publish','POST',{version:2})).status,409);
+ assert.equal((await call(env,path+'/review','POST',{status:'reviewed',basisHash:'hash1'})).status,409);
+ assert.equal((await call(env,path+'/review','POST',{status:'reviewed',basisHash:'hash2'})).status,200);
+ assert.equal((await call(env,path+'/publish','POST',{version:2})).status,200);
+ // Invalidate review after the handler has read the source, before the publication write.
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=query=>{const statement=prepare(query);if(query.startsWith('UPDATE recommendations SET published=draft')) {const run=statement.run.bind(statement);statement.run=async()=>{sql.prepare("UPDATE items SET review_status='unreviewed' WHERE id=?").run(id);return run();};}return statement;};
+ assert.equal((await call(env,path+'/publish','POST',{version:2})).status,409);
+});
+test('feed pagination retrieves all 601 tied-date items and preserves access to older advice',async()=>{
+ const {env,sql}=setup();
+ const insert=sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
+ for(let i=0;i<600;i++)insert.run(i.toString(16).padStart(64,'0'),'turtlegrass','https://www.turtlegrassresort.com/blog/'+i,'Sampson Cay '+i,'2026-10-01','2026-10-01','2026-10-01','hash','source','[]');
+ const oldest='0'.repeat(64);
+ sql.prepare('INSERT INTO recommendations(item_id,published,published_at) VALUES(?,?,?)').run(oldest,'Older published advice','2026-09-29');
+ for(const token of ['client-secret','editor-secret']) {
+  const items=[];let cursor=null,pages=0;
+  do {const path='/feed'+(cursor?'?cursor='+encodeURIComponent(JSON.stringify(cursor)):'');const response=await call(env,path,'GET',null,token);assert.equal(response.status,200);const feed=await response.json();assert.ok(feed.items.length<=100);items.push(...feed.items);cursor=feed.nextCursor;pages++;}while(cursor);
+  assert.equal(items.length,601);assert.equal(new Set(items.map(i=>i.id)).size,601);assert.equal(pages,7);assert.equal(items.at(-1).recommendation,'Older published advice');
+ }
+ assert.equal((await call(env,'/editor/items/'+oldest)).status,200);
+ assert.equal((await call(env,'/editor/items/'+oldest+'/unpublish','POST')).status,200);
+ assert.equal((await call(env,'/feed?cursor=invalid')).status,400);
 });

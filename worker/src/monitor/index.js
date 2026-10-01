@@ -32,9 +32,17 @@ export default {
     if(path.startsWith('/editor/') && role!=='editor') return json({error:'Editor access required'},403,headers);
     try {
       if(path==='/feed' && request.method==='GET') {
-        const {results:items}=await env.DB.prepare(`SELECT ${PUBLIC_FIELDS} FROM items i LEFT JOIN recommendations r ON r.item_id=i.id ORDER BY i.changed_at DESC LIMIT 500`).all();
+        let cursor=null;
+        if(url.searchParams.has('cursor')) {
+          try { cursor=JSON.parse(url.searchParams.get('cursor')); } catch { return json({error:'Invalid feed cursor'},400,headers); }
+          if(!cursor || typeof cursor.changedAt!=='string' || Number.isNaN(Date.parse(cursor.changedAt)) || typeof cursor.id!=='string' || !/^[a-f0-9]{64}$/.test(cursor.id)) return json({error:'Invalid feed cursor'},400,headers);
+        }
+        const query=env.DB.prepare(`SELECT ${PUBLIC_FIELDS} FROM items i LEFT JOIN recommendations r ON r.item_id=i.id ${cursor?'WHERE i.changed_at<? OR (i.changed_at=? AND i.id<?)':''} ORDER BY i.changed_at DESC,i.id DESC LIMIT 101`);
+        const {results}=await (cursor?query.bind(cursor.changedAt,cursor.changedAt,cursor.id):query).all();
+        const items=results.slice(0,100), last=items.at(-1);
+        const nextCursor=results.length>100?{changedAt:last.changed_at,id:last.id}:null;
         const {results:sources}=await env.DB.prepare('SELECT * FROM sources').all();
-        return json({items:items.map(i=>({...i,tags:JSON.parse(i.tags)})),sources:SOURCES.map(s=>({...s,path:undefined,...sources.find(x=>x.id===s.id)})),role,ruleVersion:RULE_VERSION,coverage:'Public website pages only; Up to three new matching links and three previously collected pages per source per check; older pages are rechecked in rotation. Social posts, stories, comments and engagement metrics are not collected.'},200,headers);
+        return json({nextCursor,items:items.map(i=>({...i,tags:JSON.parse(i.tags)})),sources:SOURCES.map(s=>({...s,path:undefined,...sources.find(x=>x.id===s.id)})),role,ruleVersion:RULE_VERSION,coverage:'Public website pages only; Up to three new matching links and three previously collected pages per source per check; older pages are rechecked in rotation. Social posts, stories, comments and engagement metrics are not collected.'},200,headers);
       }
       if(path==='/refresh' && request.method==='POST') return json(await collect(env),200,headers);
       const match=path.match(/^\/editor\/items\/([a-f0-9]{64})(?:\/(draft|analyse|publish|unpublish|review|captures))?$/);
@@ -68,9 +76,9 @@ export default {
       }
       if(action==='publish' && request.method==='POST') {
         const payload=await bodyOf(request);
-        if(!canPublish(row,payload.version,item.content_hash)) return json({error:'Edit and save the recommendation against the current source before publishing.'},409,headers);
+        if(!canPublish(row,payload.version,item.content_hash,item.review_status)) return json({error:'Mark the current source reviewed, then edit and save the recommendation before publishing.'},409,headers);
         const at=new Date().toISOString();
-        const result=await env.DB.prepare('UPDATE recommendations SET published=draft,published_at=?,published_hash=basis_hash WHERE item_id=? AND version=? AND edited=1 AND EXISTS(SELECT 1 FROM items WHERE id=? AND content_hash=recommendations.basis_hash)').bind(at,id,payload.version,id).run();
+        const result=await env.DB.prepare(`UPDATE recommendations SET published=draft,published_at=?,published_hash=basis_hash WHERE item_id=? AND version=? AND edited=1 AND EXISTS(SELECT 1 FROM items WHERE id=? AND content_hash=recommendations.basis_hash AND review_status='reviewed')`).bind(at,id,payload.version,id).run();
         if(!result.meta.changes) return json({error:'Draft or source changed. Reload before publishing.'},409,headers);
         await audit(env.DB,id,'publish',JSON.stringify({version:payload.version,text:row.draft,basisHash:row.basis_hash})).run();
         return json({publishedAt:at},200,headers);
@@ -82,7 +90,9 @@ export default {
       if(action==='review' && request.method==='POST') {
         const payload=await bodyOf(request);
         if(!['unreviewed','reviewed','counsel'].includes(payload.status)) return json({error:'Invalid status'},400,headers);
-        await env.DB.prepare('UPDATE items SET review_status=? WHERE id=?').bind(payload.status,id).run();
+        if(payload.basisHash!==item.content_hash) return json({error:'Source changed. Reload and review its current content.'},409,headers);
+        const result=await env.DB.prepare('UPDATE items SET review_status=? WHERE id=? AND content_hash=?').bind(payload.status,id,payload.basisHash).run();
+        if(!result.meta.changes) return json({error:'Source changed while saving review. Reload and review its current content.'},409,headers);
         await audit(env.DB,id,'review',payload.status).run();return json({ok:true},200,headers);
       }
       return json({error:'Method not allowed'},405,headers);

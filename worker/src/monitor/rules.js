@@ -26,6 +26,6 @@ export function canonical(input, base) {
     return url.href;
   } catch { return null; }
 }
-export function canPublish(row, version, itemHash) {
-  return !!row && row.version === version && row.edited === 1 && !!row.draft?.trim() && row.basis_hash === itemHash;
+export function canPublish(row, version, itemHash, reviewStatus) {
+  return reviewStatus === 'reviewed' && !!row && row.version === version && row.edited === 1 && !!row.draft?.trim() && row.basis_hash === itemHash;
 }
