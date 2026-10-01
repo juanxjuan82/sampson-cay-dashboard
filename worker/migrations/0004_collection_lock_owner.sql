@@ -1,0 +1,1 @@
+ALTER TABLE locks ADD COLUMN owner TEXT;

@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker,{roleFor} from '../src/monitor/index.js';
 import {classify,canonical,canPublish} from '../src/monitor/rules.js';
-import {boundedFetch,robotsAllowed,allowed,SOURCES} from '../src/monitor/collector.js';
+import {boundedFetch,robotsAllowed,allowed,SOURCES,discoveryMatch} from '../src/monitor/collector.js';
 const id='a'.repeat(64);
 function setup(){
  const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../migrations/0001_monitor.sql',import.meta.url),'utf8'));
@@ -134,3 +134,5 @@ test('feed pagination retrieves all 601 tied-date items and preserves access to 
  assert.equal((await call(env,'/editor/items/'+oldest+'/unpublish','POST')).status,200);
  assert.equal((await call(env,'/feed?cursor=invalid')).status,400);
 });
+
+test('discovery ignores publisher hosts and malformed encoding',()=>{assert.equal(discoveryMatch('https://www.turtlegrassresort.com/blog/general-travel'),false);assert.equal(discoveryMatch('https://www.turtlegrassresort.com/blog/sampson-cay-report'),true);assert.equal(discoveryMatch('https://www.turtlegrassresort.com/blog/sampson-cay-%E0%A4%A'),false);});
