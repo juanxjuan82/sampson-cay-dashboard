@@ -71,29 +71,38 @@ export async function collect(env) {
         try { robots=(await boundedFetch(robotsUrl)).raw; } catch(e) { if(e.message!=='HTTP 404') throw e; }
         if(!robotsAllowed(robots,new URL(source.url).pathname+new URL(source.url).search)) throw Error('Collection disallowed by robots.txt');
         const guard=u=>robotsAllowed(robots,u.pathname+u.search);
-        const landing=await boundedFetch(source.url,fetch,source.host,guard);
-        if(!landing.type.includes('text/html')) throw Error('Source is not HTML');
-        const page=await extract(landing.raw,source.url);
-        // Save only relevant pages; bounded discovery is explicitly not complete coverage.
-        const candidates=page.links.filter(url=>allowed(url,source) && PROJECT.some(term=>normalize(decodeURI(url)).replaceAll('-',' ').includes(term))).slice(0,6);
-        const urls=[source.url,...candidates.filter(u=>u!==source.url)]; let failures=0;
+        const {results:known}=await env.DB.prepare('SELECT url FROM items WHERE source_id=?').bind(source.id).all();
+        const knownURLs=new Set(known.map(row=>row.url));
+        const {results:revisits}=await env.DB.prepare('SELECT url FROM items WHERE source_id=? AND url!=? ORDER BY COALESCE(checked_at,last_seen),url LIMIT 3').bind(source.id,source.url).all();
+        let landing=null, page=null, failures=0;
+        try {
+          landing=await boundedFetch(source.url,fetch,source.host,guard);
+          if(!landing.type.includes('text/html')) throw Error('Source is not HTML');
+          page=await extract(landing.raw,source.url);
+        } catch(e) { failures++;result.failures.push({source:source.label,url:source.url,error:e.message}); }
+        // Previously found pages rotate independently of links on today's landing page.
+        // At most three old and three new articles per source keeps collection bounded.
+        const candidates=(page?.links||[]).filter(url=>allowed(url,source) && !knownURLs.has(url) && PROJECT.some(term=>normalize(decodeURI(url)).replaceAll('-',' ').includes(term))).slice(0,3);
+        const urls=[...new Set([...(landing?[source.url]:[]),...revisits.map(row=>row.url),...candidates])];
         for(const url of urls) {
           try {
+            await env.DB.prepare('UPDATE items SET checked_at=? WHERE url=?').bind(at,url).run();
+            if(!allowed(url,source) && url!==source.url) throw Error('Page outside source watchlist');
             if(!robotsAllowed(robots,new URL(url).pathname+new URL(url).search)) throw Error('Page disallowed by robots.txt');
             const captured=url===source.url?landing:await boundedFetch(url,fetch,source.host,guard);
             if(!captured.type.includes('text/html')) throw Error('Page is not HTML');
             const parsed=url===source.url?page:await extract(captured.raw,url);
-            if(!PROJECT.some(term=>normalize(parsed.text+' '+parsed.title).includes(term))) continue;
-            if(parsed.text.length<150) throw Error('Insufficient readable text');
+            if(!knownURLs.has(url) && !PROJECT.some(term=>normalize(parsed.text+' '+parsed.title).includes(term))) continue;
+            if(parsed.text.length<(knownURLs.has(url)?1:150)) throw Error('Insufficient readable text');
             const id=await hash(url), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
             const old=await env.DB.prepare('SELECT content_hash FROM items WHERE id=?').bind(id).first();
             const tags=JSON.stringify(classify(parsed.title+' '+parsed.text));
             await env.DB.batch([
-              env.DB.prepare('INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,published_at=excluded.published_at,changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags').bind(id,source.id,url,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
+              env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,published_at=excluded.published_at,changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,url,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
               env.DB.prepare('INSERT OR IGNORE INTO captures(item_id,hash,captured_at,raw_html,text) VALUES(?,?,?,?,?)').bind(id,rawHash,at,captured.raw,parsed.text)
             ]);
             if(!old) result.newItems++; else if(old.content_hash!==contentHash) result.changedItems++;
-          } catch(e) {failures++;result.failures.push({source:source.label,url,error:e.message});}
+          } catch(e) {failures++;result.failures.push({source:source.label,url,error:e.message});await env.DB.prepare('UPDATE items SET checked_at=?,collection_error=? WHERE url=?').bind(at,e.message,url).run();}
         }
         await env.DB.prepare('UPDATE sources SET checked_at=?,success_at=?,error=? WHERE id=?').bind(at,at,failures?`${failures} page(s) could not be collected`:null,source.id).run();
       } catch(e) {
@@ -104,3 +113,4 @@ export async function collect(env) {
     return result;
   } finally {await env.DB.prepare("UPDATE locks SET expires_at=? WHERE id='collect'").bind(Date.now()+300000).run();}
 }
+

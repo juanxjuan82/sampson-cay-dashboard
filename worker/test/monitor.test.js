@@ -8,6 +8,7 @@ import {boundedFetch,robotsAllowed,allowed,SOURCES} from '../src/monitor/collect
 const id='a'.repeat(64);
 function setup(){
  const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../migrations/0001_monitor.sql',import.meta.url),'utf8'));
+ sql.exec(readFileSync(new URL('../migrations/0002_item_collection_status.sql',import.meta.url),'utf8'));
  const DB={prepare(query){let params=[];const stmt=sql.prepare(query);return {bind(...values){params=values;return this;},async first(){return stmt.get(...params)||null;},async all(){return {results:stmt.all(...params)};},async run(){const r=stmt.run(...params);return {meta:{changes:Number(r.changes)}};}};},async batch(statements){return Promise.all(statements.map(s=>s.run()));}};
  sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('turtlegrass','Turtlegrass','https://www.turtlegrassresort.com/');
  sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)').run(id,'turtlegrass','https://www.turtlegrassresort.com/blog/example','Sampson Cay consultation','2026-10-01','2026-10-01','2026-10-01','hash1','Original source statement','[]');
@@ -69,4 +70,15 @@ test('AI drafting stays disabled even when API credentials exist', async()=>{
  assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:0})).status,503);
  const feed=await (await call(env,'/feed','GET',null,'client-secret')).json();
  assert.equal(feed.items[0].recommendation,null);
+});
+
+
+test('feed preserves independent source and advisor publication timestamps',async()=>{
+ const {env,sql}=setup();
+ sql.prepare('UPDATE items SET published_at=? WHERE id=?').run('2026-09-28T12:00:00.000Z',id);
+ let feed=await (await call(env,'/feed','GET',null,'client-secret')).json();
+ assert.equal(feed.items[0].source_published_at,'2026-09-28T12:00:00.000Z');assert.equal(feed.items[0].recommendation_published_at,null);
+ sql.prepare('INSERT INTO recommendations(item_id,published,published_at) VALUES(?,?,?)').run(id,'Published advisor response','2026-10-01T16:00:00.000Z');
+ feed=await (await call(env,'/feed','GET',null,'client-secret')).json();
+ assert.equal(feed.items[0].source_published_at,'2026-09-28T12:00:00.000Z');assert.equal(feed.items[0].recommendation_published_at,'2026-10-01T16:00:00.000Z');
 });

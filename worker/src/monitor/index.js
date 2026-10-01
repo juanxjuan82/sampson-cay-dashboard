@@ -8,7 +8,7 @@ export function roleFor(request, env) {
   if(env.CLIENT_TOKEN && token===`Bearer ${env.CLIENT_TOKEN}`) return 'client';
   return null;
 }
-const PUBLIC_FIELDS = 'i.id,i.url,i.title,i.source_id,i.published_at,i.first_seen,i.changed_at,i.last_seen,i.tags,i.review_status,r.published AS recommendation,r.published_at,r.published_hash,i.content_hash';
+const PUBLIC_FIELDS = 'i.id,i.url,i.title,i.source_id,i.published_at AS source_published_at,i.first_seen,i.changed_at,i.last_seen,i.tags,i.review_status,r.published AS recommendation,r.published_at AS recommendation_published_at,r.published_hash,i.content_hash,i.checked_at,i.collection_error';
 const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 async function bodyOf(request) {
   const text=await request.text();
@@ -34,7 +34,7 @@ export default {
       if(path==='/feed' && request.method==='GET') {
         const {results:items}=await env.DB.prepare(`SELECT ${PUBLIC_FIELDS} FROM items i LEFT JOIN recommendations r ON r.item_id=i.id ORDER BY i.changed_at DESC LIMIT 500`).all();
         const {results:sources}=await env.DB.prepare('SELECT * FROM sources').all();
-        return json({items:items.map(i=>({...i,tags:JSON.parse(i.tags)})),sources:SOURCES.map(s=>({...s,path:undefined,...sources.find(x=>x.id===s.id)})),role,ruleVersion:RULE_VERSION,coverage:'Public website pages only; discovery limited to six matching links per source per check. Social posts, stories, comments and engagement metrics are not collected.'},200,headers);
+        return json({items:items.map(i=>({...i,tags:JSON.parse(i.tags)})),sources:SOURCES.map(s=>({...s,path:undefined,...sources.find(x=>x.id===s.id)})),role,ruleVersion:RULE_VERSION,coverage:'Public website pages only; Up to three new matching links and three previously collected pages per source per check; older pages are rechecked in rotation. Social posts, stories, comments and engagement metrics are not collected.'},200,headers);
       }
       if(path==='/refresh' && request.method==='POST') return json(await collect(env),200,headers);
       const match=path.match(/^\/editor\/items\/([a-f0-9]{64})(?:\/(draft|analyse|publish|unpublish|review|captures))?$/);
@@ -89,3 +89,4 @@ export default {
     } catch(e) { console.error('Monitor operation failed',e.message); return json({error:'Operation failed. Try again; contact the dashboard administrator if it persists.'},500,headers); }
   }
 };
+

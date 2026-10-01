@@ -6,7 +6,7 @@ A deterministic monitor linked from the existing three dashboard pages, served b
 
 - Public HTML monitoring of Turtlegrass's campaign/blog, The Tribune Business, Eye Witness News, and the official project website.
 - Checks every six hours plus a Refresh button; a global collection lock and five-minute cooldown prevent repeated concurrent collection.
-- Bounded same-host discovery: up to six relevant links per landing page per check. This is **not an exhaustive news archive**. Only pages mentioning Yntegra, Sampson Cay, Rosewood Exuma or Turtlegrass are retained.
+- Bounded same-host discovery: up to three new relevant links plus three previously collected pages per source per check. Previously collected pages rotate by oldest collection attempt, so they remain monitored after leaving a landing page. Failed pages record an item-level collection error and do not block the rotation. This is **not an exhaustive news archive**. Only pages mentioning Yntegra, Sampson Cay, Rosewood Exuma or Turtlegrass are retained.
 - Explicit theme/phrase rules, canonical URL deduplication, first-seen and changed timestamps, review status, recent theme counts, source health, preserved HTML versions and SHA-256 hashes.
 - Private manual recommendations require save + explicit publish. Client API selects only published text; new drafts cannot replace it automatically. Source changes block publication until reviewed and saved again. Published recommendations show a source-change warning if subsequently outdated. Editor can withdraw a published recommendation.
 - Editor-only snapshot export; exports are JSON to prevent archived HTML executing in the dashboard. Capture exports and editorial actions are logged. The archive is a source record, not a claim of legal admissibility.
@@ -32,8 +32,11 @@ Open an item → write/edit a recommendation → Save private draft → Publish 
 
 Social collection is not connected: no Facebook/Instagram stories, reels, comments, private groups or engagement metrics. Our News has not been added without a verified crawlable source. Additional accounts need verified API/provider access before coverage can be promised. Theme counts are monitored-item counts, not population sentiment, reach or evidence of coordination. Sources are labelled as publishers, not as validated truth. Listings are also retained when relevant, so changes may reflect listing updates; always inspect the original source.
 
+Article publication and recommendation publication have separate timestamps. Changed source content resets its review status to unreviewed; unchanged content preserves the status. Run all database migrations, including 0002_item_collection_status.sql.
+
 Collector removes script/navigation/footer/form elements before text comparison. Changes to retained page text can still include unrelated page furniture, so the UI labels them page updates rather than new allegations. Publication dates are extracted only from available page metadata, otherwise shown as unavailable. Raw captures are bounded to 1 MB; database retention/storage budgets should be reviewed before expanding the watchlist. Counsel should define any formal preservation requirements.
 
 ## Verification
 
 `npm run check` and `npm test` in `worker`; `node --check monitor.js` at root. Tests use real SQLite for the D1-compatible SQL and cover client/editor isolation, unpublished draft exclusion, human edit gating, stale version/source rejection, withdrawal, robots and redirect/size restrictions. No live AI request is required. The D1 configuration uses an explicit placeholder until a real database is provisioned.
+
