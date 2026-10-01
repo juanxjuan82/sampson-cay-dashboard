@@ -1663,7 +1663,7 @@ function buildAISummaryEvidence(posts) {
 
 function openAISettings(generateAfterSave) {
   aiGenerateAfterSettings = Boolean(generateAfterSave);
-  document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || 'https://sampson-cay-dashboard-ai.john-aymes.workers.dev';
+  document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
   document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
   document.getElementById('ai-account-context').value = localStorage.getItem('dashboard_ai_context') || '';
   document.getElementById('ai-modal').classList.add('open');
@@ -1718,7 +1718,7 @@ async function generateAISummary() {
     alert('Load the dashboard first so there is evidence to summarize.');
     return;
   }
-  const endpoint = (localStorage.getItem('dashboard_ai_endpoint') || 'https://sampson-cay-dashboard-ai.john-aymes.workers.dev').replace(/\/+$/, '');
+  const endpoint = (localStorage.getItem('dashboard_ai_endpoint') || '').replace(/\/+$/, '');
   const token = sessionStorage.getItem('dashboard_ai_token') || '';
   if (!endpoint || !token) {
     openAISettings(true);
@@ -3782,4 +3782,3 @@ async function downloadShareable() {
 
 
 </body></html>
-
