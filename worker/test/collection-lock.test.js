@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {collect} from '../src/monitor/collector.js';
 test('lease renews across requests; a displaced collector cannot release its successor',async()=>{
  const sql=new DatabaseSync(':memory:');
- for(const file of ['0001_monitor.sql','0002_item_collection_status.sql','0003_discovery_attempts.sql','0004_collection_lock_owner.sql'])sql.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));
+ for(const file of ['0001_monitor.sql','0002_item_collection_status.sql','0003_discovery_attempts.sql','0004_collection_lock_owner.sql','0005_redirect_history.sql'])sql.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));
  const DB={prepare(query){const stmt=sql.prepare(query);let params=[];return {bind(...p){params=p;return this;},async run(){return {meta:{changes:Number(stmt.run(...params).changes)}};},async all(){return {results:stmt.all(...params)};}};}};
  const original=globalThis.fetch;let mode='renew',calls=0;let successorLease;
  globalThis.fetch=async()=>{

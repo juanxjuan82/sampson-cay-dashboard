@@ -85,7 +85,7 @@ export async function collect(env) {
         const guard=u=>robotsAllowed(robots,u.pathname+u.search);
         const {results:known}=await env.DB.prepare('SELECT url FROM items WHERE source_id=?').bind(source.id).all();
         const knownURLs=new Set(known.map(row=>row.url));
-        const {results:revisits}=await env.DB.prepare('SELECT url FROM items WHERE source_id=? AND url!=? ORDER BY COALESCE(checked_at,last_seen),url LIMIT 3').bind(source.id,source.url).all();
+        const {results:revisits}=await env.DB.prepare('SELECT url FROM items WHERE source_id=? AND url!=? AND superseded_by IS NULL ORDER BY COALESCE(checked_at,last_seen),url LIMIT 3').bind(source.id,source.url).all();
         let landing=null, page=null, failures=0;
         try {
           landing=await boundedFetch(source.url,fetchWithLease,source.host,guard);
@@ -118,13 +118,19 @@ export async function collect(env) {
             const parsed=url===source.url?page:await extract(captured.raw,identity);
             if(!knownURLs.has(identity) && !PROJECT.some(term=>normalize(parsed.text+' '+parsed.title).includes(term))) { if(candidateURLs.has(url)) await recordAttempt(url,'not_relevant'); continue; }
             if(parsed.text.length<(knownURLs.has(identity)?1:150)) throw Error('Insufficient readable text');
-            const id=await hash(identity), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
+            const destination=await env.DB.prepare('SELECT id FROM items WHERE url=?').bind(identity).first();
+            const prior=url!==identity?await env.DB.prepare('SELECT id FROM items WHERE url=?').bind(url).first():null;
+            // Retire a moved source item without deleting its captures or advice.
+            // Advice is never transferred or published on the destination automatically.
+            const id=destination?.id||await hash(identity), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
             const old=await env.DB.prepare('SELECT content_hash FROM items WHERE id=?').bind(id).first();
             const tags=JSON.stringify(classify(parsed.title+' '+parsed.text));
-            await env.DB.batch([
-              env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,published_at=excluded.published_at,changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
+            const statements=[
+              env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET url=excluded.url,superseded_by=NULL,title=excluded.title,published_at=excluded.published_at,changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
               env.DB.prepare('INSERT OR IGNORE INTO captures(item_id,hash,captured_at,raw_html,text) VALUES(?,?,?,?,?)').bind(id,rawHash,at,captured.raw,parsed.text)
-            ]);
+            ];
+            if(prior && prior.id!==id)statements.push(env.DB.prepare("UPDATE items SET superseded_by=?,checked_at=?,collection_error=?,review_status='unreviewed' WHERE id=?").bind(id,at,'Redirected to '+identity,prior.id));
+            await env.DB.batch(statements);
             knownURLs.add(identity);
             if(candidateURLs.has(url)) await recordAttempt(url,'collected');
             if(!old) result.newItems++; else if(old.content_hash!==contentHash) result.changedItems++;

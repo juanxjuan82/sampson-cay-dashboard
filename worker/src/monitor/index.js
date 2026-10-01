@@ -37,7 +37,7 @@ export default {
           try { cursor=JSON.parse(url.searchParams.get('cursor')); } catch { return json({error:'Invalid feed cursor'},400,headers); }
           if(!cursor || typeof cursor.changedAt!=='string' || Number.isNaN(Date.parse(cursor.changedAt)) || typeof cursor.id!=='string' || !/^[a-f0-9]{64}$/.test(cursor.id)) return json({error:'Invalid feed cursor'},400,headers);
         }
-        const query=env.DB.prepare(`SELECT ${PUBLIC_FIELDS} FROM items i LEFT JOIN recommendations r ON r.item_id=i.id ${cursor?'WHERE i.changed_at<? OR (i.changed_at=? AND i.id<?)':''} ORDER BY i.changed_at DESC,i.id DESC LIMIT 101`);
+        const query=env.DB.prepare(`SELECT ${PUBLIC_FIELDS} FROM items i LEFT JOIN recommendations r ON r.item_id=i.id WHERE i.superseded_by IS NULL ${cursor?'AND (i.changed_at<? OR (i.changed_at=? AND i.id<?))':''} ORDER BY i.changed_at DESC,i.id DESC LIMIT 101`);
         const {results}=await (cursor?query.bind(cursor.changedAt,cursor.changedAt,cursor.id):query).all();
         const items=results.slice(0,100), last=items.at(-1);
         const nextCursor=results.length>100?{changedAt:last.changed_at,id:last.id}:null;
@@ -51,7 +51,11 @@ export default {
       const item=await env.DB.prepare('SELECT * FROM items WHERE id=?').bind(id).first();
       if(!item) return json({error:'Item not found'},404,headers);
       const row=await env.DB.prepare('SELECT * FROM recommendations WHERE item_id=?').bind(id).first();
-      if(!action && request.method==='GET') return json({item,recommendation:row},200,headers);
+      if(!action && request.method==='GET') {
+        const {results:redirectHistory}=await env.DB.prepare('SELECT id,url FROM items WHERE superseded_by=?').bind(id).all();
+        return json({item,recommendation:row,redirectHistory},200,headers);
+      }
+      if(item.superseded_by && ['analyse','draft','publish','review'].includes(action)) return json({error:'This source URL redirected. Open the current item to prepare advice; prior captures and recommendations remain preserved.'},409,headers);
       if(action==='captures' && request.method==='GET') {
         const {results}=await env.DB.prepare('SELECT hash,captured_at FROM captures WHERE item_id=? ORDER BY captured_at DESC').bind(id).all();
         const captureHash=url.searchParams.get('hash');

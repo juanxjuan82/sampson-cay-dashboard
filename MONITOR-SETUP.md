@@ -32,7 +32,7 @@ Open an item → review the source → set its status to Reviewed → Generate A
 
 Social collection is not connected: no Facebook/Instagram stories, reels, comments, private groups or engagement metrics. Our News has not been added without a verified crawlable source. Additional accounts need verified API/provider access before coverage can be promised. Theme counts are monitored-item counts, not population sentiment, reach or evidence of coordination. Sources are labelled as publishers, not as validated truth. Listings are also retained when relevant, so changes may reflect listing updates; always inspect the original source.
 
-Article publication and recommendation publication have separate timestamps. Changed source content resets its review status to unreviewed; unchanged content preserves the status. Run all database migrations, including 0002_item_collection_status.sql and 0004_collection_lock_owner.sql.
+Article publication and recommendation publication have separate timestamps. Changed source content resets its review status to unreviewed; unchanged content preserves the status. Run all database migrations, including 0002_item_collection_status.sql and 0005_redirect_history.sql.
 
 Collector removes script/navigation/footer/form elements before text comparison. Changes to retained page text can still include unrelated page furniture, so the UI labels them page updates rather than new allegations. Publication dates are extracted only from available page metadata, otherwise shown as unavailable. Raw captures are bounded to 1 MB; database retention/storage budgets should be reviewed before expanding the watchlist. Counsel should define any formal preservation requirements.
 
@@ -42,3 +42,5 @@ Collector removes script/navigation/footer/form elements before text comparison.
 
 
 The feed API returns 100 items per page with a changed-at/id cursor. The dashboard retrieves every page before rendering counts and filters; older items remain available to clients and editors, including their published advice and withdrawal controls.
+
+Redirected stored pages are retired from the feed, preserving their original URL, captures and advice. The destination editor links to this history. Advice is never automatically transferred or published on the new destination.
