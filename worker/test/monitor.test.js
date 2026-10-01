@@ -67,11 +67,25 @@ test('CORS, stale editor saves and unconfigured AI preserve draft',async()=>{
  assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:1})).status,503);
  assert.equal(canPublish({draft:'x',edited:1,version:1,basis_hash:'old'},1,'new','reviewed'),false);
 });
-test('AI drafting stays disabled even when API credentials exist', async()=>{
- const {env}=setup();env.OPENAI_API_KEY='test-key';env.OPENAI_MODEL='test-model';
- assert.equal((await call(env,'/editor/items/'+id+'/analyse','POST',{version:0})).status,503);
- const feed=await (await call(env,'/feed','GET',null,'client-secret')).json();
- assert.equal(feed.items[0].recommendation,null);
+test('AI generation stays private, requires editing, and rejects stale requests', async()=>{
+ const {env,sql}=setup();env.OPENAI_API_KEY='test-key';env.OPENAI_MODEL='test-model';
+ const originalFetch=globalThis.fetch;let calls=0;const path='/editor/items/'+id;
+ globalThis.fetch=async(url,options)=>{calls++;assert.equal(url,'https://api.openai.com/v1/responses');const payload=JSON.parse(options.body);assert.equal(payload.model,'test-model');assert.equal(payload.store,false);return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'Private AI words'}]}]});};
+ try {
+  assert.equal((await call(env,path+'/analyse','POST',{version:0})).status,200);
+  let feed=await (await call(env,'/feed','GET',null,'client-secret')).json();assert.equal(feed.items[0].recommendation,null);assert.ok(!JSON.stringify(feed).includes('Private AI words'));
+  await call(env,path+'/review','POST',{status:'reviewed',basisHash:'hash1'});
+  assert.equal((await call(env,path+'/publish','POST',{version:1})).status,409);
+  await call(env,path+'/draft','PUT',{text:'My edited recommendation',version:1,basisHash:'hash1'});
+  assert.equal((await call(env,path+'/publish','POST',{version:2})).status,200);
+  assert.equal((await call(env,path+'/analyse','POST',{version:1,replace:true})).status,409);assert.equal(calls,1);
+  assert.equal((await call(env,path+'/analyse','POST',{version:2})).status,409);assert.equal(calls,1);
+  assert.equal((await call(env,path+'/analyse','POST',{version:2,replace:true})).status,200);
+  feed=await (await call(env,'/feed','GET',null,'client-secret')).json();assert.equal(feed.items[0].recommendation,'My edited recommendation');
+  globalThis.fetch=async()=>{sql.prepare("UPDATE items SET content_hash='hash2' WHERE id=?").run(id);return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'Stale AI draft'}]}]});};
+  assert.equal((await call(env,path+'/analyse','POST',{version:3,replace:true})).status,409);
+  assert.equal(sql.prepare('SELECT draft FROM recommendations WHERE item_id=?').get(id).draft,'Private AI words');
+ } finally {globalThis.fetch=originalFetch;}
 });
 
 
