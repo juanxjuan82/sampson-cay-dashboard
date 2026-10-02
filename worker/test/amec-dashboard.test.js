@@ -180,3 +180,17 @@ test('supporting audit describes reach outliers without inferring paid status',(
   assert.doesNotMatch(notes,/consistent with paid|reflects? a paid audience|note it was paid distribution|organic baseline/i);
  }
 });
+test('captionless posts keep IDs during both Meta parsers and remain distinct',()=>{
+ const rows=[{'Post ID':'123','Reach':'10','Publish time':'09/02/2026 10:00'},{'Post ID':'456','Reach':'10','Publish time':'09/02/2026 10:00'}];
+ const c=context();c.Papa={parse:()=>({data:rows})};c.n=v=>Number(v)||0;c.parseDate=()=>new Date('2026-09-02');c.publishHour=()=>10;
+ for(const name of ['parseIG','parseFB'])vm.runInContext(html.match(new RegExp('function '+name+'\\(csvArr\\) \\{[\\s\\S]*?\\n\\}'))[0],c);
+ const posts=vm.runInContext("[...parseIG('csv'),...parseFB('csv')]",c);
+ assert.deepEqual(Array.from(posts,p=>p.id),['123','456','123','456']);
+ c.allPosts=posts;vm.runInContext("reportWindow={start:'2026-09-01',end:'2026-09-14'}",c);
+ assert.equal(vm.runInContext('socialAMECEvidence().contentItems',c),4);
+ posts.forEach(p=>delete p.id);assert.equal(vm.runInContext('socialAMECEvidence().contentItems',c),4);
+});
+test('Instagram investment evidence displays the saves used to rank examples',()=>{
+ const c=context();assert.equal(vm.runInContext("socialExampleResponseText('ig',{shares:0,saves:20})",c),'0 shares · 20 saves');
+ assert.equal(vm.runInContext("socialExampleResponseText('fb',{shares:2,saves:null})",c),'2 shares');
+});

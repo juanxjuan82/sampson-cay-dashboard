@@ -966,7 +966,7 @@ function socialAMECEvidence() {
       totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
       examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>audienceResponseScore(b,platform)-audienceResponseScore(a,platform) || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
   });
-  const keys = new Set(recent.map(p=>cleanLabel(p.caption) ? `${postDayKey(p)}|${cleanLabel(p.caption).toLowerCase()}` : `${p.platform}|${postDayKey(p)}|${p.id||p.permalink}`));
+  const keys = new Set(recent.map((p,index)=>cleanLabel(p.caption) ? `${postDayKey(p)}|${cleanLabel(p.caption).toLowerCase()}` : `${p.platform}|${postDayKey(p)}|${p.id||p.permalink||'row:'+index}`));
   return { available:true,start,end,priorStart,priorEnd,days,contentItems:keys.size,platformObservations:recent.length,
     feedPostsPerWeek:keys.size/days*7,platforms,
     caveats:['Lifetime results, not equal-age post performance.','Export coverage uses declared filename ranges; unknown coverage disables comparisons.','Paid status is not verified. High reach alone cannot prove promotion.','Comments are blocked; do not recommend comments as a success measure.','Facebook total clicks are not necessarily link clicks.','No measured change in public trust or sentiment.'] };
@@ -992,6 +992,7 @@ function articleTopicSummary(topics) {
   if (!leaders.length) return 'Review the recent coverage before setting response priorities.';
   return leaders.join('; ') + (leaders.length===1 ? ' leads recent editorial headline coverage.' : ' are tied for the most recent editorial headline matches.');
 }
+function socialExampleResponseText(platform,example) { return `${example.shares} shares`+(platform==='ig'?` · ${example.saves??0} saves`:''); }
 function socialMedianText(value) { return value===null ? 'median reach unavailable (no posts)' : `median reach ${fmt(value)} per post`; }
 function amecEditable(key,text) { return `<div class="exec-block-body editable-field" data-edit-key="${key}" contenteditable="false">${text}</div>`; }
 function amecCard(label,key,text,evidence='') { return `<article class="amec-card"><h3>${label}</h3>${amecEditable(key,text)}${evidence?`<div class="amec-evidence">${evidence}</div>`:''}</article>`; }
@@ -1014,7 +1015,7 @@ function renderAMEC() {
   const changes=s.available?s.platforms.map(p=>`${p.platform.toUpperCase()}: ${socialMedianText(p.currentMedianReach)}${p.changePercent===null?' · comparison unavailable':` (${p.changePercent>=0?'+':''}${Math.round(p.changePercent)}% vs preceding ${s.days} days)`}; ${p.currentPosts} recent posts.`).join('<br>'):'';
   const lower=s.available && s.platforms.every(p=>p.changePercent!==null && p.changePercent<0);
   const perf=s.available?`<strong>${lower?'Recorded median reach is lower on both platforms.':s.contentItems+' feed content items were published across Instagram and Facebook.'}</strong> ${lower?s.contentItems+' feed content items are in the selected period. ':''}Review typical reach separately for each platform. These lifetime snapshots do not establish a like-for-like trend in distribution.`:'Upload the social exports to assess reach, shares, saves and available clicks.';
-  const examples=s.available?s.platforms.flatMap(p=>p.examples.map(e=>`${p.platform.toUpperCase()} · ${e.date} · ${fmt(e.reach)} reach · ${e.shares} shares · ${amecSourceLink(e.url,e.caption.slice(0,95)+'…')}`)).join('<br>'):'';
+  const examples=s.available?s.platforms.flatMap(p=>p.examples.map(e=>`${p.platform.toUpperCase()} · ${e.date} · ${fmt(e.reach)} reach · ${socialExampleResponseText(p.platform,e)} · ${amecSourceLink(e.url,e.caption.slice(0,95)+'…')}`)).join('<br>'):'';
   document.getElementById('amec-social').innerHTML=amecCard('Are we improving?','social-performance',perf,changes)+amecCard('What deserves more investment?','social-investment','Use the strongest recorded examples as candidates to test again. Prioritise useful facts, identifiable people and visible progress. Check paid status before attributing unusually high reach to the creative.',examples);
   document.getElementById('amec-plan').innerHTML=amecEditable('social-direction',`<strong>Test two feed posts per week for four weeks.</strong> Publish one community milestone or participant-led post and one approved environmental or economic proof post. Adapt both for Facebook and Instagram; a material, counsel-approved legal update can replace a slot. ${s.available?`The selected period averages ${s.feedPostsPerWeek.toFixed(1)} content items per week; this is a proposed test, not a proven optimum.`:''} Communications lead: prepare content and targeted outreach. Review reach, shares and saves at the next update; use confirmed link clicks only when available.`);
   document.getElementById('amec-decisions').innerHTML=amecEditable('decisions-needed','Approve or revise the proposed four-week content test. Confirm available people, photographs, milestones and approved project facts. Assign a communications owner and publication dates; obtain counsel clearance for any legal clarification.');
@@ -2249,6 +2250,7 @@ function parseIG(csvArr) {
     const pt = r['Publish time'] || '';
     return {
       platform: 'ig',
+      id: String(r['Post ID']),
       type: (r['Post type'] || 'IG image').trim(),
       date: parseDate(pt),
       dateStr: pt.split(' ')[0],
@@ -2285,6 +2287,7 @@ function parseFB(csvArr) {
       const pt = r['Publish time'] || '';
       return {
         platform: 'fb',
+        id: String(r['Post ID']),
         type: (r['Post type'] || 'Photos').trim(),
         date: parseDate(pt),
         dateStr: pt.split(' ')[0],
