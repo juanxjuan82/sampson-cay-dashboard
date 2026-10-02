@@ -127,3 +127,18 @@ test('1904 workbook date system survives real XLSX upload conversion',()=>{
  })()`,c);
  assert.equal(result.rows[0].date,'2026-10-02');
 });
+test('editorials, opinion and letters count as editorial coverage while paid types stay paid',()=>{
+ const c=context();c.types=['Editorial','Opinion','Letter to the editor','Commentary','Paid editorial'];
+ const r=vm.runInContext("normalizeArticleRows(types.map((type,i)=>({Outlet:'Outlet',Title:'Court '+i,Date:'2026-10-02',Type:type})))",c);
+ assert.equal(r.rows.filter(r=>r.category==='Editorial coverage').length,4);
+ assert.equal(r.rows.filter(r=>r.category==='Paid placement').length,1);
+});
+test('empty platforms expose unavailable medians, while measured zero reach stays zero',()=>{
+ const c=context();c.fmt=String;
+ vm.runInContext(`reportWindow={start:'2026-09-01',end:'2026-09-14'};allPosts=[{platform:'ig',dateStr:'09/02/2026',date:new Date(),caption:'Zero reach',reach:0,shares:0}];`,c);
+ const r=vm.runInContext('socialAMECEvidence()',c);
+ assert.equal(r.platforms[0].currentMedianReach,0);assert.equal(r.platforms[1].currentMedianReach,null);
+ assert.equal(r.platforms[0].previousMedianReach,null);assert.equal(r.platforms[1].changePercent,null);
+ assert.equal(vm.runInContext('socialMedianText(null)',c),'median reach unavailable (no posts)');
+ assert.equal(vm.runInContext('socialMedianText(0)',c),'median reach 0 per post');
+});

@@ -837,6 +837,12 @@ function trackerDate(value, date1904=false) {
   if (match) return trackerDate(`${match[3]}-${match[1].padStart(2,'0')}-${match[2].padStart(2,'0')}`);
   return '';
 }
+function coverageCategory(type) {
+  return /ad\b|advert|paid|sponsored/i.test(type) ? 'Paid placement'
+    : /public notice/i.test(type) ? 'Public notice'
+    : /press release/i.test(type) ? 'Press release'
+    : /article|broadcast|radio|online|interview|editorial|opinion|commentary|letter to (?:the )?editor/i.test(type) ? 'Editorial coverage' : 'Other / unclassified';
+}
 function normalizeArticleRows(input) {
   const rows = [], seen = new Set();
   let rejected = 0, duplicates = 0;
@@ -850,10 +856,7 @@ function normalizeArticleRows(input) {
     if (seen.has(key)) { duplicates++; continue; }
     seen.add(key);
     const type = cleanLabel(r['Coverage Type'] || r['Type']) || 'Unspecified';
-    const category = /ad\b|advert|paid|sponsored/i.test(type) ? 'Paid placement'
-      : /public notice/i.test(type) ? 'Public notice'
-      : /press release/i.test(type) ? 'Press release'
-      : /article|broadcast|radio|online|interview/i.test(type) ? 'Editorial coverage' : 'Other / unclassified';
+    const category = coverageCategory(type);
     // The tracker reference is an actor, not a sentiment label.
     rows.push({ title: title.slice(0,2000), date, outlet: outlet.slice(0,200), type, category,
       reference: cleanLabel(r.Reference).slice(0,200), opposition: cleanLabel(r['Opposition Articles']),
@@ -953,8 +956,8 @@ function socialAMECEvidence() {
   const platforms = ['ig','fb'].map(platform => {
     const current = recent.filter(p => p.platform===platform);
     const previous = allPosts.filter(p => p.platform===platform && inRange(p,priorStart,priorEnd));
-    const currentMedianReach = medianValue(current.map(p=>p.reach));
-    const previousMedianReach = medianValue(previous.map(p=>p.reach));
+    const currentMedianReach = current.length ? medianValue(current.map(p=>p.reach)) : null;
+    const previousMedianReach = previous.length ? medianValue(previous.map(p=>p.reach)) : null;
     const comparable = rangeCovered(platform,start,end) && rangeCovered(platform,priorStart,priorEnd) && current.length>=5 && previous.length>=5;
     return {platform,currentPosts:current.length,previousPosts:previous.length,currentMedianReach,previousMedianReach,comparable,
       changePercent:comparable && previousMedianReach>0 ? (currentMedianReach/previousMedianReach-1)*100 : null,
@@ -988,6 +991,7 @@ function articleTopicSummary(topics) {
   if (!leaders.length) return 'Review the recent coverage before setting response priorities.';
   return leaders.join('; ') + (leaders.length===1 ? ' leads recent editorial headline coverage.' : ' are tied for the most recent editorial headline matches.');
 }
+function socialMedianText(value) { return value===null ? 'median reach unavailable (no posts)' : `median reach ${fmt(value)} per post`; }
 function amecEditable(key,text) { return `<div class="exec-block-body editable-field" data-edit-key="${key}" contenteditable="false">${text}</div>`; }
 function amecCard(label,key,text,evidence='') { return `<article class="amec-card"><h3>${label}</h3>${amecEditable(key,text)}${evidence?`<div class="amec-evidence">${evidence}</div>`:''}</article>`; }
 function amecSourceLink(url,label) { const u=safeSourceURL(url); return u?`<a href="${escapeHTML(u)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)}</a>`:escapeHTML(label); }
@@ -1006,7 +1010,7 @@ function renderAMEC() {
   const message=a.available?'Assess whether editorial coverage carries approved community, environmental and economic messages. The tracker’s actor labels and opposition flags cannot establish message acceptance or public trust.':'Message visibility will appear after the tracker is uploaded and its articles reviewed.';
   const response=a.available?'Prioritise recurring, material questions. Prepare an approved explanation with accessible supporting evidence; send court-related wording to counsel. Use community and environmental proof where relevant, rather than answering every headline.':'Review current source material before choosing Monitor, Clarify, Publish proof or Refer to counsel.';
   document.getElementById('amec-articles').innerHTML=amecCard('What needs attention','public-narrative',narrative,countText)+amecCard('Which messages are landing','goal-progress',message,'Coverage is an output. Trust and understanding require separate audience evidence.')+amecCard('Recommended response','recommended-response',response);
-  const changes=s.available?s.platforms.map(p=>`${p.platform.toUpperCase()}: median reach ${fmt(p.currentMedianReach)} per post${p.changePercent===null?' · comparison unavailable':` (${p.changePercent>=0?'+':''}${Math.round(p.changePercent)}% vs preceding ${s.days} days)`}; ${p.currentPosts} recent posts.`).join('<br>'):'';
+  const changes=s.available?s.platforms.map(p=>`${p.platform.toUpperCase()}: ${socialMedianText(p.currentMedianReach)}${p.changePercent===null?' · comparison unavailable':` (${p.changePercent>=0?'+':''}${Math.round(p.changePercent)}% vs preceding ${s.days} days)`}; ${p.currentPosts} recent posts.`).join('<br>'):'';
   const lower=s.available && s.platforms.every(p=>p.changePercent!==null && p.changePercent<0);
   const perf=s.available?`<strong>${lower?'Recorded median reach is lower on both platforms.':s.contentItems+' feed content items were published across Instagram and Facebook.'}</strong> ${lower?s.contentItems+' feed content items are in the selected period. ':''}Review typical reach separately for each platform. These lifetime snapshots do not establish a like-for-like trend in distribution.`:'Upload the social exports to assess reach, shares, saves and available clicks.';
   const examples=s.available?s.platforms.flatMap(p=>p.examples.map(e=>`${p.platform.toUpperCase()} · ${e.date} · ${fmt(e.reach)} reach · ${e.shares} shares · ${amecSourceLink(e.url,e.caption.slice(0,95)+'…')}`)).join('<br>'):'';
@@ -1476,6 +1480,7 @@ window.addEventListener('DOMContentLoaded', () => {
     summaryMode = embedded.summaryMode === 'ai' ? 'ai' : 'deterministic';
     strategyEvidence = embedded.strategyEvidence || null;
     articleTracker = embedded.articleTracker || articleTracker;
+    articleTracker.rows=articleTracker.rows.map(row=>({...row,category:coverageCategory(row.type)}));
     socialExportRanges = embedded.socialExportRanges || socialExportRanges;
     reportWindow = embedded.reportWindow || reportWindow;
     editorialReviewNeeded = embedded.editorialReviewNeeded || false;
