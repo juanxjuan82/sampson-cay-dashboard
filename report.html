@@ -3714,6 +3714,13 @@ function setPushStatus(type, msg) {
   }
 }
 
+function serializeForInlineScript(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 function buildClientHTML() {
   captureSharedEditableContent();
   const data = {
@@ -3727,7 +3734,7 @@ function buildClientHTML() {
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
     },
   };
-  const dataJSON = JSON.stringify(data);
+  const dataJSON = serializeForInlineScript(data);
   const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
