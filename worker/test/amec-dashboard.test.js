@@ -332,3 +332,16 @@ test('valid article tracker enables the normal Load Dashboard action without soc
  vm.runInContext('articleTracker.rows=[];updateLoadAvailability()',c);assert.equal(button.disabled,true);
  c.rawIG=['ig csv'];c.rawFB=['fb csv'];vm.runInContext('updateLoadAvailability()',c);assert.equal(button.disabled,false);
 });
+
+test('invalid social row values cannot establish quiet-day coverage',()=>{
+ const c=context();vm.runInContext(html.match(/function validateSocialCSV\(csv,platform\) \{[\s\S]*?\n\}/)[0],c);
+ const fields=['Post ID','Reach','Publish time','Likes','Comments','Shares','Saves'];
+ let row={'Post ID':'123','Reach':'0','Publish time':'09/02/2026 10:00',Likes:'0',Comments:'0',Shares:'0',Saves:'0'};
+ c.Papa={parse:()=>({meta:{fields},errors:[],data:[row]})};
+ assert.doesNotThrow(()=>vm.runInContext("validateSocialCSV('valid zero metrics','ig')",c));
+ for(const [key,value] of [['Reach',''],['Reach','not a number'],['Reach','-1'],['Post ID',''],['Publish time','invalid'],['Publish time','02/30/2026 10:00'],['Publish time','09/02/2026 25:00'],['Saves','']]) {
+   const original=row[key];row[key]=value;
+   assert.throws(()=>vm.runInContext("validateSocialCSV('bad row','ig')",c),/social CSV row 2/);
+   row[key]=original;
+ }
+});

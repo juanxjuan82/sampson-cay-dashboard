@@ -1477,7 +1477,7 @@ let summaryMode = 'deterministic';
 let strategyEvidence = null;
 let aiGenerateAfterSettings = false;
 let strategyRequestVersion = 0;
-const DASHBOARD_VERSION = '2026-10-02.amec1'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-10-02.amec2'; // Bump whenever report-generation code changes.
 const DEFAULT_STRATEGY_CONTEXT = `Project: Sampson Cay / Rosewood Exuma.
 Primary communications goals: build trust through verifiable proof; show environmental stewardship; demonstrate local participation and benefits; maintain a calm, consistent public presence.
 Priority audiences: Exuma residents, the wider Bahamian public, media and project stakeholders.
@@ -2163,6 +2163,18 @@ function validateSocialCSV(csv,platform) {
   const missing=required.filter(header=>!parsed.meta?.fields?.includes(header));
   if (missing.length) throw new Error('Missing required '+platform.toUpperCase()+' columns: '+missing.join(', ')+'. Export the post data again.');
   if (parsed.errors.length) throw new Error('The social CSV contains malformed rows. Export the post data again.');
+  for (const [index,row] of (parsed.data||[]).entries()) {
+    const bad=required.filter(header=>{
+      const value=String(row[header]??'').trim();
+      if (header==='Post ID') return !/^\d+$/.test(value);
+      if (header==='Publish time') {
+        const parts=value.split(/\s+/);
+        return parts.length!==2 || !trackerDate(parts[0]) || !/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(parts[1]);
+      }
+      return !/^\d+(?:,\d{3})*$/.test(value) || !Number.isSafeInteger(Number(value.replace(/,/g,'')));
+    });
+    if (bad.length) throw new Error('Invalid '+bad.join(', ')+' in social CSV row '+(index+2)+'. Export the post data again; coverage has not been accepted.');
+  }
 }
 // ── File handlers ──
 function updateZoneLabel(platform) {
