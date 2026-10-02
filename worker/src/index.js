@@ -214,7 +214,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
               i.review_status,CASE WHEN i.tags NOT LIKE '%"criticismEvidence"%' THEN i.text ELSE NULL END AS legacy_text,
               s.label AS source,CASE WHEN i.tags NOT LIKE '%\"criticismEvidence\"%' THEN (SELECT raw_html FROM captures c WHERE c.item_id=i.id ORDER BY c.captured_at DESC,c.rowid DESC LIMIT 1) ELSE NULL END AS legacy_raw
        FROM items i JOIN sources s ON s.id=i.source_id
-       WHERE i.superseded_by IS NULL
+       WHERE i.superseded_by IS NULL AND NOT (i.source_id IN ('tribune','ewn') AND i.url=s.url)
        ORDER BY CASE WHEN julianday(i.changed_at)>julianday(i.first_seen) THEN i.changed_at ELSE COALESCE(i.published_at,i.changed_at) END DESC,i.id DESC`
       ).all(),
       db.prepare("SELECT at,detail FROM audit WHERE action='collection_run' ORDER BY at DESC LIMIT 1000").all(),

@@ -74,7 +74,9 @@ export async function collect(env) {
   const fetchWithLease=async(...args)=>{await renew();return fetch(...args);};
   const result={busy:false,newItems:0,changedItems:0,failures:[]};
   let successfulSources=0;
+  const runAt=new Date(now).toISOString(),pendingRun=JSON.stringify({owner,successfulSources:0,totalSources:SOURCES.length});
   try {
+    await env.DB.prepare("INSERT INTO audit(at,item_id,action,detail) VALUES(?,NULL,'collection_run',?)").bind(runAt,pendingRun).run();
     for(const source of SOURCES) {
       const at=new Date().toISOString();
       await env.DB.prepare('INSERT OR IGNORE INTO sources(id,label,url) VALUES(?,?,?)').bind(source.id,source.label,source.url).run();
@@ -128,7 +130,9 @@ export async function collect(env) {
             const baseTags=classify(parsed.title+' '+parsed.text);
             const criticalThemes=new Set(criticismThemes(source.id,baseTags,parsed.title+'. '+parsed.contextText));
             const oldTags=old?JSON.parse(old.tags||'[]'):[];
-            const oldCritical=new Set(oldTags.some(tag=>Object.hasOwn(tag,'criticismEvidence'))?oldTags.filter(tag=>tag.criticismEvidence).map(tag=>tag.theme):criticismThemes(source.id,oldTags,(old?.title||'')+'. '+(old?.text||'')));
+            const oldRaw=old && !oldTags.some(tag=>Object.hasOwn(tag,'criticismEvidence'))?await env.DB.prepare('SELECT raw_html FROM captures WHERE item_id=? ORDER BY captured_at DESC,rowid DESC LIMIT 1').bind(id).first():null;
+            const oldContext=oldRaw?(await extract(oldRaw.raw_html,identity)).contextText:old?.text||'';
+            const oldCritical=new Set(oldTags.some(tag=>Object.hasOwn(tag,'criticismEvidence'))?oldTags.filter(tag=>tag.criticismEvidence).map(tag=>tag.theme):criticismThemes(source.id,oldTags,(old?.title||'')+'. '+oldContext));
             const tags=JSON.stringify(baseTags.map(tag=>{
               const previous=oldTags.find(prior=>prior.theme===tag.theme);
               const critical=criticalThemes.has(tag.theme);
@@ -155,7 +159,7 @@ export async function collect(env) {
         await env.DB.prepare('UPDATE sources SET checked_at=?,error=? WHERE id=?').bind(at,e.message,source.id).run();
       }
     }
-    await env.DB.prepare("INSERT INTO audit(at,item_id,action,detail) VALUES(?,NULL,'collection_run',?)").bind(new Date(now).toISOString(),JSON.stringify({successfulSources,totalSources:SOURCES.length})).run();
+    await env.DB.prepare("UPDATE audit SET detail=? WHERE at=? AND action='collection_run' AND detail=?").bind(JSON.stringify({successfulSources,totalSources:SOURCES.length}),runAt,pendingRun).run();
     return result;
   } finally {await env.DB.prepare("UPDATE locks SET expires_at=?,owner=NULL WHERE id='collect' AND owner=?").bind(Date.now()+300000,owner).run();}
 }

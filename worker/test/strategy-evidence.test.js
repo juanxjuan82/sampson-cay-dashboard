@@ -267,3 +267,11 @@ test('one article assigns old and new claims to their own windows',async()=>{
  assert.equal(environment.currentItems,0);assert.equal(environment.previousItems,1);
  assert.equal(jobs.currentItems,1);assert.equal(jobs.previousItems,0);
 });
+
+test('press index pages do not duplicate the linked article count',async()=>{
+ const {DB,insert,sql}=setup();
+ sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('ewn','Eye Witness News','https://ewnews.com/');
+ for(const [id,url] of [['a','https://ewnews.com/'],['b','https://ewnews.com/sampson-cay-review/']])insert.run(id.repeat(64),'ewn',url,'Sampson Cay consultation criticized','2026-10-01','2026-10-01','2026-10-01',id,'consultation criticized',JSON.stringify([{theme:'Consultation'}]));
+ const evidence=await buildNarrativeEvidence(DB,new Date('2026-10-02T12:00:00.000Z'));
+ assert.equal(evidence.current7Days.items,1);assert.equal(evidence.leadingClaims[0].currentItems,1);
+});
