@@ -143,6 +143,23 @@ test('single-theme press coverage still requires criticism in the same sentence'
   assert.deepEqual(criticismThemes('press', [{theme: 'Employment', matched: ['jobs']}], 'Jobs will be created. Separately, the permit is unlawful.'), []);
 });
 
+test('theme terms use token boundaries when selecting critical context', () => {
+  assert.deepEqual(criticismThemes('press', [{theme: 'Employment', matched: ['jobs']}], 'Sampson Cay jobsite conditions were criticized. Jobs will be created.'), []);
+});
+
+test('the 1000-row evidence bound follows activity time rather than first capture', async () => {
+  const {DB, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  const rawInsert = sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
+  rawInsert.run('a'.repeat(64), 'sea', 'https://example.com/changed-today', 'Consultation criticism', '2026-01-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'changed', 'critical update', JSON.stringify([{theme: 'Consultation'}]));
+  for (let index = 0; index < 1001; index++) {
+    const id = index.toString(16).padStart(64, '0');
+    rawInsert.run(id, 'project', `https://example.com/neutral-${index}`, 'Routine project update', '2026-09-01T12:00:00.000Z', '2026-09-01T12:00:00.000Z', '2026-09-01', `neutral-${index}`, 'routine update', JSON.stringify([{theme: 'Employment', criticismEvidence: false}]));
+  }
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.current7Days.items, 1);
+});
+
 test('an undated page update uses its content-change time', async () => {
   const {DB, insert, sql} = setup();
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');

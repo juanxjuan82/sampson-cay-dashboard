@@ -43,16 +43,17 @@ export function criticismThemes(sourceId, tags, content) {
       .map(term => normalize(String(term || '')))
       .filter(Boolean);
     return terms.some(term => {
-      let from = 0;
-      while (from < value.length) {
-        const position = value.indexOf(term, from);
-        if (position < 0) return false;
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const plural = term.endsWith('s') ? '' : 's?';
+      const matches = value.matchAll(new RegExp(`(^|[^a-z0-9])(${escaped}${plural})(?=$|[^a-z0-9])`, 'g'));
+      for (const match of matches) {
+        const position = match.index + match[1].length;
+        const matchedLength = match[2].length;
         const priorBoundary = Math.max(...['.', '?', '!', ';'].map(mark => value.lastIndexOf(mark, position)));
-        const nextBoundaries = ['.', '?', '!', ';'].map(mark => value.indexOf(mark, position + term.length)).filter(index => index >= 0);
+        const nextBoundaries = ['.', '?', '!', ';'].map(mark => value.indexOf(mark, position + matchedLength)).filter(index => index >= 0);
         const nextBoundary = nextBoundaries.length ? Math.min(...nextBoundaries) + 1 : value.length;
-        const context = value.slice(Math.max(priorBoundary + 1, position - 180), Math.min(nextBoundary, position + term.length + 180));
+        const context = value.slice(Math.max(priorBoundary + 1, position - 180), Math.min(nextBoundary, position + matchedLength + 180));
         if (signals.some(pattern => pattern.test(context))) return true;
-        from = position + Math.max(1, term.length);
       }
       return false;
     });

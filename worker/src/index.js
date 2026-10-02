@@ -215,7 +215,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
               s.label AS source
        FROM items i JOIN sources s ON s.id=i.source_id
        WHERE i.superseded_by IS NULL
-       ORDER BY i.first_seen DESC LIMIT 1000`
+       ORDER BY COALESCE(i.published_at,i.changed_at) DESC,i.id DESC LIMIT 1000`
       ).all(),
       db.prepare("SELECT at,detail FROM audit WHERE action='collection_run' ORDER BY at DESC LIMIT 1000").all(),
     ]);
