@@ -821,7 +821,7 @@ function safeSourceURL(value) {
   try { const u = new URL(String(value)); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; }
 }
 function trackerDate(value) {
-  if (value instanceof Date) return dayKey(value);
+  if (value instanceof Date) return !isNaN(value) ? value.toISOString().slice(0,10) : '';
   if (typeof value === 'number' && typeof XLSX !== 'undefined') {
     const d = XLSX.SSF.parse_date_code(value);
     return d ? `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}` : '';
@@ -890,7 +890,7 @@ async function uploadArticleTracker(input) {
       records = parsed.data;
     } else {
       if (typeof XLSX === 'undefined') throw new Error('The Excel reader did not load. Reload the dashboard or upload Media Mentions as CSV.');
-      const book = XLSX.read(await file.arrayBuffer(), { type:'array', cellDates:true });
+      const book = XLSX.read(await file.arrayBuffer(), { type:'array', cellDates:false });
       const name = book.SheetNames.find(name => name.trim().toLowerCase() === 'media mentions');
       if (!name) throw new Error('The workbook needs a sheet named Media Mentions.');
       const sheet = book.Sheets[name];
@@ -960,7 +960,7 @@ function socialAMECEvidence() {
       totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
       examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>b.shares-a.shares || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
   });
-  const keys = new Set(recent.map(p=>cleanLabel(p.caption).toLowerCase() || `${p.platform}|${p.dateStr}|${p.permalink}`));
+  const keys = new Set(recent.map(p=>cleanLabel(p.caption) ? `${postDayKey(p)}|${cleanLabel(p.caption).toLowerCase()}` : `${p.platform}|${postDayKey(p)}|${p.id||p.permalink}`));
   return { available:true,start,end,priorStart,priorEnd,days,contentItems:keys.size,platformObservations:recent.length,
     feedPostsPerWeek:keys.size/days*7,platforms,
     caveats:['Lifetime results, not equal-age post performance.','Export coverage uses declared filename ranges; unknown coverage disables comparisons.','Paid status is not verified. High reach alone cannot prove promotion.','Comments are blocked; do not recommend comments as a success measure.','Facebook total clicks are not necessarily link clicks.','No measured change in public trust or sentiment.'] };

@@ -93,3 +93,26 @@ test('tracker replacement redraws executive read before restoring saved override
  assert.equal(c.sharedEditableContent['executive-read'],'Edited read');
  assert.equal(vm.runInContext('editorialReviewNeeded',c),true);
 });
+test('native Excel publication dates preserve calendar days in western time zones',()=>{
+ const oldZone=process.env.TZ;process.env.TZ='America/Los_Angeles';
+ try {
+  const c=context();vm.runInContext(readFileSync(new URL('../../vendor/xlsx.full.min.js',import.meta.url),'utf8'),c);
+  const r=vm.runInContext(`(() => {
+   const s=XLSX.utils.aoa_to_sheet([['Outlet','Title','Date','Type'],['Outlet','Boundary','2026-10-02','Article']]);
+   // Excel serial: whole UTC days from its 1899-12-30 epoch.
+   s.C2={t:'n',v:(Date.UTC(2026,9,2)-Date.UTC(1899,11,30))/86400000,z:'mm/dd/yyyy'};
+   const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,s,'Media Mentions');
+   const bytes=XLSX.write(book,{type:'array',bookType:'xlsx'});
+   const numeric=XLSX.read(bytes,{type:'array',cellDates:false});
+   const native=XLSX.read(bytes,{type:'array',cellDates:true});
+   return [normalizeArticleRows(articleWorksheetRecords(numeric.Sheets['Media Mentions'])).rows[0].date,normalizeArticleRows(articleWorksheetRecords(native.Sheets['Media Mentions'])).rows[0].date];
+  })()`,c);
+  assert.equal(r[0],'2026-10-02');assert.equal(r[1],'2026-10-02');
+ } finally {if(oldZone===undefined)delete process.env.TZ;else process.env.TZ=oldZone;}
+});
+test('repeated captions on separate dates count separately while same-day platform copies group',()=>{
+ const c=context();vm.runInContext(`reportWindow={start:'2026-09-01',end:'2026-09-14'};
+ allPosts=['ig','fb'].flatMap(platform=>['09/02/2026','09/09/2026'].map(dateStr=>({platform,dateStr,date:new Date(),caption:'Same caption',reach:10,shares:0})));`,c);
+ const r=vm.runInContext('socialAMECEvidence()',c);
+ assert.equal(r.contentItems,2);assert.equal(r.platformObservations,4);assert.equal(r.feedPostsPerWeek,1);
+});
