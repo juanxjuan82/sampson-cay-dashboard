@@ -1,4 +1,4 @@
-import {canonical, classify, PROJECT, normalize} from './rules.js';
+import {canonical, classify, isCriticismEvidence, PROJECT, normalize} from './rules.js';
 export const SOURCES = [
   {id:'turtlegrass', label:'Turtlegrass · campaign & blog', url:'https://www.turtlegrassresort.com/defending-sampson-cay', host:'www.turtlegrassresort.com', path:/^\/(blog\/[^/]+\/?|defending-sampson-cay\/?)/},
   {id:'tribune', label:'The Tribune · Business', url:'https://www.tribune242.com/news/business/', host:'www.tribune242.com', path:/^\/news\/\d{4}\//},
@@ -73,6 +73,7 @@ export async function collect(env) {
   };
   const fetchWithLease=async(...args)=>{await renew();return fetch(...args);};
   const result={busy:false,newItems:0,changedItems:0,failures:[]};
+  let successfulSources=0;
   try {
     for(const source of SOURCES) {
       const at=new Date().toISOString();
@@ -91,6 +92,7 @@ export async function collect(env) {
           landing=await boundedFetch(source.url,fetchWithLease,source.host,guard);
           if(!landing.type.includes('text/html')) throw Error('Source is not HTML');
           page=await extract(landing.raw,landing.url);
+          successfulSources++;
         } catch(e) {
           landing=null;page=null;
           failures++;result.failures.push({source:source.label,url:source.url,error:e.message});
@@ -124,7 +126,9 @@ export async function collect(env) {
             // Advice is never transferred or published on the destination automatically.
             const id=destination?.id||await hash(identity), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
             const old=await env.DB.prepare('SELECT content_hash FROM items WHERE id=?').bind(id).first();
-            const tags=JSON.stringify(classify(parsed.title+' '+parsed.text));
+            const baseTags=classify(parsed.title+' '+parsed.text);
+            const criticismEvidence=isCriticismEvidence(source.id,baseTags,parsed.title+' '+parsed.text);
+            const tags=JSON.stringify(baseTags.map(tag=>({...tag,criticismEvidence})));
             const statements=[
               env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET url=excluded.url,superseded_by=NULL,title=excluded.title,published_at=excluded.published_at,changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
               env.DB.prepare('INSERT OR IGNORE INTO captures(item_id,hash,captured_at,raw_html,text) VALUES(?,?,?,?,?)').bind(id,rawHash,at,captured.raw,parsed.text)
@@ -144,6 +148,7 @@ export async function collect(env) {
         await env.DB.prepare('UPDATE sources SET checked_at=?,error=? WHERE id=?').bind(at,e.message,source.id).run();
       }
     }
+    await env.DB.prepare("INSERT INTO audit(at,item_id,action,detail) VALUES(?,NULL,'collection_run',?)").bind(new Date(now).toISOString(),JSON.stringify({successfulSources,totalSources:SOURCES.length})).run();
     return result;
   } finally {await env.DB.prepare("UPDATE locks SET expires_at=?,owner=NULL WHERE id='collect' AND owner=?").bind(Date.now()+300000,owner).run();}
 }

@@ -17,6 +17,25 @@ export function classify(text) {
     return matched.length ? [{theme, matched, ruleVersion: RULE_VERSION}] : [];
   });
 }
+export function isCriticismEvidence(sourceId, tags, content) {
+  if (sourceId === 'project') return false;
+  const themes = Array.isArray(tags) ? tags : [];
+  if (!themes.some(tag => String(tag?.theme || '').trim())) return false;
+  const knownOpposition = new Set(['turtlegrass', 'sea', 'save-exuma', 'save_exuma', 'over-yonder', 'over_yonder']);
+  if (knownOpposition.has(sourceId)) return true;
+  const value = normalize(content || '');
+  return [
+    /\bopposition\b/, /\boppos(?:e|ed|es|ing)\b/, /\bchalleng(?:e|ed|es|ing)\b/,
+    /\bcritic(?:s|ism|ized|ised|ize|ise|izing|ising)?\b/,
+    /\balleg(?:e|ed|es|ing|ation|ations)\b/,
+    /\bfail(?:ed|ure|ures)\b/, /\binadequate\b/,
+    /\bdestroy(?:ed|s|ing)?\b/, /\bdestruction\b/, /\bharm(?:ed|ful|s|ing)?\b/,
+    /\billegal(?:ity)?\b/, /\bunlawful\b/, /\bsalami\b/, /\bpiece[-\s]?meal\b/,
+    /\bjudicial\s+review\b/, /\bcourt\s+told\b/, /\bhalt(?:ed|s|ing)?\b/,
+    /\bstop(?:ped|s|ping)?\b/, /\breject(?:ed|ion|s|ing)?\b/,
+    /\bcontrovers(?:y|ies|ial)\b/
+  ].some(pattern => pattern.test(value));
+}
 export function canonical(input, base) {
   try {
     const url = new URL(input, base);

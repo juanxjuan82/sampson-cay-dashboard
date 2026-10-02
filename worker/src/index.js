@@ -202,44 +202,68 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   };
   if (!db) return empty;
 
+  const nowMs = now.getTime();
+  const dayMs = 86_400_000;
   let capturedRows;
+  let collectionRuns;
   try {
-    const result = await db.prepare(
-      `SELECT i.id,i.source_id,i.title,i.url,i.first_seen,i.published_at,i.tags,i.review_status,
-              substr(i.text,1,4000) AS text,s.label AS source
+    const [itemResult, runResult] = await Promise.all([
+      db.prepare(
+      `SELECT i.id,i.source_id,i.title,i.url,i.first_seen,i.changed_at,i.published_at,i.tags,
+              i.review_status,s.label AS source
        FROM items i JOIN sources s ON s.id=i.source_id
        WHERE i.superseded_by IS NULL
        ORDER BY i.first_seen DESC LIMIT 1000`
-    ).all();
-    capturedRows = result.results || [];
+      ).all(),
+      db.prepare("SELECT at,detail FROM audit WHERE action='collection_run' ORDER BY at DESC LIMIT 1000").all(),
+    ]);
+    capturedRows = itemResult.results || [];
+    collectionRuns = runResult.results || [];
   } catch (error) {
     console.error('Narrative evidence query failed', { message: error?.message });
     return empty;
   }
   if (!capturedRows.length) return empty;
-  const rows = capturedRows.filter(isCriticismEvidenceRow);
+  const rows = capturedRows.filter(row => {
+    try { return JSON.parse(row.tags || '[]').some(tag => tag?.criticismEvidence === true); }
+    catch { return false; }
+  });
 
-  const nowMs = now.getTime();
-  const dayMs = 86_400_000;
   const currentStart = nowMs - (7 * dayMs);
   const previousStart = nowMs - (14 * dayMs);
-  const seenAt = row => {
-    const value = Date.parse(row.first_seen);
-    return Number.isFinite(value) ? value : null;
-  };
   const activityAt = row => {
     const published = Date.parse(row.published_at);
-    return Number.isFinite(published) ? published : seenAt(row);
+    if (Number.isFinite(published)) return published;
+    const changed = Date.parse(row.changed_at);
+    return Number.isFinite(changed) ? changed : null;
   };
   const current = rows.filter(row => activityAt(row) !== null && activityAt(row) >= currentStart && activityAt(row) <= nowMs);
   const previous = rows.filter(row => activityAt(row) !== null && activityAt(row) >= previousStart && activityAt(row) < currentStart);
-  const earliest = capturedRows.map(seenAt).filter(value => value !== null).sort((a, b) => a - b)[0];
-  const coverageDays = earliest === undefined ? 0 : Math.max(1, Math.floor((nowMs - earliest) / dayMs) + 1);
-  const hasFullComparisonWindow = earliest !== undefined && earliest <= previousStart;
+  const maxObservationGapMs = 9 * 60 * 60 * 1000;
+  const fullRunTimes = collectionRuns
+    .filter(run => {
+      try {
+        const detail = JSON.parse(run.detail || '{}');
+        return Number(detail.totalSources) > 0 && Number(detail.successfulSources) >= Number(detail.totalSources);
+      } catch { return false; }
+    })
+    .map(run => Date.parse(run.at))
+    .filter(value => Number.isFinite(value) && value <= nowMs)
+    .sort((a, b) => a - b);
+  let coverageStartedAtMs;
+  if (fullRunTimes.length && nowMs - fullRunTimes.at(-1) <= maxObservationGapMs) {
+    coverageStartedAtMs = fullRunTimes.at(-1);
+    for (let index = fullRunTimes.length - 2; index >= 0; index--) {
+      if (fullRunTimes[index + 1] - fullRunTimes[index] > maxObservationGapMs) break;
+      coverageStartedAtMs = fullRunTimes[index];
+    }
+  }
+  const coverageDays = coverageStartedAtMs === undefined ? 0 : Math.max(1, Math.floor((nowMs - coverageStartedAtMs) / dayMs) + 1);
+  const hasFullComparisonWindow = coverageStartedAtMs !== undefined && coverageStartedAtMs <= previousStart;
   const sources = list => new Set(list.map(row => row.source)).size;
 
   let status = 'Baseline building';
-  let statusReason = `The monitor has ${coverageDays} day${coverageDays === 1 ? '' : 's'} of coverage. Fourteen full days are required before a week-over-week direction is shown.`;
+  let statusReason = `The monitor has ${coverageDays} day${coverageDays === 1 ? '' : 's'} of uninterrupted successful coverage. Fourteen full days are required before a week-over-week direction is shown.`;
   if (hasFullComparisonWindow) {
     if (!current.length && !previous.length) {
       status = 'No monitored criticism';
@@ -287,33 +311,12 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
     available: true,
     status,
     statusReason,
-    coverageStartedAt: earliest === undefined ? null : new Date(earliest).toISOString(),
+    coverageStartedAt: coverageStartedAtMs === undefined ? null : new Date(coverageStartedAtMs).toISOString(),
     coverageDays,
     current7Days: { items: current.length, distinctSources: sources(current) },
     previous7Days: { items: previous.length, distinctSources: sources(previous) },
     leadingClaims,
   };
-}
-
-function isCriticismEvidenceRow(row) {
-  if (row.source_id === 'project') return false;
-  let tags = [];
-  try { tags = JSON.parse(row.tags || '[]'); } catch {}
-  if (!tags.some(tag => String(tag?.theme || '').trim())) return false;
-  const knownOpposition = new Set(['turtlegrass', 'sea', 'save-exuma', 'save_exuma', 'over-yonder', 'over_yonder']);
-  if (knownOpposition.has(row.source_id)) return true;
-  const value = `${row.title || ''} ${row.text || ''}`.toLowerCase();
-  return [
-    /\bopposition\b/, /\boppos(?:e|ed|es|ing)\b/, /\bchalleng(?:e|ed|es|ing)\b/,
-    /\bcritic(?:s|ism|ized|ised|ize|ise|izing|ising)?\b/,
-    /\balleg(?:e|ed|es|ing|ation|ations)\b/,
-    /\bfail(?:ed|ure|ures)\b/, /\binadequate\b/,
-    /\bdestroy(?:ed|s|ing)?\b/, /\bdestruction\b/, /\bharm(?:ed|ful|s|ing)?\b/,
-    /\billegal(?:ity)?\b/, /\bunlawful\b/, /\bsalami\b/, /\bpiece[-\s]?meal\b/,
-    /\bjudicial\s+review\b/, /\bcourt\s+told\b/, /\bhalt(?:ed|s|ing)?\b/,
-    /\bstop(?:ped|s|ping)?\b/, /\breject(?:ed|ion|s|ing)?\b/,
-    /\bcontrovers(?:y|ies|ial)\b/
-  ].some(pattern => pattern.test(value));
 }
 
 function getCorsHeaders(origin, configuredOrigins) {

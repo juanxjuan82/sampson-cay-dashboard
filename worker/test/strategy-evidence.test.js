@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker, {buildNarrativeEvidence} from '../src/index.js';
+import {isCriticismEvidence} from '../src/monitor/rules.js';
 
 function setup() {
   const sql = new DatabaseSync(':memory:');
@@ -21,8 +22,22 @@ function setup() {
   sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('sea', 'Save Exuma Alliance', 'https://example.com/sea');
   sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('press', 'Bahamian Press', 'https://example.com/press');
   sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('project', 'Sampson Cay Project', 'https://example.com/project');
-  const insert = sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
+  const statement = sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
+  const insert = {run(...values) {
+    let tags = [];
+    try { tags = JSON.parse(values[9] || '[]'); } catch {}
+    const criticismEvidence = isCriticismEvidence(values[1], tags, `${values[3]} ${values[8]}`);
+    values[9] = JSON.stringify(tags.map(tag => ({...tag, criticismEvidence})));
+    return statement.run(...values);
+  }};
   return {DB, insert, sql};
+}
+
+function seedContinuousRuns(sql, start, end, gapHours = 6) {
+  const insert = sql.prepare("INSERT INTO audit(at,item_id,action,detail) VALUES(?,NULL,'collection_run',?)");
+  for (let at = Date.parse(start); at <= Date.parse(end); at += gapHours * 60 * 60 * 1000) {
+    insert.run(new Date(at).toISOString(), JSON.stringify({successfulSources: 3, totalSources: 3}));
+  }
 }
 
 test('narrative status remains baseline-building until fourteen days of coverage', async () => {
@@ -35,7 +50,8 @@ test('narrative status remains baseline-building until fourteen days of coverage
 });
 
 test('inclusive day fourteen remains baseline until fourteen full days have elapsed', async () => {
-  const {DB, insert} = setup();
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-19T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
   insert.run('a'.repeat(64), 'sea', 'https://example.com/a', 'Consultation criticism', '2026-09-19T12:00:00.000Z', '2026-09-19', '2026-09-19', 'h1', 'text', JSON.stringify([{theme: 'Consultation'}]));
   insert.run('b'.repeat(64), 'sea', 'https://example.com/b', 'Environment criticism', '2026-10-01T12:00:00.000Z', '2026-10-01', '2026-10-01', 'h2', 'text', JSON.stringify([{theme: 'Environment'}]));
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
@@ -44,7 +60,8 @@ test('inclusive day fourteen remains baseline until fourteen full days have elap
 });
 
 test('narrative status uses deterministic seven-day counts and distinct sources', async () => {
-  const {DB, insert} = setup();
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
   const add = (id, source, seen, theme) => insert.run(id.repeat(64), source, `https://example.com/${id}`, `${theme} opposition challenge`, seen, seen, seen, id, 'text', JSON.stringify([{theme}]));
   add('a', 'sea', '2026-09-13T12:00:00.000Z', 'Consultation');
   add('b', 'sea', '2026-09-21T12:00:00.000Z', 'Consultation');
@@ -62,8 +79,9 @@ test('narrative status uses deterministic seven-day counts and distinct sources'
   assert.equal(evidence.leadingClaims[0].currentDistinctSources, 2);
 });
 
-test('narrative coverage includes quiet captured history before criticism appears', async () => {
-  const {DB, insert} = setup();
+test('narrative coverage includes quiet successful collection history before criticism appears', async () => {
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-12T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
   insert.run('a'.repeat(64), 'press', 'https://example.com/quiet', 'Routine project update', '2026-09-12T12:00:00.000Z', '2026-09-12', '2026-09-12', 'quiet', 'neutral coverage', JSON.stringify([{theme: 'Employment'}]));
   insert.run('b'.repeat(64), 'sea', 'https://example.com/current', 'Consultation criticism', '2026-10-01T12:00:00.000Z', '2026-10-01', '2026-10-01', 'current', 'critical coverage', JSON.stringify([{theme: 'Consultation'}]));
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
@@ -75,6 +93,7 @@ test('narrative coverage includes quiet captured history before criticism appear
 
 test('archived criticism uses publication time and zero recent criticism is explicit', async () => {
   const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-01T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
   insert.run('a'.repeat(64), 'press', 'https://example.com/quiet', 'Routine project update', '2026-09-01T12:00:00.000Z', '2026-09-01', '2026-09-01', 'quiet', 'neutral coverage', JSON.stringify([{theme: 'Employment'}]));
   insert.run('b'.repeat(64), 'sea', 'https://example.com/archive', 'Archived consultation criticism', '2026-10-01T12:00:00.000Z', '2026-10-01', '2026-10-01', 'archive', 'critical coverage', JSON.stringify([{theme: 'Consultation'}]));
   sql.prepare('UPDATE items SET published_at=? WHERE url=?').run('2026-06-01T12:00:00.000Z', 'https://example.com/archive');
@@ -83,6 +102,34 @@ test('archived criticism uses publication time and zero recent criticism is expl
   assert.equal(evidence.status, 'No monitored criticism');
   assert.deepEqual(evidence.current7Days, {items: 0, distinctSources: 0});
   assert.deepEqual(evidence.previous7Days, {items: 0, distinctSources: 0});
+});
+
+test('criticism after the first 4000 characters is classified from the full captured text', async () => {
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  insert.run('a'.repeat(64), 'press', 'https://example.com/long', 'Sampson Cay consultation', '2026-10-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'long', `${'routine update '.repeat(400)} opposition challenge`, JSON.stringify([{theme: 'Consultation'}]));
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.current7Days.items, 1);
+  assert.equal(evidence.status, 'Rising');
+});
+
+test('an undated page update uses its content-change time', async () => {
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  insert.run('a'.repeat(64), 'sea', 'https://example.com/updated', 'Consultation criticism', '2026-08-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'updated', 'critical update', JSON.stringify([{theme: 'Consultation'}]));
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.current7Days.items, 1);
+  assert.equal(evidence.previous7Days.items, 0);
+});
+
+test('a collection gap resets coverage instead of implying a zero baseline', async () => {
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-01T12:00:00.000Z', '2026-09-20T12:00:00.000Z');
+  seedContinuousRuns(sql, '2026-10-02T06:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  insert.run('a'.repeat(64), 'sea', 'https://example.com/current', 'Consultation criticism', '2026-10-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'current', 'critical update', JSON.stringify([{theme: 'Consultation'}]));
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.status, 'Baseline building');
+  assert.equal(evidence.coverageDays, 1);
 });
 
 test('summary keeps private coaching separate and returns deterministic narrative evidence', async () => {
