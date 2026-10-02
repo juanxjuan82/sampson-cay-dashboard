@@ -212,6 +212,22 @@ test('historical comparison receives platform history while current charts recei
   assert.equal(vm.runInContext('filtered().length',c),1);
   assert.equal(vm.runInContext('platformHistory().length',c),2);
   assert.match(markup.match(/function renderAll\(\) \{[\s\S]*?\n\}/)[0],/renderComparison\(platformHistory\(\)\)/);
-  assert.match(markup,/comparison: buildAlignedComparisonEvidence\(platformHistory\(\)\)/);
+  assert.match(markup,/comparison: buildAlignedComparisonEvidence\(allPosts\)/);
+ }
+});
+test('combined AI historical comparison stays combined under either platform display filter',()=>{
+ for(const file of ['index.html','report.html']) {
+  const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');
+  const c=context();c.allPosts=['ig','fb'].map(platform=>({platform,date:new Date('2026-09-02'),dateStr:'09/02/2026',caption:platform,reach:10,interactions:1,views:10,shares:0}));
+  c.igPosts=c.allPosts.slice(0,1);c.fbPosts=c.allPosts.slice(1);c.DASHBOARD_VERSION='test';c.THEME_MIN_SAMPLE=5;
+  c.isLikelyBoostedPost=()=>false;c.getThemeStats=()=>({totalContentItems:0,unclassifiedCount:0,rows:[]});
+  c.buildAlignedComparisonEvidence=posts=>({platforms:posts.map(p=>p.platform)});
+  vm.runInContext(markup.match(/function platformHistory\(\)[^\n]+/)[0],c);
+  vm.runInContext(markup.match(/function buildAISummaryEvidence\(posts\) \{[\s\S]*?\n\}/)[0],c);
+  for(const filter of ['ig','fb','all']) {
+   c.currentFilter=filter;
+   const r=vm.runInContext('buildAISummaryEvidence(allPosts)',c);
+   assert.deepEqual(Array.from(r.comparison.platforms),['ig','fb']);
+  }
  }
 });
