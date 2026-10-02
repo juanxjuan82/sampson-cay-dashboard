@@ -1,5 +1,5 @@
 import monitor from './monitor/index.js';
-import {collect} from './monitor/collector.js';
+import {collect, extract} from './monitor/collector.js';
 import {criticismThemes} from './monitor/rules.js';
 const DEFAULT_MODEL = 'gpt-5.6-terra';
 const MAX_BODY_BYTES = 100_000;
@@ -212,7 +212,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
       db.prepare(
       `SELECT i.id,i.source_id,i.title,i.url,i.first_seen,i.changed_at,i.published_at,i.tags,
               i.review_status,CASE WHEN i.tags NOT LIKE '%"criticismEvidence"%' THEN i.text ELSE NULL END AS legacy_text,
-              s.label AS source
+              s.label AS source,CASE WHEN i.tags NOT LIKE '%\"criticismEvidence\"%' THEN (SELECT raw_html FROM captures c WHERE c.item_id=i.id ORDER BY c.captured_at DESC,c.rowid DESC LIMIT 1) ELSE NULL END AS legacy_raw
        FROM items i JOIN sources s ON s.id=i.source_id
        WHERE i.superseded_by IS NULL
        ORDER BY CASE WHEN julianday(i.changed_at)>julianday(i.first_seen) THEN i.changed_at ELSE COALESCE(i.published_at,i.changed_at) END DESC,i.id DESC`
@@ -226,18 +226,20 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
     return empty;
   }
   if (!capturedRows.length) return empty;
-  const rows = capturedRows.filter(row => {
+  const rows = [];
+  for (const row of capturedRows) {
     try {
       const tags = JSON.parse(row.tags || '[]');
       if (tags.some(tag => Object.hasOwn(tag, 'criticismEvidence'))) {
         row.evidenceTags = tags.filter(tag => tag.criticismEvidence === true);
       } else {
-        const themes = new Set(criticismThemes(row.source_id, tags, `${row.title || ''}. ${row.legacy_text || ''}`));
+        const context = row.legacy_raw ? (await extract(row.legacy_raw,row.url)).contextText : row.legacy_text || '';
+        const themes = new Set(criticismThemes(row.source_id, tags, `${row.title || ''}. ${context}`));
         row.evidenceTags = tags.filter(tag => themes.has(tag.theme));
       }
-      return row.evidenceTags.length > 0;
-    } catch { return false; }
-  });
+      if (row.evidenceTags.length) rows.push(row);
+    } catch {}
+  }
 
   const currentStart = nowMs - (7 * dayMs);
   const previousStart = nowMs - (14 * dayMs);
@@ -250,8 +252,10 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
     if (Number.isFinite(published)) return published;
     return Number.isFinite(firstSeen) ? firstSeen : Number.isFinite(changed) ? changed : null;
   };
-  const current = rows.filter(row => activityAt(row) !== null && activityAt(row) >= currentStart && activityAt(row) <= nowMs);
-  const previous = rows.filter(row => activityAt(row) !== null && activityAt(row) >= previousStart && activityAt(row) < currentStart);
+  const tagAt = (row,tag) => Number.isFinite(Date.parse(tag.criticismAt)) ? Date.parse(tag.criticismAt) : activityAt(row);
+  const tagPeriod = (row,tag) => {const at=tagAt(row,tag);return at!==null && at>=currentStart && at<=nowMs?'current':at!==null && at>=previousStart && at<currentStart?'previous':null;};
+  const current = rows.filter(row => row.evidenceTags.some(tag=>tagPeriod(row,tag)==='current'));
+  const previous = rows.filter(row => row.evidenceTags.some(tag=>tagPeriod(row,tag)==='previous'));
   const maxObservationGapMs = 9 * 60 * 60 * 1000;
   const observations = collectionRuns.map(run => {
     let complete = false;
@@ -290,10 +294,11 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   }
 
   const claimMap = new Map();
-  for (const row of [...current, ...previous]) {
+  for (const row of rows) {
     const tags = row.evidenceTags || [];
-    const period = current.includes(row) ? 'current' : 'previous';
     for (const tag of tags) {
+      const period=tagPeriod(row,tag);
+      if (!period) continue;
       const theme = String(tag?.theme || '').trim();
       if (!theme) continue;
       if (!claimMap.has(theme)) claimMap.set(theme, { theme, currentItems: 0, previousItems: 0, currentSources: new Set(), examples: [] });

@@ -257,3 +257,13 @@ test('routine edits do not refresh the date of existing criticism',async()=>{
  sql.prepare('UPDATE items SET tags=?').run(JSON.stringify([{theme:'Consultation',criticismEvidence:true}]));
  assert.equal((await buildNarrativeEvidence(DB,new Date('2026-10-02T12:00:00.000Z'))).current7Days.items,0);
 });
+
+test('one article assigns old and new claims to their own windows',async()=>{
+ const {DB,insert}=setup();
+ insert.run('a'.repeat(64),'sea','https://example.com/mixed','Consultation criticism','2026-09-21','2026-10-01','2026-10-01','edited','mixed claims',JSON.stringify([{theme:'Environment',criticismAt:'2026-09-21T12:00:00.000Z'},{theme:'Employment',criticismAt:'2026-10-01T12:00:00.000Z'}]));
+ const evidence=await buildNarrativeEvidence(DB,new Date('2026-10-02T12:00:00.000Z'));
+ assert.equal(evidence.current7Days.items,1);assert.equal(evidence.previous7Days.items,1);
+ const environment=evidence.leadingClaims.find(c=>c.theme==='Environment'),jobs=evidence.leadingClaims.find(c=>c.theme==='Employment');
+ assert.equal(environment.currentItems,0);assert.equal(environment.previousItems,1);
+ assert.equal(jobs.currentItems,1);assert.equal(jobs.previousItems,0);
+});
