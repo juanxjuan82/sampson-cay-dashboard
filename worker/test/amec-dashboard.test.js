@@ -231,3 +231,12 @@ test('combined AI historical comparison stays combined under either platform dis
   }
  }
 });
+test('bereavement phrasing stays in performance totals but never in investment candidates',()=>{
+ const c=context();c.captions=['Our condolences','The passing of a neighbour','She passed away','In memory of John','In loving memory of John','We mourn our friend','Rest in peace','Memorial service','Death of a neighbour','Deepest sympathy to the family','Bereavement support'];
+ vm.runInContext(`reportWindow={start:'2026-09-01',end:'2026-09-14'};
+ allPosts=[...captions.map((caption,i)=>({platform:'ig',id:String(i),dateStr:'09/02/2026',caption,reach:500,shares:100,saves:100})),{platform:'ig',id:'community',dateStr:'09/03/2026',caption:'Community roof completed',reach:100,shares:1,saves:1}];`,c);
+ const r=vm.runInContext('socialAMECEvidence()',c);
+ assert.equal(r.platformObservations,12);assert.equal(r.platforms[0].examples.length,1);
+ assert.equal(r.platforms[0].examples[0].caption,'Community roof completed');
+ assert.equal(vm.runInContext("isBereavementPost({caption:'Passing our school examinations'})",c),false);
+});

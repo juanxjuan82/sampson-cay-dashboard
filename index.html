@@ -945,6 +945,7 @@ function changeReportWindow() {
   const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
   renderAll();
 }
+function isBereavementPost(post) { return /\b(?:condolences?|passing of|passed away|funerals?|bereav\w*|in (?:loving )?memory of|we mourn|mourning|rest in peace|memorial\w*|death of|loss of|deepest sympath\w*)\b/i.test(post.caption||''); }
 function audienceResponseScore(post,platform) { return (post.shares||0)+(platform==='ig'?(post.saves||0):0); }
 function countSocialContentItems(posts) {
   const groups=new Map();
@@ -978,7 +979,7 @@ function socialAMECEvidence() {
       changePercent:comparable && previousMedianReach>0 ? (currentMedianReach/previousMedianReach-1)*100 : null,
       shares:current.reduce((s,p)=>s+(p.shares||0),0),saves:platform==='ig'?current.reduce((s,p)=>s+(p.saves||0),0):null,
       totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
-      examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>audienceResponseScore(b,platform)-audienceResponseScore(a,platform) || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
+      examples:current.filter(p=>!isBereavementPost(p)).slice().sort((a,b)=>audienceResponseScore(b,platform)-audienceResponseScore(a,platform) || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
   });
   const contentItems=countSocialContentItems(recent);
   return { available:true,start,end,priorStart,priorEnd,days,contentItems,platformObservations:recent.length,
