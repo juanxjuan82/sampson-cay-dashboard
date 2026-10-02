@@ -49,4 +49,11 @@ for (const file of dashboardFiles) {
     assert.equal(getStrategyContext({getItem: () => null}), 'Default goals');
     assert.equal(getStrategyContext({getItem: () => ''}), '');
   });
+
+  test(`${file.pathname.split('/').pop()} clears narrative evidence for a new upload`, () => {
+    const html = readFileSync(file, 'utf8');
+    const showUpload = html.match(/function showUpload\(\) \{[\s\S]*?\n\}/)?.[0] || '';
+    assert.match(showUpload, /strategyEvidence = null;/);
+    assert.match(showUpload, /renderStrategySignal\(null\);/);
+  });
 }

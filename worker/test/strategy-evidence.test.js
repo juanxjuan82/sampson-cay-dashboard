@@ -107,7 +107,7 @@ test('archived criticism uses publication time and zero recent criticism is expl
 test('criticism after the first 4000 characters is classified from the full captured text', async () => {
   const {DB, insert, sql} = setup();
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
-  insert.run('a'.repeat(64), 'press', 'https://example.com/long', 'Sampson Cay consultation', '2026-10-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'long', `${'routine update '.repeat(400)} opposition challenge`, JSON.stringify([{theme: 'Consultation'}]));
+  insert.run('a'.repeat(64), 'press', 'https://example.com/long', 'Sampson Cay report', '2026-10-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'long', `${'routine update '.repeat(400)} consultation opposition challenge`, JSON.stringify([{theme: 'Consultation', matched: ['consultation']}]));
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.current7Days.items, 1);
   assert.equal(evidence.status, 'Rising');
@@ -137,6 +137,10 @@ test('a press criticism is counted only for the theme it targets', async () => {
 test('common critical and failing word forms qualify press evidence', () => {
   assert.deepEqual(criticismThemes('press', [{theme: 'Environment', matched: ['mangrove']}], 'Critical environmental concerns were raised over Sampson Cay mangroves.'), ['Environment']);
   assert.deepEqual(criticismThemes('press', [{theme: 'Consultation', matched: ['consultation']}], 'The Sampson Cay consultation process is failing.'), ['Consultation']);
+});
+
+test('single-theme press coverage still requires criticism in the same sentence', () => {
+  assert.deepEqual(criticismThemes('press', [{theme: 'Employment', matched: ['jobs']}], 'Jobs will be created. Separately, the permit is unlawful.'), []);
 });
 
 test('an undated page update uses its content-change time', async () => {

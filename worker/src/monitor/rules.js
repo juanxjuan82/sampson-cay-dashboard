@@ -38,7 +38,6 @@ export function criticismThemes(sourceId, tags, content) {
     /\bstop(?:ped|s|ping)?\b/, /\breject(?:ed|ion|s|ing)?\b/,
     /\bcontrovers(?:y|ies|ial)\b/
   ];
-  if (themes.length === 1 && signals.some(pattern => pattern.test(value))) return [themes[0].theme];
   return themes.filter(tag => {
     const terms = [...(Array.isArray(tag.matched) ? tag.matched : []), tag.theme]
       .map(term => normalize(String(term || '')))
