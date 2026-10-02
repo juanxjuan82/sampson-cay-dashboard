@@ -945,6 +945,20 @@ function changeReportWindow() {
   renderAll();
 }
 function audienceResponseScore(post,platform) { return (post.shares||0)+(platform==='ig'?(post.saves||0):0); }
+function countSocialContentItems(posts) {
+  const groups=new Map();
+  posts.forEach((post,index)=>{
+    const caption=cleanLabel(post.caption).toLowerCase();
+    const identity=post.id||post.permalink||'row:'+index;
+    const key=caption ? `${postDayKey(post)}|${caption}` : `${post.platform}|${postDayKey(post)}|${identity}`;
+    if (!groups.has(key)) groups.set(key,new Map());
+    const platforms=groups.get(key);
+    if (!platforms.has(post.platform)) platforms.set(post.platform,new Set());
+    platforms.get(post.platform).add(identity);
+  });
+  // Pair matching copies across platforms, keeping every distinct same-platform post.
+  return [...groups.values()].reduce((total,platforms)=>total+Math.max(...[...platforms.values()].map(ids=>ids.size)),0);
+}
 function socialAMECEvidence() {
   ensureReportWindow();
   const {start,end} = reportWindow;
@@ -965,9 +979,9 @@ function socialAMECEvidence() {
       totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
       examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>audienceResponseScore(b,platform)-audienceResponseScore(a,platform) || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
   });
-  const keys = new Set(recent.map((p,index)=>cleanLabel(p.caption) ? `${postDayKey(p)}|${cleanLabel(p.caption).toLowerCase()}` : `${p.platform}|${postDayKey(p)}|${p.id||p.permalink||'row:'+index}`));
-  return { available:true,start,end,priorStart,priorEnd,days,contentItems:keys.size,platformObservations:recent.length,
-    feedPostsPerWeek:keys.size/days*7,platforms,
+  const contentItems=countSocialContentItems(recent);
+  return { available:true,start,end,priorStart,priorEnd,days,contentItems,platformObservations:recent.length,
+    feedPostsPerWeek:contentItems/days*7,platforms,
     caveats:['Lifetime results, not equal-age post performance.','Export coverage uses declared filename ranges; unknown coverage disables comparisons.','Paid status is not verified. High reach alone cannot prove promotion.','Comments are blocked; do not recommend comments as a success measure.','Facebook total clicks are not necessarily link clicks.','No measured change in public trust or sentiment.'] };
 }
 function articleAMECEvidence() {
@@ -1948,7 +1962,7 @@ function buildAISummaryEvidence(posts) {
         };
       })
     },
-    comparison: buildAlignedComparisonEvidence(posts)
+    comparison: buildAlignedComparisonEvidence(platformHistory())
   };
 }
 
@@ -2315,8 +2329,9 @@ function parseFB(csvArr) {
 }
 
 // ── Filter posts ──
+function platformHistory() { return currentFilter === 'ig' ? igPosts : currentFilter === 'fb' ? fbPosts : allPosts; }
 function filtered() {
-  const posts = currentFilter === 'ig' ? igPosts : currentFilter === 'fb' ? fbPosts : allPosts;
+  const posts = platformHistory();
   return reportWindow.start && reportWindow.end ? posts.filter(p => { const d=postDayKey(p); return d>=reportWindow.start && d<=reportWindow.end; }) : posts;
 }
 
@@ -2699,7 +2714,7 @@ function renderAll() {
   const posts = filtered();
   const organicPosts = posts.filter(p => !isLikelyBoostedPost(p));
   renderKPIs(posts);
-  renderComparison(posts);
+  renderComparison(platformHistory());
   renderInsights(posts);
   renderThemes(posts);
   renderReachOverTime(posts);

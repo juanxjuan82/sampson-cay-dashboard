@@ -194,3 +194,24 @@ test('Instagram investment evidence displays the saves used to rank examples',()
  const c=context();assert.equal(vm.runInContext("socialExampleResponseText('ig',{shares:0,saves:20})",c),'0 shares · 20 saves');
  assert.equal(vm.runInContext("socialExampleResponseText('fb',{shares:2,saves:null})",c),'2 shares');
 });
+test('same-day reused captions preserve platform publication counts while pairing copies',()=>{
+ const c=context();c.posts=[{platform:'ig',id:'ig1'},{platform:'ig',id:'ig2'},{platform:'fb',id:'fb1'}].map(p=>({...p,dateStr:'09/02/2026',caption:'Same caption'}));
+ assert.equal(vm.runInContext('countSocialContentItems(posts)',c),2);
+ c.posts.push({platform:'fb',id:'fb2',dateStr:'09/02/2026',caption:'Same caption'});
+ assert.equal(vm.runInContext('countSocialContentItems(posts)',c),2);
+ c.posts.push({platform:'fb',id:'fb3',dateStr:'09/02/2026',caption:'Same caption'});
+ assert.equal(vm.runInContext('countSocialContentItems(posts)',c),3);
+});
+test('historical comparison receives platform history while current charts receive reporting slice',()=>{
+ for(const file of ['index.html','report.html']) {
+  const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');
+  const c=context();c.currentFilter='ig';c.igPosts=[{dateStr:'01/01/2026'},{dateStr:'09/02/2026'}];c.fbPosts=[];c.allPosts=c.igPosts;
+  vm.runInContext(markup.match(/function platformHistory\(\)[^\n]+/)[0],c);
+  vm.runInContext(markup.match(/function filtered\(\) \{[\s\S]*?\n\}/)[0],c);
+  vm.runInContext("reportWindow={start:'2026-09-01',end:'2026-09-14'}",c);
+  assert.equal(vm.runInContext('filtered().length',c),1);
+  assert.equal(vm.runInContext('platformHistory().length',c),2);
+  assert.match(markup.match(/function renderAll\(\) \{[\s\S]*?\n\}/)[0],/renderComparison\(platformHistory\(\)\)/);
+  assert.match(markup,/comparison: buildAlignedComparisonEvidence\(platformHistory\(\)\)/);
+ }
+});
