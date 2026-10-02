@@ -307,3 +307,21 @@ test('partial or unknown current-period coverage cannot establish zero publishin
  r=vm.runInContext('socialAMECEvidence()',c);assert.equal(r.coverageComplete,true);assert.equal(r.feedPostsPerWeek,0);
  vm.runInContext('socialExportRanges={ig:[],fb:[]}',c);r=vm.runInContext('socialAMECEvidence()',c);assert.equal(r.feedPostsPerWeek,null);
 });
+test('social coverage is accepted only after validating expected platform CSV headers',()=>{
+ const c=context();const fn=html.match(/function validateSocialCSV\(csv,platform\) \{[\s\S]*?\n\}/)[0];vm.runInContext(fn,c);
+ let fields=['Post ID','Reach','Publish time','Likes','Comments','Shares','Saves'];c.Papa={parse:()=>({meta:{fields},errors:[]})};
+ assert.doesNotThrow(()=>vm.runInContext("validateSocialCSV('empty IG export','ig')",c));
+ fields=fields.filter(f=>f!=='Reach');assert.throws(()=>vm.runInContext("validateSocialCSV('missing Reach','ig')",c),/Missing required IG columns: Reach/);
+ fields=['Post ID','Reach','Publish time','Reactions','Comments','Shares'];assert.doesNotThrow(()=>vm.runInContext("validateSocialCSV('empty FB export','fb')",c));
+ fields=fields.filter(f=>f!=='Post ID');assert.throws(()=>vm.runInContext("validateSocialCSV('missing ID','fb')",c),/Post ID/);
+ assert.ok(html.indexOf('try { validateSocialCSV(csv,platform);')<html.indexOf('rememberExportRange(platform, file.name);'));
+});
+test('declared complete quiet periods and article-only evidence can produce reports',()=>{
+ const c=context();vm.runInContext(`reportWindow={start:'2026-09-01',end:'2026-09-30'};allPosts=[];
+ socialExportRanges={ig:[{start:'2026-09-01',end:'2026-09-30'}],fb:[{start:'2026-09-01',end:'2026-09-30'}]};`,c);
+ assert.equal(vm.runInContext('hasReportEvidence()',c),true);
+ vm.runInContext('socialExportRanges={ig:[],fb:[]}',c);assert.equal(vm.runInContext('hasReportEvidence()',c),false);
+ vm.runInContext("articleTracker.rows=[{title:'Court hearing'}]",c);assert.equal(vm.runInContext('hasReportEvidence()',c),true);
+ assert.match(html.match(/function renderExecSummary\(\) \{[\s\S]*?\n\}/)[0],/!hasReportEvidence\(\)/);
+ assert.match(html,/async function generateAISummary\(\) \{\s*if \(!hasReportEvidence\(\)\)/);
+});

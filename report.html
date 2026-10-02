@@ -960,6 +960,7 @@ function countSocialContentItems(posts) {
   // Pair matching copies across platforms, keeping every distinct same-platform post.
   return [...groups.values()].reduce((total,platforms)=>total+Math.max(...[...platforms.values()].map(ids=>ids.size)),0);
 }
+function hasReportEvidence() { return allPosts.length>0 || articleTracker.rows.length>0 || socialAMECEvidence().coverageComplete===true; }
 function selectedSocialPosts() {
   ensureReportWindow();
   return allPosts.filter(post=>{ const date=postDayKey(post); return date && date>=reportWindow.start && date<=reportWindow.end; });
@@ -2003,7 +2004,7 @@ function saveAISettingsAndGenerate() {
   document.getElementById('ai-modal').classList.remove('open');
   const shouldGenerate = aiGenerateAfterSettings;
   aiGenerateAfterSettings = false;
-  if (shouldGenerate || allPosts.length) generateAISummary();
+  if (shouldGenerate || hasReportEvidence()) generateAISummary();
 }
 
 function getStrategyContext(storage = localStorage) {
@@ -2076,7 +2077,7 @@ function renderStrategySignal(evidence) {
 }
 
 async function generateAISummary() {
-  if (!allPosts.length) {
+  if (!hasReportEvidence()) {
     alert('Load the dashboard first so there is evidence to summarize.');
     return;
   }
@@ -2153,6 +2154,13 @@ function detectPlatform(csv) {
   return null;
 }
 
+function validateSocialCSV(csv,platform) {
+  const parsed=Papa.parse(csv,{header:true,skipEmptyLines:true});
+  const required=['Post ID','Reach','Publish time',...(platform==='ig'?['Likes','Comments','Shares','Saves']:['Reactions','Comments','Shares'])];
+  const missing=required.filter(header=>!parsed.meta?.fields?.includes(header));
+  if (missing.length) throw new Error('Missing required '+platform.toUpperCase()+' columns: '+missing.join(', ')+'. Export the post data again.');
+  if (parsed.errors.length) throw new Error('The social CSV contains malformed rows. Export the post data again.');
+}
 // ── File handlers ──
 function updateZoneLabel(platform) {
   const arr = platform === 'ig' ? rawIG : rawFB;
@@ -2176,6 +2184,12 @@ function handleFile(hintPlatform, input) {
       const csv = e.target.result;
       const detected = detectPlatform(csv);
       const platform = detected || hintPlatform;
+      try { validateSocialCSV(csv,platform); } catch(error) {
+        alert(file.name+': '+error.message);
+        pending--;
+        if (pending===0) { if(rawIG.length)updateZoneLabel('ig'); if(rawFB.length)updateZoneLabel('fb'); }
+        return;
+      }
       rememberExportRange(platform, file.name);
 
       if (detected && detected !== hintPlatform) {
@@ -3672,7 +3686,7 @@ function buildLowPerformanceFinding(organicPosts) {
 
 function renderExecSummary() {
   const el = document.getElementById('exec-summary-body');
-  if (!el || !allPosts.length) return;
+  if (!el || !hasReportEvidence()) return;
   document.getElementById('exec-summary').style.display = 'block';
   const social = socialAMECEvidence(), articles = articleAMECEvidence();
   document.getElementById('exec-summary-meta').textContent = `${social.start || ''} – ${social.end || ''} · ONWRD`;
@@ -3968,7 +3982,7 @@ async function pushToGitHub() {
     setPushStatus('error', 'Please fill in both the token and repo fields (owner/repo).');
     return;
   }
-  if (igPosts.length === 0 && fbPosts.length === 0) {
+  if (!hasReportEvidence()) {
     setPushStatus('error', 'No data loaded yet — upload your CSVs first.');
     return;
   }
@@ -4082,7 +4096,7 @@ function destroyChart(key) {
 async function downloadShareable() {
   if (editorialReviewNeeded && !confirm('Evidence changed. Have you reviewed and updated the saved analysis before exporting?')) return;
   editorialReviewNeeded = false;
-  if (igPosts.length === 0 && fbPosts.length === 0) {
+  if (!hasReportEvidence()) {
     alert('No data loaded yet — upload your CSVs first.');
     return;
   }
