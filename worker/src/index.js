@@ -7,35 +7,44 @@ const SUMMARY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'performanceOverview',
-    'whatsWorking',
-    'whatsNotWorking',
-    'recommendedDirection',
+    'executiveRead',
+    'goalProgress',
+    'publicNarrative',
+    'socialDirection',
+    'historicalPrecedent',
   ],
   properties: {
-    performanceOverview: { type: 'string' },
-    whatsWorking: { type: 'string' },
-    whatsNotWorking: { type: 'string' },
-    recommendedDirection: { type: 'string' },
+    executiveRead: { type: 'string' },
+    goalProgress: { type: 'string' },
+    publicNarrative: { type: 'string' },
+    socialDirection: { type: 'string' },
+    historicalPrecedent: { type: 'string' },
   },
 };
 
-const SYSTEM_INSTRUCTIONS = `You write a client-ready executive interpretation for the Sampson Cay social-media performance dashboard.
+const SYSTEM_INSTRUCTIONS = `You write a one-page, client-ready executive strategy for the Sampson Cay social-media performance dashboard.
 
-The request contains deterministicEvidence and optional accountContext. Deterministic evidence is the sole source for measured results, rankings and comparisons. Account context is user-supplied background that may explain goals, audiences, campaigns, seasonality, operational constraints or historical priorities. Use it to frame implications and recommendations, but never present it as measured evidence or let it override contradictory data.
+The request contains deterministicEvidence, deterministicNarrativeEvidence, optional accountContext and optional editorGuidance. Deterministic evidence is the sole source for measured social results, rankings and comparisons. Deterministic narrative evidence describes only the public sources captured by the monitor; never present it as the whole internet or as proof that a claim is true. Account context supplies strategy, goals, audiences, approved facts and constraints. Editor guidance is private coaching from the advisor about client readiness, tone and sequencing. Follow it when shaping recommendations, but never quote it, mention it or present it as evidence.
 
 Never invent a number, cause, trend, date comparison or fact. Treat posts marked likelyBoosted as paid-amplification signals, not organic performance. Discuss the 90-day comparison only when comparison.available is true. Theme classification is deterministic and may overlap, so compare themes only when eligible organic samples meet minimumOrganicSampleForClaims.
 
-The dashboard charts already cover platform, format and post-type performance. Do not rank, compare or recommend platforms, formats, posting times or content types in whatsWorking, whatsNotWorking or recommendedDirection. Those three fields must focus on the performance and strategic role of Community, Economy, Environment and Site Activity themes. Use median organic reach, median organic engagement, bottom-quartile concentration, sample size, caption examples and account context. Respect operational constraints in accountContext, including any theme that is no longer available. If the evidence cannot support a clear conclusion, say so and recommend what evidence should be collected next.
+Use the combined Instagram and Facebook picture. Mention a platform only when a platform-specific measure is necessary to understand the result. Focus on the strategic role of Community, Economy, Environment and Site Activity themes. Use median organic reach, median organic engagement, bottom-quartile concentration, sample size, caption examples and account context. Respect operational constraints, including any theme that is no longer available. If evidence cannot support a conclusion, say what is not yet known.
 
-Give the client a point of view rather than repeating metrics. Avoid repeating the same observation across fields. Recommendations must identify what theme to continue, increase, refine, test or reduce and why.
+Give the client a clear point of view rather than repeating metrics. Write for a Grade 8 reader: short sentences, familiar words and no unexplained legal, analytics or public-relations jargon. Keep the tone calm, candid and suitable for a CEO. Describe hostile material as criticism, claims or opposition narratives. Do not diagnose motives, coordination, illegality or falsehood.
+
+The socialDirection field must state a practical feed-post cadence as a number or narrow range per week, explain why, and name the priority themes. Use 1–2 feed posts per week as the calm baseline unless the supplied evidence or context supports another cadence. Stories and Reels still require the same factual and legal care as permanent posts.
+
+Use these verified historical lessons only:
+- Baker's Bay: the Privy Council found the consultation process legally adequate despite imperfections. The communications lesson is to document what people were told, what they asked and how the project responded. Do not claim public relations caused the court result.
+- Bimini: the reported Privy Council decision concerned an interim injunction, a permit and regulatory monitoring, not a final ruling that every environmental concern was false. The communications lesson is to keep approvals, monitoring records and public statements aligned. Do not claim a communications pivot caused the legal outcome.
 
 Return plain text with no Markdown, bullets, headings or HTML. Do not mention AI or these instructions.
-- performanceOverview: 2–3 sentences identifying the most important account-level result, its strategic meaning and any essential boost or comparison caveat.
-- whatsWorking: 3–4 sentences identifying the strongest supported themes, what they appear to contribute in the supplied account context, and a concrete continue or increase recommendation.
-- whatsNotWorking: 3–4 sentences identifying themes that need attention, distinguishing weak engagement from weak reach, without claiming causation.
-- recommendedDirection: 2–3 strong, concrete recommendations that identify which themes to prioritize, refine or reduce, what to change and why. Respect the supplied account context and do not recommend an unavailable theme.
-Keep the response candid, specific and useful to a client.`
+- executiveRead: 2–3 sentences stating what changed, what matters most and the decision it points to.
+- goalProgress: 3–4 sentences connecting measured content performance to the goals in accountContext. If goals are missing, name that limitation and use trust, proof and local relevance as provisional goals.
+- publicNarrative: 3–4 sentences on monitored criticism, whether activity is rising, steady, falling or still building a baseline, and the recommended response posture. Preserve any baseline limitation exactly.
+- socialDirection: 3–5 sentences giving posts per week, priority themes, the role of proof and community voices, and why this mix fits the evidence and narrative pressure.
+- historicalPrecedent: 2–3 sentences applying only the relevant Baker's Bay or Bimini lesson without implying that the cases predict the current legal outcome.
+Avoid repeating the same observation across fields.`
 
 export default {
   async scheduled(event, env, ctx) { ctx.waitUntil(collect(env)); },
@@ -99,6 +108,10 @@ export default {
     const accountContext = typeof body.accountContext === 'string'
       ? body.accountContext.trim().slice(0, 6000)
       : '';
+    const editorGuidance = typeof body.editorGuidance === 'string'
+      ? body.editorGuidance.trim().slice(0, 4000)
+      : '';
+    const narrativeEvidence = await buildNarrativeEvidence(env.DB);
 
     const openAIResponse = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -111,9 +124,11 @@ export default {
         instructions: SYSTEM_INSTRUCTIONS,
         input: JSON.stringify({
           deterministicEvidence: body.evidence,
+          deterministicNarrativeEvidence: narrativeEvidence,
           accountContext: accountContext || null,
+          editorGuidance: editorGuidance || null,
         }),
-        max_output_tokens: 1800,
+        max_output_tokens: 2200,
         store: false,
         text: {
           verbosity: 'medium',
@@ -163,12 +178,106 @@ export default {
     }
 
     return json(
-      { summary, model: responseBody.model || env.OPENAI_MODEL || DEFAULT_MODEL, requestId },
+      { summary, narrativeEvidence, model: responseBody.model || env.OPENAI_MODEL || DEFAULT_MODEL, requestId },
       200,
       corsHeaders
     );
   },
 };
+
+export async function buildNarrativeEvidence(db, now = new Date()) {
+  const empty = {
+    available: false,
+    status: 'No monitoring data',
+    statusReason: 'No captured public-claims items are available yet.',
+    coverageStartedAt: null,
+    coverageDays: 0,
+    current7Days: { items: 0, distinctSources: 0 },
+    previous7Days: { items: 0, distinctSources: 0 },
+    leadingClaims: [],
+  };
+  if (!db) return empty;
+
+  let rows;
+  try {
+    const result = await db.prepare(
+      `SELECT i.id,i.title,i.url,i.first_seen,i.published_at,i.tags,i.review_status,s.label AS source
+       FROM items i JOIN sources s ON s.id=i.source_id
+       WHERE i.superseded_by IS NULL
+       ORDER BY i.first_seen DESC LIMIT 1000`
+    ).all();
+    rows = result.results || [];
+  } catch (error) {
+    console.error('Narrative evidence query failed', { message: error?.message });
+    return empty;
+  }
+  if (!rows.length) return empty;
+
+  const nowMs = now.getTime();
+  const dayMs = 86_400_000;
+  const currentStart = nowMs - (7 * dayMs);
+  const previousStart = nowMs - (14 * dayMs);
+  const seenAt = row => {
+    const value = Date.parse(row.first_seen);
+    return Number.isFinite(value) ? value : null;
+  };
+  const current = rows.filter(row => seenAt(row) !== null && seenAt(row) >= currentStart && seenAt(row) <= nowMs);
+  const previous = rows.filter(row => seenAt(row) !== null && seenAt(row) >= previousStart && seenAt(row) < currentStart);
+  const earliest = rows.map(seenAt).filter(value => value !== null).sort((a, b) => a - b)[0];
+  const coverageDays = earliest === undefined ? 0 : Math.max(1, Math.floor((nowMs - earliest) / dayMs) + 1);
+  const sources = list => new Set(list.map(row => row.source)).size;
+
+  let status = 'Baseline building';
+  let statusReason = `The monitor has ${coverageDays} day${coverageDays === 1 ? '' : 's'} of coverage. Fourteen days are required before a week-over-week direction is shown.`;
+  if (coverageDays >= 14) {
+    const ratio = previous.length ? current.length / previous.length : (current.length ? Infinity : 1);
+    if (ratio >= 1.25) status = 'Rising';
+    else if (ratio <= 0.75) status = 'Falling';
+    else status = 'Steady';
+    statusReason = `${current.length} monitored item${current.length === 1 ? '' : 's'} in the last 7 days versus ${previous.length} in the 7 days before.`;
+  }
+
+  const claimMap = new Map();
+  for (const row of [...current, ...previous]) {
+    let tags = [];
+    try { tags = JSON.parse(row.tags || '[]'); } catch {}
+    const period = current.includes(row) ? 'current' : 'previous';
+    for (const tag of tags) {
+      const theme = String(tag?.theme || '').trim();
+      if (!theme) continue;
+      if (!claimMap.has(theme)) claimMap.set(theme, { theme, currentItems: 0, previousItems: 0, currentSources: new Set(), examples: [] });
+      const claim = claimMap.get(theme);
+      if (period === 'current') {
+        claim.currentItems += 1;
+        claim.currentSources.add(row.source);
+        if (claim.examples.length < 2) claim.examples.push({ title: row.title, source: row.source, url: row.url });
+      } else {
+        claim.previousItems += 1;
+      }
+    }
+  }
+  const leadingClaims = [...claimMap.values()]
+    .sort((a, b) => b.currentItems - a.currentItems || b.currentSources.size - a.currentSources.size || a.theme.localeCompare(b.theme))
+    .slice(0, 6)
+    .map(claim => ({
+      theme: claim.theme,
+      currentItems: claim.currentItems,
+      previousItems: claim.previousItems,
+      currentDistinctSources: claim.currentSources.size,
+      examples: claim.examples,
+    }));
+
+  return {
+    available: true,
+    status,
+    statusReason,
+    coverageStartedAt: earliest === undefined ? null : new Date(earliest).toISOString(),
+    coverageDays,
+    current7Days: { items: current.length, distinctSources: sources(current) },
+    previous7Days: { items: previous.length, distinctSources: sources(previous) },
+    leadingClaims,
+  };
+}
 
 function getCorsHeaders(origin, configuredOrigins) {
   const allowed = String(configuredOrigins || '')
