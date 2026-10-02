@@ -841,7 +841,7 @@ function coverageCategory(type) {
   return /ad\b|advert|paid|sponsored/i.test(type) ? 'Paid placement'
     : /public notice/i.test(type) ? 'Public notice'
     : /press release/i.test(type) ? 'Press release'
-    : /article|broadcast|radio|online|interview|editorial|opinion|commentary|letter to (?:the )?editor/i.test(type) ? 'Editorial coverage' : 'Other / unclassified';
+    : /article|broadcast|radio|online|interview|tv\b|media show|editorial|opinion|commentary|letter to (?:the )?editor/i.test(type) ? 'Editorial coverage' : 'Other / unclassified';
 }
 function normalizeArticleRows(input) {
   const rows = [], seen = new Set();
@@ -3764,7 +3764,7 @@ function buildStrategyDocExport() {
   const plainSummary = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
   const additional = Array.from(document.querySelectorAll('#amec-overall [data-edit-key], [data-edit-key=historical-precedent]')).filter(el => !execSummary.contains(el));
   const sectionLabels = {'public-narrative':'What needs attention','goal-progress':'Which messages are landing','recommended-response':'Recommended response','social-performance':'Are we improving?','social-investment':'What deserves more investment?','social-direction':'This week’s plan','decisions-needed':'Decisions needed','historical-precedent':'Historical precedent'};
-  const extraText = additional.map(el => sectionLabels[el.dataset.editKey] + '\n' + normalizeCopyText(el.closest('.amec-card')?.innerText || el.innerText));
+  const extraText = additional.map(el => sectionLabels[el.dataset.editKey] + '\n' + normalizeCopyText(el.innerText));
   const plainText = [title, meta, '', ...plainSummary, ...extraText].join('\n\n');
   const richHTML = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111111;">'
     + '<h1 style="font-size:20px;margin:0 0 8px 0;font-weight:700;color:#111111;">' + escapeHTML(title) + '</h1>'

@@ -142,3 +142,21 @@ test('empty platforms expose unavailable medians, while measured zero reach stay
  assert.equal(vm.runInContext('socialMedianText(null)',c),'median reach unavailable (no posts)');
  assert.equal(vm.runInContext('socialMedianText(0)',c),'median reach 0 per post');
 });
+test('TV and media shows use editorial category, with paid format precedence',()=>{
+ const c=context();c.types=['TV Show','Media Show','TV, Online, Youtube','Paid TV Show'];
+ const result=vm.runInContext('types.map(coverageCategory)',c);
+ assert.deepEqual(Array.from(result),['Editorial coverage','Editorial coverage','Editorial coverage','Paid placement']);
+});
+test('plain strategy export includes each card heading once and the same narrative as rich export',()=>{
+ for(const file of ['index.html','report.html']) {
+  const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');
+  const fn=markup.match(/function buildStrategyDocExport\(\) \{[\s\S]*?\n\}/)[0];
+  const field={dataset:{editKey:'public-narrative'},innerText:'Approved narrative',innerHTML:'Approved narrative',closest:()=>{throw new Error('Card evidence must not be copied');}};
+  const summary={querySelectorAll:()=>[],contains:()=>false};
+  const c=vm.createContext({document:{getElementById:id=>id==='exec-summary-body'?summary:null,querySelector:()=>null,querySelectorAll:()=>[field]},stripDocEmoji:String,normalizeCopyText:String,cleanDocHTML:String,escapeHTML:String});
+  vm.runInContext(fn,c);const result=vm.runInContext('buildStrategyDocExport()',c);
+  assert.equal(result.text.match(/What needs attention/g).length,1);
+  assert.match(result.text,/What needs attention\nApproved narrative/);
+  assert.match(result.html,/>What needs attention<\/h2><p>Approved narrative<\/p>/);
+ }
+});
