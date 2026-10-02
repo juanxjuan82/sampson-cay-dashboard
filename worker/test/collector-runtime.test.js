@@ -37,7 +37,7 @@ test('Cloudflare runtime collects once, preserves raw capture, tags and reports 
  await DB.prepare("UPDATE items SET review_status='reviewed'").run();
  linkPresent=false;revision='Updated consultation account';await DB.prepare('UPDATE locks SET expires_at=0').run();r=await (await call('/refresh','POST')).json();assert.equal(r.changedItems,4);
  assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM captures').first()).n,metadataCaptureCount+4);
- const changedArticle=await DB.prepare('SELECT * FROM items WHERE url=?').bind(articleURL).first();assert.ok(changedArticle.text.includes('Updated consultation account'));assert.equal(changedArticle.review_status,'unreviewed');
+ const changedArticle=await DB.prepare('SELECT * FROM items WHERE url=?').bind(articleURL).first();assert.ok(changedArticle.text.includes('Updated consultation account'));assert.equal(changedArticle.review_status,'unreviewed');assert.equal(JSON.parse(changedArticle.tags).find(t=>t.theme==='Solar farm').criticismAt,'2026-09-28T12:00:00.000Z');
  await DB.prepare("UPDATE items SET review_status='reviewed'").run();
  await DB.prepare('UPDATE locks SET expires_at=0').run();await call('/refresh','POST');
  assert.equal((await DB.prepare('SELECT review_status FROM items WHERE url=?').bind(articleURL).first()).review_status,'reviewed');

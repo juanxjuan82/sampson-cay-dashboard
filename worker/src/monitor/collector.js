@@ -124,10 +124,17 @@ export async function collect(env) {
             // Retire a moved source item without deleting its captures or advice.
             // Advice is never transferred or published on the destination automatically.
             const id=destination?.id||await hash(identity), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
-            const old=await env.DB.prepare('SELECT content_hash FROM items WHERE id=?').bind(id).first();
+            const old=await env.DB.prepare('SELECT content_hash,tags,text,title,published_at,first_seen FROM items WHERE id=?').bind(id).first();
             const baseTags=classify(parsed.title+' '+parsed.text);
             const criticalThemes=new Set(criticismThemes(source.id,baseTags,parsed.title+'. '+parsed.contextText));
-            const tags=JSON.stringify(baseTags.map(tag=>({...tag,criticismEvidence:criticalThemes.has(tag.theme)})));
+            const oldTags=old?JSON.parse(old.tags||'[]'):[];
+            const oldCritical=new Set(oldTags.some(tag=>Object.hasOwn(tag,'criticismEvidence'))?oldTags.filter(tag=>tag.criticismEvidence).map(tag=>tag.theme):criticismThemes(source.id,oldTags,(old?.title||'')+'. '+(old?.text||'')));
+            const tags=JSON.stringify(baseTags.map(tag=>{
+              const previous=oldTags.find(prior=>prior.theme===tag.theme);
+              const critical=criticalThemes.has(tag.theme);
+              const criticismAt=critical?(oldCritical.has(tag.theme)?previous?.criticismAt||old.published_at||old.first_seen:old?at:parsed.published||at):null;
+              return {...tag,criticismEvidence:critical,criticismAt};
+            }));
             const statements=[
               env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET url=excluded.url,superseded_by=NULL,title=excluded.title,published_at=COALESCE(excluded.published_at,items.published_at),changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
               env.DB.prepare('INSERT OR IGNORE INTO captures(item_id,hash,captured_at,raw_html,text) VALUES(?,?,?,?,?)').bind(id,rawHash,at,captured.raw,parsed.text)

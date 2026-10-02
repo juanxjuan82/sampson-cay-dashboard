@@ -155,7 +155,7 @@ test('the 1000-row evidence bound follows activity time rather than first captur
   const {DB, sql} = setup();
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
   const rawInsert = sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
-  rawInsert.run('a'.repeat(64), 'sea', 'https://example.com/changed-today', 'Consultation criticism', '2026-01-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'changed', 'critical update', JSON.stringify([{theme: 'Consultation'}]));
+  rawInsert.run('a'.repeat(64), 'sea', 'https://example.com/changed-today', 'Consultation criticism', '2026-01-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'changed', 'critical update', JSON.stringify([{theme: 'Consultation',criticismEvidence:true,criticismAt:'2026-10-01T12:00:00.000Z'}]));
   rawInsert.run('b'.repeat(64), 'sea', 'https://example.com/prior-criticism', 'Consultation criticism', '2026-09-21T12:00:00.000Z', '2026-09-21T12:00:00.000Z', '2026-09-21', 'prior', 'criticism', JSON.stringify([{theme:'Consultation'}]));
   for (let index = 0; index < 1001; index++) {
     const id = index.toString(16).padStart(64, '0');
@@ -169,7 +169,7 @@ test('the 1000-row evidence bound follows activity time rather than first captur
 test('an undated page update uses its content-change time', async () => {
   const {DB, insert, sql} = setup();
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
-  insert.run('a'.repeat(64), 'sea', 'https://example.com/updated', 'Consultation criticism', '2026-08-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'updated', 'critical update', JSON.stringify([{theme: 'Consultation'}]));
+  insert.run('a'.repeat(64), 'sea', 'https://example.com/updated', 'Consultation criticism', '2026-08-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'updated', 'critical update', JSON.stringify([{theme: 'Consultation',criticismAt:'2026-10-01T12:00:00.000Z'}]));
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.current7Days.items, 1);
   assert.equal(evidence.previous7Days.items, 0);
@@ -178,7 +178,7 @@ test('an undated page update uses its content-change time', async () => {
 test('a dated article revised later uses its revision time', async () => {
   const {DB, insert, sql} = setup();
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
-  insert.run('a'.repeat(64), 'sea', 'https://example.com/revised', 'Consultation criticism', '2026-09-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'revised', 'critical revision', JSON.stringify([{theme: 'Consultation'}]));
+  insert.run('a'.repeat(64), 'sea', 'https://example.com/revised', 'Consultation criticism', '2026-09-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'revised', 'critical revision', JSON.stringify([{theme: 'Consultation',criticismAt:'2026-10-01T12:00:00.000Z'}]));
   sql.prepare('UPDATE items SET published_at=? WHERE url=?').run('2026-08-15T12:00:00.000Z', 'https://example.com/revised');
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.current7Days.items, 1);
@@ -246,4 +246,14 @@ test('an incomplete run resets coverage even when a retry closes the time gap', 
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.status, 'Baseline building');
   assert.equal(evidence.coverageStartedAt, '2026-10-02T08:00:00.000Z');
+});
+
+
+test('routine edits do not refresh the date of existing criticism',async()=>{
+ const {DB,insert,sql}=setup();
+ insert.run('a'.repeat(64),'sea','https://example.com/typo','Consultation criticism','2026-08-01','2026-10-01','2026-10-01','edited','old criticism with typo corrected',JSON.stringify([{theme:'Consultation',criticismAt:'2026-08-01T12:00:00.000Z'}]));
+ const evidence=await buildNarrativeEvidence(DB,new Date('2026-10-02T12:00:00.000Z'));
+ assert.equal(evidence.current7Days.items,0);
+ sql.prepare('UPDATE items SET tags=?').run(JSON.stringify([{theme:'Consultation',criticismEvidence:true}]));
+ assert.equal((await buildNarrativeEvidence(DB,new Date('2026-10-02T12:00:00.000Z'))).current7Days.items,0);
 });

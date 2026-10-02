@@ -242,12 +242,13 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   const currentStart = nowMs - (7 * dayMs);
   const previousStart = nowMs - (14 * dayMs);
   const activityAt = row => {
+    const trackedDates = row.evidenceTags.map(tag => Date.parse(tag.criticismAt)).filter(Number.isFinite);
+    if (trackedDates.length === row.evidenceTags.length) return Math.max(...trackedDates);
     const firstSeen = Date.parse(row.first_seen);
     const changed = Date.parse(row.changed_at);
-    if (Number.isFinite(changed) && Number.isFinite(firstSeen) && changed > firstSeen) return changed;
     const published = Date.parse(row.published_at);
     if (Number.isFinite(published)) return published;
-    return Number.isFinite(changed) ? changed : null;
+    return Number.isFinite(firstSeen) ? firstSeen : Number.isFinite(changed) ? changed : null;
   };
   const current = rows.filter(row => activityAt(row) !== null && activityAt(row) >= currentStart && activityAt(row) <= nowMs);
   const previous = rows.filter(row => activityAt(row) !== null && activityAt(row) >= previousStart && activityAt(row) < currentStart);
