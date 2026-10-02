@@ -27,7 +27,7 @@ test('Cloudflare runtime collects once, preserves raw capture, tags and reports 
  let r=await (await call('/refresh','POST')).json();assert.equal(r.newItems,4);assert.equal(r.failures.length,1);
  const firstRun=JSON.parse((await DB.prepare("SELECT detail FROM audit WHERE action='collection_run' ORDER BY id DESC LIMIT 1").first()).detail);assert.deepEqual(firstRun,{successfulSources:3,totalSources:4});
  let feed=await (await call('/feed')).json();assert.equal(feed.items.length,4);assert.ok(feed.items[0].tags.some(t=>t.theme==='Solar farm'));assert.equal(feed.sources.find(s=>s.id==='ewn').error,'1 page(s) could not be collected');
- const item=await DB.prepare('SELECT * FROM items LIMIT 1').first();assert.ok(!item.text.includes('unsafe'));assert.ok(!item.text.includes('irrelevant navigation'));assert.equal(item.published_at,'2026-09-28T12:00:00.000Z');
+ const item=await DB.prepare('SELECT * FROM items LIMIT 1').first();assert.ok(!item.text.includes('unsafe'));assert.ok(!item.text.includes('irrelevant navigation'));assert.match(item.text,/Sampson Cay \. First consultation account/);assert.equal(item.published_at,'2026-09-28T12:00:00.000Z');
  assert.ok((await DB.prepare('SELECT raw_html FROM captures LIMIT 1').first()).raw_html.includes('unsafe()'));
  r=await (await call('/refresh','POST')).json();assert.equal(r.busy,true);
  includePublished=false;await DB.prepare('UPDATE locks SET expires_at=0').run();r=await (await call('/refresh','POST')).json();assert.equal(r.newItems,0);assert.equal(r.changedItems,0);

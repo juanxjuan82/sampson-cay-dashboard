@@ -55,7 +55,7 @@ export async function extract(raw, url) {
     .on('title', {text(t){title.push(t.text);}})
     .on('meta[property="article:published_time"],meta[name="date"]', {element(e){published=e.getAttribute('content');}})
     .on('a[href]', {element(e){const link=canonical(e.getAttribute('href'),url);if(link) links.push(link);}})
-    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) text.push(' ');}})
+    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) text.push(' . ');}})
     .on('body', {text(t){if(!excluded) text.push(t.text);}});
   await rewrite.transform(new Response(raw,{headers:{'Content-Type':'text/html'}})).text();
   const clean=text.join('').replace(/\s+/g,' ').trim();
