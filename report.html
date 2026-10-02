@@ -847,7 +847,11 @@ function normalizeArticleRows(input) {
   let rejected = 0, duplicates = 0;
   for (const r of input) {
     const title = cleanLabel(r['Article Title & URL'] || r['Article Title'] || r['Title']);
-    if (!title) continue; // Ignore pre-numbered template rows.
+    if (!title) {
+      // Ignore only empty/pre-numbered templates, not incomplete coverage records.
+      if (Object.entries(r).some(([key,value]) => key!=='Mention ID' && key!=='__rowNum__' && cleanLabel(value))) rejected++;
+      continue;
+    }
     const date = trackerDate(r['Publish Date'] || r['Date']);
     const outlet = cleanLabel(r['Publication Name'] || r['Outlet']);
     if (!date || !outlet) { rejected++; continue; }
@@ -1477,7 +1481,7 @@ let summaryMode = 'deterministic';
 let strategyEvidence = null;
 let aiGenerateAfterSettings = false;
 let strategyRequestVersion = 0;
-const DASHBOARD_VERSION = '2026-10-02.amec2'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-10-02.amec3'; // Bump whenever report-generation code changes.
 const DEFAULT_STRATEGY_CONTEXT = `Project: Sampson Cay / Rosewood Exuma.
 Primary communications goals: build trust through verifiable proof; show environmental stewardship; demonstrate local participation and benefits; maintain a calm, consistent public presence.
 Priority audiences: Exuma residents, the wider Bahamian public, media and project stakeholders.
@@ -1928,18 +1932,13 @@ function buildAISummaryEvidence(posts=selectedSocialPosts()) {
     return items.reduce(function(total, post) { return total + value(post); }, 0);
   };
   const themeResult = getThemeStats(posts);
-  const dated = posts.filter(function(post) {
-    return post.date instanceof Date && !isNaN(post.date);
-  }).sort(function(a, b) { return a.date - b.date; });
+  const socialEvidence = socialAMECEvidence();
 
   return {
     evidenceVersion: DASHBOARD_VERSION,
-    amecSocial: socialAMECEvidence(),
+    amecSocial: socialEvidence,
     amecArticles: articleAMECEvidence(),
-    period: dated.length ? {
-      start: postDayKey(dated[0]),
-      end: postDayKey(dated[dated.length - 1])
-    } : null,
+    period: socialEvidence.available ? {start:socialEvidence.start,end:socialEvidence.end} : null,
     boostHeuristic: {
       definition: 'Legacy field names describe a statistical reach-outlier filter at four times platform median; paid status is unverified and the remaining posts are not verified organic.',
       likelyBoostedPosts: likelyBoosted.length,

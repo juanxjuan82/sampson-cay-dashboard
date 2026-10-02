@@ -284,7 +284,8 @@ test('current AI totals use selected all-platform dates while historical compari
  vm.runInContext("reportWindow={start:'2026-09-01',end:'2026-09-14'}",c);
  const r=vm.runInContext('buildAISummaryEvidence()',c);
  assert.equal(r.overall.posts,1);assert.equal(r.overall.totalReach,10);assert.equal(r.comparison.posts,2);
- assert.equal(r.period.start,'2026-09-02');assert.equal(r.amecSocial.platformObservations,1);
+ assert.equal(r.period.start,'2026-09-01');assert.equal(r.period.end,'2026-09-14');assert.equal(r.amecSocial.platformObservations,1);
+ c.allPosts=[];const quiet=vm.runInContext('buildAISummaryEvidence()',c);assert.equal(quiet.period.start,'2026-09-01');assert.equal(quiet.period.end,'2026-09-14');
  assert.match(html,/evidence: buildAISummaryEvidence\(\)/);
 });
 test('zero-reach periods render unavailable engagement instead of NaN while genuine zero engagement stays zero',()=>{
@@ -343,5 +344,13 @@ test('invalid social row values cannot establish quiet-day coverage',()=>{
    const original=row[key];row[key]=value;
    assert.throws(()=>vm.runInContext("validateSocialCSV('bad row','ig')",c),/social CSV row 2/);
    row[key]=original;
+ }
+});
+
+test('tracker import distinguishes empty templates from incomplete coverage records',()=>{
+ for(const file of ['index.html','report.html']) {
+  const c=vm.createContext({Date,URL,console});const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');vm.runInContext(markup.match(/<script>\s*(\/\/ AMEC-guided[\s\S]*?)<\/script>/)[1],c);
+  c.rows=[{'Mention ID':1},{'Mention ID':2,'Publication Name':'The Tribune','Publish Date':'2026-09-30'}, {'Mention ID':3,'Article Title':'Valid','Publication Name':'Tribune','Publish Date':'2026-09-30'},{}];
+  const result=vm.runInContext('normalizeArticleRows(rows)',c);assert.equal(result.rows.length,1);assert.equal(result.rejected,1);
  }
 });
