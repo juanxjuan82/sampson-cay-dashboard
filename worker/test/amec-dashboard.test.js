@@ -257,3 +257,18 @@ test('outlier classification follows the selected period independently of old hi
   assert.match(markup.match(/function renderBoostReach\(posts\) \{[\s\S]*?\n\}/)[0],/const isBoosted = p => isLikelyBoostedPost\(p,posts\)/);
  }
 });
+test('legacy AI responses preserve changed-evidence review gate until every card refreshes',()=>{
+ for(const file of ['index.html','report.html']) {
+  const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');const c=context();
+  const fields={};c.document={querySelector:selector=>fields[selector]??=({textContent:'Saved old card'})};
+  c.currentFilter='all';c.captureSharedEditableContent=()=>{};c.summaryMode='deterministic';
+  vm.runInContext(markup.match(/function applyAISummary\(summary\) \{[\s\S]*?\n\}/)[0],c);
+  c.summary={executiveRead:'New read',goalProgress:'New goals',publicNarrative:'New narrative',socialDirection:'New plan',historicalPrecedent:'New history'};
+  vm.runInContext('editorialReviewNeeded=true;applyAISummary(summary)',c);
+  assert.equal(vm.runInContext('editorialReviewNeeded',c),true);
+  Object.assign(c.summary,{recommendedResponse:'New response',socialPerformance:'New performance',socialInvestment:'New investment',decisionsNeeded:'New decisions'});
+  vm.runInContext('applyAISummary(summary)',c);
+  assert.equal(vm.runInContext('editorialReviewNeeded',c),false);
+  assert.match(markup,/applyAISummary\(payload.summary\);\s*document.getElementById\('amec-review-needed'\).hidden = !editorialReviewNeeded/);
+ }
+});

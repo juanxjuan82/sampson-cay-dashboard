@@ -2013,13 +2013,16 @@ function applyAISummary(summary) {
     'social-investment': summary.socialInvestment,
     'decisions-needed': summary.decisionsNeeded
   };
+  const refreshedKeys=new Set();
   Object.keys(values).forEach(function(key) {
     if (typeof values[key] !== 'string' || !values[key].trim()) return;
     const element = document.querySelector('[data-edit-key="' + key + '"]');
     const value = String(values[key] || '').trim();
     if (!element || !value) return;
     element.textContent = value;
+    refreshedKeys.add(key);
   });
+  if (refreshedKeys.size===Object.keys(values).length) editorialReviewNeeded=false;
   summaryMode = 'ai';
   captureSharedEditableContent();
 }
@@ -2100,8 +2103,7 @@ async function generateAISummary() {
     strategyEvidence = payload.narrativeEvidence || null;
     renderStrategySignal(strategyEvidence);
     applyAISummary(payload.summary);
-    editorialReviewNeeded = false;
-    document.getElementById('amec-review-needed').hidden = true;
+    document.getElementById('amec-review-needed').hidden = !editorialReviewNeeded;
     toggleEditMode(true);
     if (button) button.textContent = '✓ Private Draft Ready';
   } catch (error) {
