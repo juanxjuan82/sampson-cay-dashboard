@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker, {buildNarrativeEvidence} from '../src/index.js';
-import {isCriticismEvidence} from '../src/monitor/rules.js';
+import {criticismThemes} from '../src/monitor/rules.js';
 
 function setup() {
   const sql = new DatabaseSync(':memory:');
@@ -26,8 +26,8 @@ function setup() {
   const insert = {run(...values) {
     let tags = [];
     try { tags = JSON.parse(values[9] || '[]'); } catch {}
-    const criticismEvidence = isCriticismEvidence(values[1], tags, `${values[3]} ${values[8]}`);
-    values[9] = JSON.stringify(tags.map(tag => ({...tag, criticismEvidence})));
+    const critical = new Set(criticismThemes(values[1], tags, `${values[3]} ${values[8]}`));
+    values[9] = JSON.stringify(tags.map(tag => ({...tag, criticismEvidence: critical.has(tag.theme)})));
     return statement.run(...values);
   }};
   return {DB, insert, sql};
@@ -111,6 +111,32 @@ test('criticism after the first 4000 characters is classified from the full capt
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.current7Days.items, 1);
   assert.equal(evidence.status, 'Rising');
+});
+
+test('legacy tags are classified at read time until their pages are revisited', async () => {
+  const {DB, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run('a'.repeat(64), 'press', 'https://example.com/legacy', 'Sampson Cay consultation challenge', '2026-10-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'legacy', 'Opposition challenged the consultation.', JSON.stringify([{theme: 'Consultation', matched: ['consultation']}]))
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.current7Days.items, 1);
+  assert.equal(evidence.leadingClaims[0].theme, 'Consultation');
+});
+
+test('a press criticism is counted only for the theme it targets', async () => {
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  insert.run('a'.repeat(64), 'press', 'https://example.com/themes', 'Sampson Cay update', '2026-10-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'themes', 'Critical environmental concerns were raised over mangroves. Separately, the project says jobs will grow.', JSON.stringify([
+    {theme: 'Environment', matched: ['mangrove']},
+    {theme: 'Employment', matched: ['jobs']},
+  ]));
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.deepEqual(evidence.leadingClaims.map(claim => claim.theme), ['Environment']);
+});
+
+test('common critical and failing word forms qualify press evidence', () => {
+  assert.deepEqual(criticismThemes('press', [{theme: 'Environment', matched: ['mangrove']}], 'Critical environmental concerns were raised over Sampson Cay mangroves.'), ['Environment']);
+  assert.deepEqual(criticismThemes('press', [{theme: 'Consultation', matched: ['consultation']}], 'The Sampson Cay consultation process is failing.'), ['Consultation']);
 });
 
 test('an undated page update uses its content-change time', async () => {

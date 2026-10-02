@@ -1,5 +1,6 @@
 import monitor from './monitor/index.js';
 import {collect} from './monitor/collector.js';
+import {criticismThemes} from './monitor/rules.js';
 const DEFAULT_MODEL = 'gpt-5.6-terra';
 const MAX_BODY_BYTES = 100_000;
 
@@ -210,7 +211,8 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
     const [itemResult, runResult] = await Promise.all([
       db.prepare(
       `SELECT i.id,i.source_id,i.title,i.url,i.first_seen,i.changed_at,i.published_at,i.tags,
-              i.review_status,s.label AS source
+              i.review_status,CASE WHEN i.tags NOT LIKE '%"criticismEvidence"%' THEN i.text ELSE NULL END AS legacy_text,
+              s.label AS source
        FROM items i JOIN sources s ON s.id=i.source_id
        WHERE i.superseded_by IS NULL
        ORDER BY i.first_seen DESC LIMIT 1000`
@@ -225,8 +227,16 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   }
   if (!capturedRows.length) return empty;
   const rows = capturedRows.filter(row => {
-    try { return JSON.parse(row.tags || '[]').some(tag => tag?.criticismEvidence === true); }
-    catch { return false; }
+    try {
+      const tags = JSON.parse(row.tags || '[]');
+      if (tags.some(tag => Object.hasOwn(tag, 'criticismEvidence'))) {
+        row.evidenceTags = tags.filter(tag => tag.criticismEvidence === true);
+      } else {
+        const themes = new Set(criticismThemes(row.source_id, tags, `${row.title || ''} ${row.legacy_text || ''}`));
+        row.evidenceTags = tags.filter(tag => themes.has(tag.theme));
+      }
+      return row.evidenceTags.length > 0;
+    } catch { return false; }
   });
 
   const currentStart = nowMs - (7 * dayMs);
@@ -279,8 +289,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
 
   const claimMap = new Map();
   for (const row of [...current, ...previous]) {
-    let tags = [];
-    try { tags = JSON.parse(row.tags || '[]'); } catch {}
+    const tags = row.evidenceTags || [];
     const period = current.includes(row) ? 'current' : 'previous';
     for (const tag of tags) {
       const theme = String(tag?.theme || '').trim();

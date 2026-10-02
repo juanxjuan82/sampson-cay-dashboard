@@ -18,23 +18,46 @@ export function classify(text) {
   });
 }
 export function isCriticismEvidence(sourceId, tags, content) {
-  if (sourceId === 'project') return false;
-  const themes = Array.isArray(tags) ? tags : [];
-  if (!themes.some(tag => String(tag?.theme || '').trim())) return false;
+  return criticismThemes(sourceId, tags, content).length > 0;
+}
+export function criticismThemes(sourceId, tags, content) {
+  if (sourceId === 'project') return [];
+  const themes = Array.isArray(tags) ? tags.filter(tag => String(tag?.theme || '').trim()) : [];
+  if (!themes.length) return [];
   const knownOpposition = new Set(['turtlegrass', 'sea', 'save-exuma', 'save_exuma', 'over-yonder', 'over_yonder']);
-  if (knownOpposition.has(sourceId)) return true;
+  if (knownOpposition.has(sourceId)) return themes.map(tag => tag.theme);
   const value = normalize(content || '');
-  return [
+  const signals = [
     /\bopposition\b/, /\boppos(?:e|ed|es|ing)\b/, /\bchalleng(?:e|ed|es|ing)\b/,
-    /\bcritic(?:s|ism|ized|ised|ize|ise|izing|ising)?\b/,
+    /\bcritic(?:al(?:ly)?|s|ism|ized|ised|ize|ise|izing|ising)?\b/,
     /\balleg(?:e|ed|es|ing|ation|ations)\b/,
-    /\bfail(?:ed|ure|ures)\b/, /\binadequate\b/,
+    /\bfail(?:ed|ing|ure|ures|s)?\b/, /\binadequate\b/,
     /\bdestroy(?:ed|s|ing)?\b/, /\bdestruction\b/, /\bharm(?:ed|ful|s|ing)?\b/,
     /\billegal(?:ity)?\b/, /\bunlawful\b/, /\bsalami\b/, /\bpiece[-\s]?meal\b/,
     /\bjudicial\s+review\b/, /\bcourt\s+told\b/, /\bhalt(?:ed|s|ing)?\b/,
     /\bstop(?:ped|s|ping)?\b/, /\breject(?:ed|ion|s|ing)?\b/,
     /\bcontrovers(?:y|ies|ial)\b/
-  ].some(pattern => pattern.test(value));
+  ];
+  if (themes.length === 1 && signals.some(pattern => pattern.test(value))) return [themes[0].theme];
+  return themes.filter(tag => {
+    const terms = [...(Array.isArray(tag.matched) ? tag.matched : []), tag.theme]
+      .map(term => normalize(String(term || '')))
+      .filter(Boolean);
+    return terms.some(term => {
+      let from = 0;
+      while (from < value.length) {
+        const position = value.indexOf(term, from);
+        if (position < 0) return false;
+        const priorBoundary = Math.max(...['.', '?', '!', ';'].map(mark => value.lastIndexOf(mark, position)));
+        const nextBoundaries = ['.', '?', '!', ';'].map(mark => value.indexOf(mark, position + term.length)).filter(index => index >= 0);
+        const nextBoundary = nextBoundaries.length ? Math.min(...nextBoundaries) + 1 : value.length;
+        const context = value.slice(Math.max(priorBoundary + 1, position - 180), Math.min(nextBoundary, position + term.length + 180));
+        if (signals.some(pattern => pattern.test(context))) return true;
+        from = position + Math.max(1, term.length);
+      }
+      return false;
+    });
+  }).map(tag => tag.theme);
 }
 export function canonical(input, base) {
   try {
