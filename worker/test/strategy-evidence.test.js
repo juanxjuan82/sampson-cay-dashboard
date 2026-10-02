@@ -147,6 +147,10 @@ test('theme terms use token boundaries when selecting critical context', () => {
   assert.deepEqual(criticismThemes('press', [{theme: 'Employment', matched: ['jobs']}], 'Sampson Cay jobsite conditions were criticized. Jobs will be created.'), []);
 });
 
+test('headline and body remain separate contexts', () => {
+  assert.deepEqual(criticismThemes('press', [{theme: 'Employment', matched: ['jobs']}], 'Sampson Cay permit challenge. Jobs will be created.'), []);
+});
+
 test('the 1000-row evidence bound follows activity time rather than first capture', async () => {
   const {DB, sql} = setup();
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
@@ -164,6 +168,16 @@ test('an undated page update uses its content-change time', async () => {
   const {DB, insert, sql} = setup();
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
   insert.run('a'.repeat(64), 'sea', 'https://example.com/updated', 'Consultation criticism', '2026-08-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'updated', 'critical update', JSON.stringify([{theme: 'Consultation'}]));
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.current7Days.items, 1);
+  assert.equal(evidence.previous7Days.items, 0);
+});
+
+test('a dated article revised later uses its revision time', async () => {
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  insert.run('a'.repeat(64), 'sea', 'https://example.com/revised', 'Consultation criticism', '2026-09-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'revised', 'critical revision', JSON.stringify([{theme: 'Consultation'}]));
+  sql.prepare('UPDATE items SET published_at=? WHERE url=?').run('2026-08-15T12:00:00.000Z', 'https://example.com/revised');
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.current7Days.items, 1);
   assert.equal(evidence.previous7Days.items, 0);

@@ -215,7 +215,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
               s.label AS source
        FROM items i JOIN sources s ON s.id=i.source_id
        WHERE i.superseded_by IS NULL
-       ORDER BY COALESCE(i.published_at,i.changed_at) DESC,i.id DESC LIMIT 1000`
+       ORDER BY CASE WHEN julianday(i.changed_at)>julianday(i.first_seen) THEN i.changed_at ELSE COALESCE(i.published_at,i.changed_at) END DESC,i.id DESC LIMIT 1000`
       ).all(),
       db.prepare("SELECT at,detail FROM audit WHERE action='collection_run' ORDER BY at DESC LIMIT 1000").all(),
     ]);
@@ -232,7 +232,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
       if (tags.some(tag => Object.hasOwn(tag, 'criticismEvidence'))) {
         row.evidenceTags = tags.filter(tag => tag.criticismEvidence === true);
       } else {
-        const themes = new Set(criticismThemes(row.source_id, tags, `${row.title || ''} ${row.legacy_text || ''}`));
+        const themes = new Set(criticismThemes(row.source_id, tags, `${row.title || ''}. ${row.legacy_text || ''}`));
         row.evidenceTags = tags.filter(tag => themes.has(tag.theme));
       }
       return row.evidenceTags.length > 0;
@@ -242,9 +242,11 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   const currentStart = nowMs - (7 * dayMs);
   const previousStart = nowMs - (14 * dayMs);
   const activityAt = row => {
+    const firstSeen = Date.parse(row.first_seen);
+    const changed = Date.parse(row.changed_at);
+    if (Number.isFinite(changed) && Number.isFinite(firstSeen) && changed > firstSeen) return changed;
     const published = Date.parse(row.published_at);
     if (Number.isFinite(published)) return published;
-    const changed = Date.parse(row.changed_at);
     return Number.isFinite(changed) ? changed : null;
   };
   const current = rows.filter(row => activityAt(row) !== null && activityAt(row) >= currentStart && activityAt(row) <= nowMs);

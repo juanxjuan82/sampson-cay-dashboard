@@ -126,7 +126,7 @@ export async function collect(env) {
             const id=destination?.id||await hash(identity), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
             const old=await env.DB.prepare('SELECT content_hash FROM items WHERE id=?').bind(id).first();
             const baseTags=classify(parsed.title+' '+parsed.text);
-            const criticalThemes=new Set(criticismThemes(source.id,baseTags,parsed.title+' '+parsed.text));
+            const criticalThemes=new Set(criticismThemes(source.id,baseTags,parsed.title+'. '+parsed.text));
             const tags=JSON.stringify(baseTags.map(tag=>({...tag,criticismEvidence:criticalThemes.has(tag.theme)})));
             const statements=[
               env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET url=excluded.url,superseded_by=NULL,title=excluded.title,published_at=excluded.published_at,changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
