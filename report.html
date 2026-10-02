@@ -813,6 +813,7 @@ function dayKey(value) {
   if (value instanceof Date && !isNaN(value)) return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
   return '';
 }
+function postDayKey(post) { return trackerDate(post.dateStr) || dayKey(post.date); }
 function utcDay(key) { return new Date(key + 'T00:00:00Z').getTime(); }
 function shiftDay(key, days) { return new Date(utcDay(key) + days * dayMs).toISOString().slice(0,10); }
 function cleanLabel(value) { return String(value ?? '').replace(/\s+/g,' ').trim(); }
@@ -864,9 +865,11 @@ function normalizeArticleRows(input) {
 function articleWorksheetRecords(sheet) {
   const records = XLSX.utils.sheet_to_json(sheet, { defval:'' });
   const header = XLSX.utils.sheet_to_json(sheet, { header:1 })[0] || [];
-  const col = header.indexOf('Article Title & URL');
+  const titleHeaders = ['Article Title & URL','Article Title','Title'];
   // SheetJS retains physical row indexes even when blank worksheet rows are skipped.
-  if (col >= 0) records.forEach(record => {
+  records.forEach(record => {
+    const col = header.indexOf(titleHeaders.find(name=>record[name]));
+    if (col < 0) return;
     const cell = sheet[XLSX.utils.encode_cell({r:record.__rowNum__,c:col})];
     if (cell?.l?.Target) record.__url = cell.l.Target;
   });
@@ -900,7 +903,7 @@ async function uploadArticleTracker(input) {
     strategyRequestVersion++;
     editorialReviewNeeded = Object.keys(sharedEditableContent).length > 0;
     const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
-    renderAMEC(); restoreSharedEditableContent();
+    renderExecSummary(); renderAMEC(); restoreSharedEditableContent();
     notices().forEach(el => el.textContent = `${parsed.rows.length} coverage records loaded · ${parsed.duplicates} duplicates removed · ${parsed.rejected} invalid rows skipped. Replaces the previous tracker.`);
   } catch (error) { if (version === articleImportVersion) notices().forEach(el => el.textContent = error.message); }
   finally { input.value=''; }
@@ -924,7 +927,7 @@ function rangeCovered(platform, start, end) {
 function ensureReportWindow() {
   if (reportWindow.start && reportWindow.end) return;
   const ranges = [...socialExportRanges.ig,...socialExportRanges.fb].sort((a,b) => b.end.localeCompare(a.end) || b.start.localeCompare(a.start));
-  const dates = allPosts.map(p => dayKey(p.date)).filter(Boolean).sort();
+  const dates = allPosts.map(p => postDayKey(p)).filter(Boolean).sort();
   const end = ranges[0]?.end || dates[dates.length-1];
   if (end) reportWindow = { start:ranges[0]?.start || shiftDay(end,-36), end };
 }
@@ -943,7 +946,7 @@ function socialAMECEvidence() {
   if (!start || !end) return { available:false };
   const days = Math.round((utcDay(end)-utcDay(start))/dayMs)+1;
   const priorStart = shiftDay(start,-days), priorEnd = shiftDay(start,-1);
-  const inRange = (p,a,b) => { const d=dayKey(p.date); return d && d>=a && d<=b; };
+  const inRange = (p,a,b) => { const d=postDayKey(p); return d && d>=a && d<=b; };
   const recent = allPosts.filter(p => inRange(p,start,end));
   const platforms = ['ig','fb'].map(platform => {
     const current = recent.filter(p => p.platform===platform);
@@ -955,7 +958,7 @@ function socialAMECEvidence() {
       changePercent:comparable && previousMedianReach>0 ? (currentMedianReach/previousMedianReach-1)*100 : null,
       shares:current.reduce((s,p)=>s+(p.shares||0),0),saves:platform==='ig'?current.reduce((s,p)=>s+(p.saves||0),0):null,
       totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
-      examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>b.shares-a.shares || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:dayKey(p.date),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
+      examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>b.shares-a.shares || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
   });
   const keys = new Set(recent.map(p=>cleanLabel(p.caption).toLowerCase() || `${p.platform}|${p.dateStr}|${p.permalink}`));
   return { available:true,start,end,priorStart,priorEnd,days,contentItems:keys.size,platformObservations:recent.length,
@@ -977,6 +980,12 @@ function articleAMECEvidence() {
     examples:current.slice(0,5).map(({title,date,outlet,category,url})=>({title,date,outlet,category,url})),
     caveats:['Tracked coverage, not exhaustive media or public sentiment.','Topics use editorial headlines only, exclude paid placements, notices and releases, and can overlap; they are not validated criticism.','Actor references and opposition flags are not sentiment labels.','No inference of coordination, truth, trust or causal impact.']};
 }
+function articleTopicSummary(topics) {
+  const maximum=Math.max(0,...topics.map(t=>t.currentItems));
+  const leaders=topics.filter(t=>maximum>0 && t.currentItems===maximum).map(t=>t.label);
+  if (!leaders.length) return 'Review the recent coverage before setting response priorities.';
+  return leaders.join('; ') + (leaders.length===1 ? ' leads recent editorial headline coverage.' : ' are tied for the most recent editorial headline matches.');
+}
 function amecEditable(key,text) { return `<div class="exec-block-body editable-field" data-edit-key="${key}" contenteditable="false">${text}</div>`; }
 function amecCard(label,key,text,evidence='') { return `<article class="amec-card"><h3>${label}</h3>${amecEditable(key,text)}${evidence?`<div class="amec-evidence">${evidence}</div>`:''}</article>`; }
 function amecSourceLink(url,label) { const u=safeSourceURL(url); return u?`<a href="${escapeHTML(u)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)}</a>`:escapeHTML(label); }
@@ -990,8 +999,8 @@ function renderAMEC() {
   if (s.available) { document.getElementById('social-window-start').value=s.start;document.getElementById('social-window-end').value=s.end; }
   document.getElementById('amec-review-needed').hidden=!editorialReviewNeeded;
   const countText=a.available?`${a.currentItems} tracked items across ${a.currentOutlets} outlets; ${a.previousItems} items in the preceding fortnight. Editorial: ${a.currentCategories['Editorial coverage']}; paid: ${a.currentCategories['Paid placement']}; notices: ${a.currentCategories['Public notice']}; releases: ${a.currentCategories['Press release']}; other: ${a.currentCategories['Other / unclassified']}.`:'';
-  const leading=a.topics?.find(t=>t.currentItems>0);
-  const narrative=a.available?`<strong>${leading?escapeHTML(leading.label)+' leads recent editorial headline coverage.':'Review the recent coverage before setting response priorities.'}</strong> The tracker records activity, not whether the public accepts a claim. Review the underlying articles to distinguish new issues from repeated coverage.`:'Upload the article tracker to identify recent coverage and recurring issues. Live monitoring is shown separately below when available.';
+  const topicSummary=articleTopicSummary(a.topics || []);
+  const narrative=a.available?`<strong>${escapeHTML(topicSummary)}</strong> The tracker records activity, not whether the public accepts a claim. Review the underlying articles to distinguish new issues from repeated coverage.`:'Upload the article tracker to identify recent coverage and recurring issues. Live monitoring is shown separately below when available.';
   const message=a.available?'Assess whether editorial coverage carries approved community, environmental and economic messages. The tracker’s actor labels and opposition flags cannot establish message acceptance or public trust.':'Message visibility will appear after the tracker is uploaded and its articles reviewed.';
   const response=a.available?'Prioritise recurring, material questions. Prepare an approved explanation with accessible supporting evidence; send court-related wording to counsel. Use community and environmental proof where relevant, rather than answering every headline.':'Review current source material before choosing Monitor, Clarify, Publish proof or Refer to counsel.';
   document.getElementById('amec-articles').innerHTML=amecCard('What needs attention','public-narrative',narrative,countText)+amecCard('Which messages are landing','goal-progress',message,'Coverage is an output. Trust and understanding require separate audience evidence.')+amecCard('Recommended response','recommended-response',response);
@@ -1452,8 +1461,8 @@ window.addEventListener('DOMContentLoaded', () => {
   _pageTemplate = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   if (window.__EMBEDDED_DATA__) {
     const embedded = window.__EMBEDDED_DATA__;
-    igPosts = embedded.igPosts.map(post => ({ ...post, date: post.date ? new Date(post.date) : null }));
-    fbPosts = embedded.fbPosts.map(post => ({ ...post, date: post.date ? new Date(post.date) : null }));
+    igPosts = embedded.igPosts.map(post => ({ ...post, date: postDayKey(post) ? new Date(postDayKey(post) + 'T00:00:00') : null }));
+    fbPosts = embedded.fbPosts.map(post => ({ ...post, date: postDayKey(post) ? new Date(postDayKey(post) + 'T00:00:00') : null }));
     allPosts = [...igPosts, ...fbPosts].sort((a, b) => ((a.date?.getTime() || 0) - (b.date?.getTime() || 0)));
     const validDates = allPosts.filter(post => post.date).map(post => post.date.getTime());
     if (validDates.length) {
@@ -1896,8 +1905,8 @@ function buildAISummaryEvidence(posts) {
     amecSocial: socialAMECEvidence(),
     amecArticles: articleAMECEvidence(),
     period: dated.length ? {
-      start: dated[0].date.toISOString().slice(0, 10),
-      end: dated[dated.length - 1].date.toISOString().slice(0, 10)
+      start: postDayKey(dated[0]),
+      end: postDayKey(dated[dated.length - 1])
     } : null,
     boostHeuristic: {
       definition: 'A post is marked likely boosted when its reach exceeds four times the median reach for its platform.',
@@ -2298,7 +2307,7 @@ function parseFB(csvArr) {
 // ── Filter posts ──
 function filtered() {
   const posts = currentFilter === 'ig' ? igPosts : currentFilter === 'fb' ? fbPosts : allPosts;
-  return reportWindow.start && reportWindow.end ? posts.filter(p => { const d=dayKey(p.date); return d>=reportWindow.start && d<=reportWindow.end; }) : posts;
+  return reportWindow.start && reportWindow.end ? posts.filter(p => { const d=postDayKey(p); return d>=reportWindow.start && d<=reportWindow.end; }) : posts;
 }
 
 function setFilter(f, el) {
@@ -3644,6 +3653,7 @@ function renderExecSummary() {
   const social = socialAMECEvidence(), articles = articleAMECEvidence();
   document.getElementById('exec-summary-meta').textContent = `${social.start || ''} – ${social.end || ''} · ONWRD`;
   el.innerHTML = `<div class="exec-block"><div class="exec-block-label">Executive read</div>${amecEditable('executive-read', `Review social performance and public coverage together, then agree on the next week’s priorities. ${social.available ? social.contentItems + ' caption-based feed content items are in the selected social period.' : ''} ${articles.available ? articles.currentItems + ' coverage items are recorded in the latest article fortnight.' : 'Upload the article tracker to add the media context.'} Reach and coverage indicate visibility; audience trust has not been measured.`)}</div>`;
+  el.querySelectorAll('[data-edit-key]').forEach(field=>field.dataset.defaultHtml=field.innerHTML);
   document.getElementById('executive-slot').appendChild(document.getElementById('exec-summary'));
 }
 
@@ -3897,8 +3907,8 @@ function serializeForInlineScript(value) {
 function buildClientHTML() {
   captureSharedEditableContent();
   const data = {
-    igPosts: igPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
-    fbPosts: fbPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
+    igPosts: igPosts.map(post => ({ ...post, date: postDayKey(post) ? postDayKey(post) + 'T00:00:00' : null })),
+    fbPosts: fbPosts.map(post => ({ ...post, date: postDayKey(post) ? postDayKey(post) + 'T00:00:00' : null })),
     editableOverrides: { ...sharedEditableContent },
     summaryMode: summaryMode,
     strategyEvidence: strategyEvidence,

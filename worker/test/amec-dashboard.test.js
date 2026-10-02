@@ -35,12 +35,12 @@ test('article time windows are independent of social exports and topic matches m
  assert.equal(result.topics.filter(t=>t.currentItems===1).length,2);
 });
 test('worksheet links retain physical row indexes across blank rows in both dashboards',()=>{
- for(const file of ['index.html','report.html']) {
-  const c=vm.createContext({Date,URL,console});
+ for(const file of ['index.html','report.html']) for(const titleHeader of ['Article Title & URL','Article Title','Title']) {
+  const c=vm.createContext({Date,URL,console,titleHeader});
   vm.runInContext(readFileSync(new URL('../../vendor/xlsx.full.min.js',import.meta.url),'utf8'),c);
   vm.runInContext(readFileSync(new URL('../../'+file,import.meta.url),'utf8').match(/<script>\s*(\/\/ AMEC-guided[\s\S]*?)<\/script>/)[1],c);
   const result=vm.runInContext(`(() => {
-   const s=XLSX.utils.aoa_to_sheet([['Publication Name','Article Title & URL','Publish Date','Coverage Type'],['Outlet','Court update','2026-10-02','Article'],[],['Outlet','School update','2026-10-01','Article'],['Outlet','Unlinked','2026-09-30','Article']]);
+   const s=XLSX.utils.aoa_to_sheet([['Publication Name',titleHeader,'Publish Date','Coverage Type'],['Outlet','Court update','2026-10-02','Article'],[],['Outlet','School update','2026-10-01','Article'],['Outlet','Unlinked','2026-09-30','Article']]);
    s.B2.l={Target:'https://example.com/court'};s.B4.l={Target:'https://example.com/school'};
    return normalizeArticleRows(articleWorksheetRecords(s));
   })()`,c);
@@ -64,4 +64,32 @@ test('narrative topics exclude paid placements, notices, releases and unclassifi
  assert.equal(r.topics[0].currentItems,1);assert.equal(r.topics[0].previousItems,0);
  assert.equal(r.topics.find(t=>t.label==='Community & local benefits').currentItems,0);
  assert.equal(r.topics.find(t=>t.label==='Community & local benefits').previousItems,1);
+});
+test('social calendar boundaries and example dates use the original date string',()=>{
+ const c=context();vm.runInContext(`reportWindow={start:'2026-08-25',end:'2026-09-30'};
+ allPosts=[{platform:'ig',date:new Date('2026-08-24T23:00:00Z'),dateStr:'08/25/2026',caption:'Boundary',reach:20,shares:1},{platform:'ig',date:new Date('2026-09-30T23:00:00Z'),dateStr:'10/01/2026',caption:'Outside',reach:500,shares:2}];`,c);
+ const r=vm.runInContext('socialAMECEvidence()',c);
+ assert.equal(r.platformObservations,1);assert.equal(r.platforms[0].currentMedianReach,20);
+ assert.equal(r.platforms[0].examples[0].date,'2026-08-25');
+});
+test('headline narrative names all tied leaders and reserves leads for a unique maximum',()=>{
+ const c=context();c.topics=[{label:'Court',currentItems:2},{label:'Environment',currentItems:2},{label:'Community',currentItems:1}];
+ const tied=vm.runInContext('articleTopicSummary(topics)',c);
+ assert.match(tied,/Court; Environment are tied/);assert.doesNotMatch(tied,/ leads /);
+ c.topics[1].currentItems=1;assert.match(vm.runInContext('articleTopicSummary(topics)',c),/^Court leads/);
+ c.topics.forEach(t=>t.currentItems=0);assert.match(vm.runInContext('articleTopicSummary(topics)',c),/^Review/);
+});
+test('tracker replacement redraws executive read before restoring saved overrides',async()=>{
+ const c=context();const events=[];const notice={textContent:''};
+ c.document={querySelectorAll:()=>[notice],getElementById:()=>null};
+ c.Papa={parse:()=>({data:[{'Outlet':'Outlet','Title':'Court hearing','Date':'2026-10-02','Type':'Article'}],errors:[]})};
+ c.captureSharedEditableContent=()=>events.push('capture');c.sharedEditableContent={'executive-read':'Edited read'};c.strategyRequestVersion=0;
+ c.renderExecSummary=()=>events.push('exec');c.restoreSharedEditableContent=()=>events.push('restore');
+ vm.runInContext('renderAMEC=()=>{}',c);
+ c.input={files:[{name:'tracker.csv',size:100,text:async()=>''}],value:'chosen'};
+ await vm.runInContext('uploadArticleTracker(input)',c);
+ assert.deepEqual(events,['capture','exec','restore']);
+ assert.equal(vm.runInContext('articleTracker.rows.length',c),1);
+ assert.equal(c.sharedEditableContent['executive-read'],'Edited read');
+ assert.equal(vm.runInContext('editorialReviewNeeded',c),true);
 });
