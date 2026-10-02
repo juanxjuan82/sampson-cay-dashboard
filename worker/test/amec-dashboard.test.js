@@ -112,6 +112,7 @@ test('native Excel publication dates preserve calendar days in western time zone
 });
 test('repeated captions on separate dates count separately while same-day platform copies group',()=>{
  const c=context();vm.runInContext(`reportWindow={start:'2026-09-01',end:'2026-09-14'};
+ socialExportRanges={ig:[{start:'2026-09-01',end:'2026-09-14'}],fb:[{start:'2026-09-01',end:'2026-09-14'}]};
  allPosts=['ig','fb'].flatMap(platform=>['09/02/2026','09/09/2026'].map(dateStr=>({platform,dateStr,date:new Date(),caption:'Same caption',reach:10,shares:0})));`,c);
  const r=vm.runInContext('socialAMECEvidence()',c);
  assert.equal(r.contentItems,2);assert.equal(r.platformObservations,4);assert.equal(r.feedPostsPerWeek,1);
@@ -294,4 +295,14 @@ test('zero-reach periods render unavailable engagement instead of NaN while genu
   assert.equal(elements['kpi-eng'].textContent,'N/A');assert.equal(elements['kpi-reach'].textContent,'0');
   c.posts[0].reach=10;vm.runInContext('renderKPIs(posts)',c);assert.equal(elements['kpi-eng'].textContent,'0%');
  }
+});
+test('partial or unknown current-period coverage cannot establish zero publishing cadence',()=>{
+ const c=context();vm.runInContext(`reportWindow={start:'2026-09-01',end:'2026-09-30'};
+ socialExportRanges={ig:[{start:'2026-09-15',end:'2026-09-30'}],fb:[{start:'2026-09-01',end:'2026-09-30'}]};allPosts=[];`,c);
+ let r=vm.runInContext('socialAMECEvidence()',c);
+ assert.equal(r.coverageComplete,false);assert.equal(r.feedPostsPerWeek,null);assert.equal(r.contentItems,0);
+ assert.equal(r.platforms[0].currentCoverageComplete,false);assert.match(r.caveats[0],/observed records only/);
+ vm.runInContext("socialExportRanges.ig=[{start:'2026-09-01',end:'2026-09-30'}]",c);
+ r=vm.runInContext('socialAMECEvidence()',c);assert.equal(r.coverageComplete,true);assert.equal(r.feedPostsPerWeek,0);
+ vm.runInContext('socialExportRanges={ig:[],fb:[]}',c);r=vm.runInContext('socialAMECEvidence()',c);assert.equal(r.feedPostsPerWeek,null);
 });
