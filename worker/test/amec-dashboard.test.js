@@ -34,3 +34,34 @@ test('article time windows are independent of social exports and topic matches m
  assert.equal(result.currentCategories['Paid placement'],0);
  assert.equal(result.topics.filter(t=>t.currentItems===1).length,2);
 });
+test('worksheet links retain physical row indexes across blank rows in both dashboards',()=>{
+ for(const file of ['index.html','report.html']) {
+  const c=vm.createContext({Date,URL,console});
+  vm.runInContext(readFileSync(new URL('../../vendor/xlsx.full.min.js',import.meta.url),'utf8'),c);
+  vm.runInContext(readFileSync(new URL('../../'+file,import.meta.url),'utf8').match(/<script>\s*(\/\/ AMEC-guided[\s\S]*?)<\/script>/)[1],c);
+  const result=vm.runInContext(`(() => {
+   const s=XLSX.utils.aoa_to_sheet([['Publication Name','Article Title & URL','Publish Date','Coverage Type'],['Outlet','Court update','2026-10-02','Article'],[],['Outlet','School update','2026-10-01','Article'],['Outlet','Unlinked','2026-09-30','Article']]);
+   s.B2.l={Target:'https://example.com/court'};s.B4.l={Target:'https://example.com/school'};
+   return normalizeArticleRows(articleWorksheetRecords(s));
+  })()`,c);
+  assert.equal(result.rows.length,3,file);
+  assert.equal(result.rows[0].url,'https://example.com/court',file);
+  assert.equal(result.rows[1].url,'https://example.com/school',file);
+  assert.equal(result.rows[2].url,'',file);
+ }
+});
+test('narrative topics exclude paid placements, notices, releases and unclassified items',()=>{
+ const c=context();vm.runInContext(`articleTracker.rows=[
+ {date:'2026-10-02',title:'Court hearing',outlet:'Outlet',category:'Editorial coverage'},
+ ...['Paid placement','Public notice','Press release','Other / unclassified'].map(category=>({date:'2026-10-01',title:'School marine environment',outlet:'Outlet',category})),
+ {date:'2026-09-10',title:'School opening',outlet:'Outlet',category:'Editorial coverage'},
+ {date:'2026-09-09',title:'Court approval',outlet:'Outlet',category:'Paid placement'}];`,c);
+ const r=vm.runInContext('articleAMECEvidence()',c);
+ assert.equal(r.currentItems,5);assert.equal(r.previousItems,2);
+ assert.equal(r.currentCategories['Paid placement'],1);
+ assert.equal(r.topicCategory,'Editorial coverage');
+ assert.equal(r.topics[0].label,'Approvals & court proceedings');
+ assert.equal(r.topics[0].currentItems,1);assert.equal(r.topics[0].previousItems,0);
+ assert.equal(r.topics.find(t=>t.label==='Community & local benefits').currentItems,0);
+ assert.equal(r.topics.find(t=>t.label==='Community & local benefits').previousItems,1);
+});

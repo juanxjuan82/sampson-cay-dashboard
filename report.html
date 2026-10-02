@@ -861,6 +861,17 @@ function normalizeArticleRows(input) {
   if (!rows.length) throw new Error('No valid coverage rows found. Use the Media Mentions sheet with Publication Name, Article Title & URL and Publish Date columns.');
   return { rows: rows.sort((a,b) => b.date.localeCompare(a.date)), rejected, duplicates };
 }
+function articleWorksheetRecords(sheet) {
+  const records = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+  const header = XLSX.utils.sheet_to_json(sheet, { header:1 })[0] || [];
+  const col = header.indexOf('Article Title & URL');
+  // SheetJS retains physical row indexes even when blank worksheet rows are skipped.
+  if (col >= 0) records.forEach(record => {
+    const cell = sheet[XLSX.utils.encode_cell({r:record.__rowNum__,c:col})];
+    if (cell?.l?.Target) record.__url = cell.l.Target;
+  });
+  return records;
+}
 let articleImportVersion = 0;
 async function uploadArticleTracker(input) {
   const file = input.files?.[0]; if (!file) return;
@@ -880,11 +891,7 @@ async function uploadArticleTracker(input) {
       const name = book.SheetNames.find(name => name.trim().toLowerCase() === 'media mentions');
       if (!name) throw new Error('The workbook needs a sheet named Media Mentions.');
       const sheet = book.Sheets[name];
-      records = XLSX.utils.sheet_to_json(sheet, { defval:'' });
-      const header = XLSX.utils.sheet_to_json(sheet, { header:1 })[0] || [];
-      const col = header.indexOf('Article Title & URL');
-      // Capture spreadsheet hyperlink targets without including private document tabs.
-      if (col >= 0) records.forEach((r,i) => { const cell = sheet[XLSX.utils.encode_cell({r:i+1,c:col})]; if (cell?.l?.Target) r.__url = cell.l.Target; });
+      records = articleWorksheetRecords(sheet);
     }
     const parsed = normalizeArticleRows(records);
     if (version !== articleImportVersion) return;
@@ -962,12 +969,13 @@ function articleAMECEvidence() {
   const current=rows.filter(r=>r.date>=start && r.date<=end),previous=rows.filter(r=>r.date>=priorStart && r.date<=priorEnd);
   const counts=rs=>Object.fromEntries(['Editorial coverage','Paid placement','Public notice','Press release','Other / unclassified'].map(c=>[c,rs.filter(r=>r.category===c).length]));
   const terms = [ ['Approvals & court proceedings',/court|judge|hearing|permit|approval|DEPP|salami slicing/i],['Environment & marine impacts',/dredg|seawall|dock|marine|environment|eco-tourism/i],['Community & local benefits',/community|classroom|school|job|training|scholarship/i] ];
-  const topics=terms.map(([label,re])=>({label,currentItems:current.filter(r=>re.test(r.title)).length,previousItems:previous.filter(r=>re.test(r.title)).length})).sort((a,b)=>b.currentItems-a.currentItems);
+  const editorialCurrent=current.filter(r=>r.category==='Editorial coverage'),editorialPrevious=previous.filter(r=>r.category==='Editorial coverage');
+  const topics=terms.map(([label,re])=>({label,currentItems:editorialCurrent.filter(r=>re.test(r.title)).length,previousItems:editorialPrevious.filter(r=>re.test(r.title)).length})).sort((a,b)=>b.currentItems-a.currentItems);
   return {available:true,start,end,priorStart,priorEnd,totalRecords:rows.length,currentItems:current.length,previousItems:previous.length,
     currentOutlets:new Set(current.map(r=>r.outlet.toLowerCase().replace(/^the /,''))).size,
-    currentCategories:counts(current),previousCategories:counts(previous),topics,
+    currentCategories:counts(current),previousCategories:counts(previous),topicCategory:'Editorial coverage',topics,
     examples:current.slice(0,5).map(({title,date,outlet,category,url})=>({title,date,outlet,category,url})),
-    caveats:['Tracked coverage, not exhaustive media or public sentiment.','Topics are headline matches and can overlap; they are not validated criticism.','Actor references and opposition flags are not sentiment labels.','No inference of coordination, truth, trust or causal impact.']};
+    caveats:['Tracked coverage, not exhaustive media or public sentiment.','Topics use editorial headlines only, exclude paid placements, notices and releases, and can overlap; they are not validated criticism.','Actor references and opposition flags are not sentiment labels.','No inference of coordination, truth, trust or causal impact.']};
 }
 function amecEditable(key,text) { return `<div class="exec-block-body editable-field" data-edit-key="${key}" contenteditable="false">${text}</div>`; }
 function amecCard(label,key,text,evidence='') { return `<article class="amec-card"><h3>${label}</h3>${amecEditable(key,text)}${evidence?`<div class="amec-evidence">${evidence}</div>`:''}</article>`; }
@@ -983,7 +991,7 @@ function renderAMEC() {
   document.getElementById('amec-review-needed').hidden=!editorialReviewNeeded;
   const countText=a.available?`${a.currentItems} tracked items across ${a.currentOutlets} outlets; ${a.previousItems} items in the preceding fortnight. Editorial: ${a.currentCategories['Editorial coverage']}; paid: ${a.currentCategories['Paid placement']}; notices: ${a.currentCategories['Public notice']}; releases: ${a.currentCategories['Press release']}; other: ${a.currentCategories['Other / unclassified']}.`:'';
   const leading=a.topics?.find(t=>t.currentItems>0);
-  const narrative=a.available?`<strong>${leading?escapeHTML(leading.label)+' leads recent headline coverage.':'Review the recent coverage before setting response priorities.'}</strong> The tracker records activity, not whether the public accepts a claim. Review the underlying articles to distinguish new issues from repeated coverage.`:'Upload the article tracker to identify recent coverage and recurring issues. Live monitoring is shown separately below when available.';
+  const narrative=a.available?`<strong>${leading?escapeHTML(leading.label)+' leads recent editorial headline coverage.':'Review the recent coverage before setting response priorities.'}</strong> The tracker records activity, not whether the public accepts a claim. Review the underlying articles to distinguish new issues from repeated coverage.`:'Upload the article tracker to identify recent coverage and recurring issues. Live monitoring is shown separately below when available.';
   const message=a.available?'Assess whether editorial coverage carries approved community, environmental and economic messages. The tracker’s actor labels and opposition flags cannot establish message acceptance or public trust.':'Message visibility will appear after the tracker is uploaded and its articles reviewed.';
   const response=a.available?'Prioritise recurring, material questions. Prepare an approved explanation with accessible supporting evidence; send court-related wording to counsel. Use community and environmental proof where relevant, rather than answering every headline.':'Review current source material before choosing Monitor, Clarify, Publish proof or Refer to counsel.';
   document.getElementById('amec-articles').innerHTML=amecCard('What needs attention','public-narrative',narrative,countText)+amecCard('Which messages are landing','goal-progress',message,'Coverage is an output. Trust and understanding require separate audience evidence.')+amecCard('Recommended response','recommended-response',response);
