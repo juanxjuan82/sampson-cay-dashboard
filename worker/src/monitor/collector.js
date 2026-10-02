@@ -49,18 +49,18 @@ export function robotsAllowed(raw, pathname) {
   return rules.length ? rules[0].allow : true;
 }
 export async function extract(raw, url) {
-  const text=[], title=[], links=[]; let published=null; let excluded=0;
+  const text=[], context=[], title=[], links=[]; let published=null; let excluded=0;
   const rewrite=new HTMLRewriter()
     .on('script,style,nav,header,footer,aside,form,noscript', {element(e){excluded++;e.onEndTag(()=>{excluded--;});e.remove();}})
     .on('title', {text(t){title.push(t.text);}})
     .on('meta[property="article:published_time"],meta[name="date"]', {element(e){published=e.getAttribute('content');}})
     .on('a[href]', {element(e){const link=canonical(e.getAttribute('href'),url);if(link) links.push(link);}})
-    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) text.push(' . ');}})
-    .on('body', {text(t){if(!excluded) text.push(t.text);}});
+    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) {text.push(' ');context.push(' . ');}}})
+    .on('body', {text(t){if(!excluded) {text.push(t.text);context.push(t.text);}}});
   await rewrite.transform(new Response(raw,{headers:{'Content-Type':'text/html'}})).text();
   const clean=text.join('').replace(/\s+/g,' ').trim();
   const date=published && !Number.isNaN(Date.parse(published)) ? new Date(published).toISOString() : null;
-  return {text:clean,title:title.join('').trim()||url,published:date,links:[...new Set(links)]};
+  return {text:clean,contextText:context.join('').replace(/\s+/g,' ').trim(),title:title.join('').trim()||url,published:date,links:[...new Set(links)]};
 }
 export async function collect(env) {
   if(!env.DB) throw Error('Monitor database not configured');
@@ -126,7 +126,7 @@ export async function collect(env) {
             const id=destination?.id||await hash(identity), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
             const old=await env.DB.prepare('SELECT content_hash FROM items WHERE id=?').bind(id).first();
             const baseTags=classify(parsed.title+' '+parsed.text);
-            const criticalThemes=new Set(criticismThemes(source.id,baseTags,parsed.title+'. '+parsed.text));
+            const criticalThemes=new Set(criticismThemes(source.id,baseTags,parsed.title+'. '+parsed.contextText));
             const tags=JSON.stringify(baseTags.map(tag=>({...tag,criticismEvidence:criticalThemes.has(tag.theme)})));
             const statements=[
               env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET url=excluded.url,superseded_by=NULL,title=excluded.title,published_at=COALESCE(excluded.published_at,items.published_at),changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
