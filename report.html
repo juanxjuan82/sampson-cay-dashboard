@@ -820,10 +820,10 @@ function cleanLabel(value) { return String(value ?? '').replace(/\s+/g,' ').trim
 function safeSourceURL(value) {
   try { const u = new URL(String(value)); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; }
 }
-function trackerDate(value) {
+function trackerDate(value, date1904=false) {
   if (value instanceof Date) return !isNaN(value) ? value.toISOString().slice(0,10) : '';
   if (typeof value === 'number' && typeof XLSX !== 'undefined') {
-    const d = XLSX.SSF.parse_date_code(value);
+    const d = XLSX.SSF.parse_date_code(value, {date1904});
     return d ? `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}` : '';
   }
   const s = cleanLabel(value);
@@ -862,12 +862,13 @@ function normalizeArticleRows(input) {
   if (!rows.length) throw new Error('No valid coverage rows found. Use the Media Mentions sheet with Publication Name, Article Title & URL and Publish Date columns.');
   return { rows: rows.sort((a,b) => b.date.localeCompare(a.date)), rejected, duplicates };
 }
-function articleWorksheetRecords(sheet) {
+function articleWorksheetRecords(sheet, date1904=false) {
   const records = XLSX.utils.sheet_to_json(sheet, { defval:'' });
   const header = XLSX.utils.sheet_to_json(sheet, { header:1 })[0] || [];
   const titleHeaders = ['Article Title & URL','Article Title','Title'];
   // SheetJS retains physical row indexes even when blank worksheet rows are skipped.
   records.forEach(record => {
+    ['Publish Date','Date'].forEach(key=>{ if (typeof record[key]==='number') record[key]=trackerDate(record[key],date1904); });
     const col = header.indexOf(titleHeaders.find(name=>record[name]));
     if (col < 0) return;
     const cell = sheet[XLSX.utils.encode_cell({r:record.__rowNum__,c:col})];
@@ -894,7 +895,7 @@ async function uploadArticleTracker(input) {
       const name = book.SheetNames.find(name => name.trim().toLowerCase() === 'media mentions');
       if (!name) throw new Error('The workbook needs a sheet named Media Mentions.');
       const sheet = book.Sheets[name];
-      records = articleWorksheetRecords(sheet);
+      records = articleWorksheetRecords(sheet, Boolean(book.Workbook?.WBProps?.date1904));
     }
     const parsed = normalizeArticleRows(records);
     if (version !== articleImportVersion) return;

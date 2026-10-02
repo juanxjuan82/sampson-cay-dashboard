@@ -116,3 +116,14 @@ test('repeated captions on separate dates count separately while same-day platfo
  const r=vm.runInContext('socialAMECEvidence()',c);
  assert.equal(r.contentItems,2);assert.equal(r.platformObservations,4);assert.equal(r.feedPostsPerWeek,1);
 });
+test('1904 workbook date system survives real XLSX upload conversion',()=>{
+ const c=context();vm.runInContext(readFileSync(new URL('../../vendor/xlsx.full.min.js',import.meta.url),'utf8'),c);
+ const result=vm.runInContext(`(() => {
+  const s=XLSX.utils.aoa_to_sheet([['Outlet','Title','Publish Date','Type'],['Outlet','Court hearing',0,'Article']]);
+  s.C2={t:'n',v:(Date.UTC(2026,9,2)-Date.UTC(1904,0,1))/86400000,z:'mm/dd/yyyy'};
+  const book=XLSX.utils.book_new();book.Workbook={WBProps:{date1904:true}};XLSX.utils.book_append_sheet(book,s,'Media Mentions');
+  const parsed=XLSX.read(XLSX.write(book,{type:'array',bookType:'xlsx'}),{type:'array',cellDates:false});
+  return normalizeArticleRows(articleWorksheetRecords(parsed.Sheets['Media Mentions'],Boolean(parsed.Workbook?.WBProps?.date1904)));
+ })()`,c);
+ assert.equal(result.rows[0].date,'2026-10-02');
+});
