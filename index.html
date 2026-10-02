@@ -945,6 +945,7 @@ function changeReportWindow() {
   const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
   renderAll();
 }
+function audienceResponseScore(post,platform) { return (post.shares||0)+(platform==='ig'?(post.saves||0):0); }
 function socialAMECEvidence() {
   ensureReportWindow();
   const {start,end} = reportWindow;
@@ -963,7 +964,7 @@ function socialAMECEvidence() {
       changePercent:comparable && previousMedianReach>0 ? (currentMedianReach/previousMedianReach-1)*100 : null,
       shares:current.reduce((s,p)=>s+(p.shares||0),0),saves:platform==='ig'?current.reduce((s,p)=>s+(p.saves||0),0):null,
       totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
-      examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>b.shares-a.shares || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
+      examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>audienceResponseScore(b,platform)-audienceResponseScore(a,platform) || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
   });
   const keys = new Set(recent.map(p=>cleanLabel(p.caption) ? `${postDayKey(p)}|${cleanLabel(p.caption).toLowerCase()}` : `${p.platform}|${postDayKey(p)}|${p.id||p.permalink}`));
   return { available:true,start,end,priorStart,priorEnd,days,contentItems:keys.size,platformObservations:recent.length,
@@ -1199,13 +1200,13 @@ function syncAMECLayout() {
   <div class="theme-grid" id="theme-grid"></div>
   <div class="chart-card col-12" id="theme-section" style="margin-bottom:28px">
     <div class="chart-title">How Each Theme Performs</div>
-    <div class="chart-sub">Organic results only where stated · median values reduce distortion from unusually large posts</div>
+    <div class="chart-sub">Outlier exclusions stated where applied · paid status unverified · medians reduce distortion from unusually large posts</div>
     <div class="theme-analysis" id="theme-analysis"></div>
     <div class="theme-table-wrap" id="theme-table-wrap"></div>
     <div class="chart-note" id="theme-note"></div>
     <details class="methodology">
       <summary>How themes are detected</summary>
-      Community, Economy and Environment are scored against a fixed weighted-keyword dictionary. Site Activity uses a separate high-confidence rule: content must be dated June 1, 2026 or later and describe one of the validated Sampson Cay fieldwork or preparation activities; generic project, construction and location references do not qualify. Matching Facebook and Instagram captions count as one content item, while their organic results remain separate platform observations. Closely matched content may carry more than one theme. AI is used only after classification to interpret the evidence.
+      Community, Economy and Environment are scored against a fixed weighted-keyword dictionary. Site Activity uses a separate high-confidence rule: content must be dated June 1, 2026 or later and describe one of the validated Sampson Cay fieldwork or preparation activities; generic project, construction and location references do not qualify. Matching Facebook and Instagram captions count as one content item, while performance remains separate by platform. Closely matched content may carry more than one theme. AI is used only after classification to interpret the evidence.
     </details>
   </div>
   </div><!-- /view-overview -->
@@ -1236,7 +1237,7 @@ function syncAMECLayout() {
   <div class="charts-grid">
     <div class="chart-card col-6">
       <div class="chart-title">Which Formats Earn the Most Engagement</div>
-      <div class="chart-sub">Estimated unboosted posts only · IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
+      <div class="chart-sub">Posts below the reach-outlier threshold only · paid status unverified · IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-type"></canvas>
       </div>
@@ -1244,7 +1245,7 @@ function syncAMECLayout() {
     </div>
     <div class="chart-card col-6">
       <div class="chart-title">Which Formats Reach the Most People</div>
-      <div class="chart-sub">Estimated unboosted posts only · average unique accounts reached per post</div>
+      <div class="chart-sub">Posts below the reach-outlier threshold only · paid status unverified · average unique accounts reached per post</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-reach-type"></canvas>
       </div>
@@ -1256,7 +1257,7 @@ function syncAMECLayout() {
   <div class="charts-grid">
     <div class="chart-card col-12">
       <div class="chart-title">Likely Paid Posts: Reach by Format</div>
-      <div class="chart-sub">Posts with reach &gt;4× platform median treated as likely boosted · how content types compare when paid amplification is in play</div>
+      <div class="chart-sub">Posts with reach &gt;4× platform median · statistical outliers, with paid status unverified</div>
       <div class="chart-wrap" style="height:260px">
         <canvas id="chart-boost-reach"></canvas>
       </div>
@@ -1762,12 +1763,12 @@ function renderThemes(posts) {
       + '<div class="theme-card-label">' + escapeHTML(row.label) + '</div>'
       + '<div class="theme-card-count">' + row.count + '</div>'
       + '<div class="theme-card-sub">content items · ' + Math.round(row.share * 100) + '% tagged with this theme</div>'
-      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</strong><span>Median organic reach</span></div>'
-      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</strong><span>Median organic engagement</span></div>'
+      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</strong><span>Median reach below outlier threshold</span></div>'
+      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</strong><span>Median engagement below outlier threshold</span></div>'
       + '<div style="margin-top:10px"><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + (enough ? 'Sufficient sample' : 'Limited sample') + '</span></div></div>';
   }).join('');
 
-  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Content items</th><th>Organic observations</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Clearest example</th></tr></thead><tbody>'
+  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Content items</th><th>Observations below outlier threshold</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Clearest example</th></tr></thead><tbody>'
     + result.rows.map(function(row) {
       const enough = row.organicCount >= THEME_MIN_SAMPLE;
       const example = row.topPost && row.topPost.permalink ? '<a class="post-link" href="' + escapeHTML(row.topPost.permalink) + '" target="_blank">View post ↗</a>' : '—';
@@ -1778,14 +1779,14 @@ function renderThemes(posts) {
     }).join('') + '</tbody></table>';
 
   const statements = [];
-  if (strongestEngagement) statements.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
-  if (strongestReach) statements.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median organic reach at <strong>' + fmt(strongestReach.medianReach) + '</strong> per post.');
+  if (strongestEngagement) statements.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median engagement rate below the outlier threshold at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
+  if (strongestReach) statements.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median reach below the outlier threshold at <strong>' + fmt(strongestReach.medianReach) + '</strong> per post.');
   if (highestLowShare && highestLowShare.lowShare >= 0.4) statements.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> is most concentrated in the bottom engagement quartile at <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong>; treat this as a signal to review, not proof that the theme caused lower performance.');
-  if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' estimated organic posts, so the current data does not support a reliable theme comparison.');
+  if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' posts below the reach-outlier threshold, so the current data does not support a reliable theme comparison.');
 
   analysis.innerHTML = statements.join(' ');
   const coverage = result.totalContentItems ? Math.round((result.classifiedCount / result.totalContentItems) * 100) : 0;
-  note.textContent = platformLabel + ': ' + coverage + '% content-item classification coverage · ' + result.unclassifiedCount + ' unclassified content items · performance comparisons require at least ' + THEME_MIN_SAMPLE + ' estimated organic platform observations per theme.';
+  note.textContent = platformLabel + ': ' + coverage + '% content-item classification coverage · ' + result.unclassifiedCount + ' unclassified content items · performance comparisons require at least ' + THEME_MIN_SAMPLE + ' platform observations below the reach-outlier threshold per theme.';
 }
 
 function buildAlignedComparisonEvidence(posts) {
@@ -1907,7 +1908,7 @@ function buildAISummaryEvidence(posts) {
       end: postDayKey(dated[dated.length - 1])
     } : null,
     boostHeuristic: {
-      definition: 'A post is marked likely boosted when its reach exceeds four times the median reach for its platform.',
+      definition: 'Legacy field names describe a statistical reach-outlier filter at four times platform median; paid status is unverified and the remaining posts are not verified organic.',
       likelyBoostedPosts: likelyBoosted.length,
       likelyBoostedReach: sum(likelyBoosted, function(post) { return post.reach; }),
       estimatedOrganicPosts: organicPosts.length
@@ -2456,7 +2457,7 @@ function renderAnalystNotes(posts) {
   if (caveatEl) {
     if (likelyBoosted.length > 0) {
       caveatEl.style.display = 'flex';
-      caveatEl.innerHTML = `<span style="font-size:16px;flex-shrink:0">ℹ️</span><span><strong>Context on reach figures:</strong> ${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} in this period generated significantly above-average reach, consistent with paid promotion. Those posts are noted with ⚡ in the performance table. Reach and engagement rate figures for boosted posts reflect a paid audience — organic performance baselines are lower. Keep likely paid distribution separate from the organic baseline when interpreting results.</span>`;
+      caveatEl.innerHTML = `<span style="font-size:16px;flex-shrink:0">ℹ️</span><span><strong>Context on reach figures:</strong> ${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} in this period have reach above the statistical threshold and are marked ⚡. These are reach outliers; paid status is unverified. Compare them with the remaining posts, and check paid distribution records before attributing the difference to promotion or creative performance.</span>`;
     } else {
       caveatEl.style.display = 'none';
     }
@@ -2468,7 +2469,7 @@ function renderAnalystNotes(posts) {
         const mult = med > 0 ? (p.reach / med).toFixed(1) : '—';
         return `<div class="audit-item">⚡ <strong>${p.dateStr}</strong> · ${p.type} · ${fmt(p.reach)} reach
           <span class="aflag">(${mult}× ${p.platform.toUpperCase()} median)</span>
-          · ER ${fmtPct(p.engRate)} — <span style="color:var(--text-muted);font-size:11px">interpret ER relative to paid audience, not organic</span>
+          · ER ${fmtPct(p.engRate)} — <span style="color:var(--text-muted);font-size:11px">paid status unverified; interpret reach and engagement cautiously</span>
         </div>`;
       }).join('')
     : `<div class="audit-item"><span class="aok">✓ No statistical reach outliers detected.</span></div>`;
@@ -2495,10 +2496,10 @@ function renderAnalystNotes(posts) {
       <div class="audit-item awarn">→ Relabel KPI card: <strong>"Avg Post Engagement Rate"</strong><br><span style="font-size:11px;font-weight:400;color:var(--text-muted)">"Avg Engagement Rate" implies account-level weighted ER, which reads as ${fmtPct(weightedER)}</span></div>
     </div>
     <div class="audit-card" style="grid-column: 1 / -1">
-      <div class="audit-card-title">⚡ Reach Outlier Detection — Likely Boosted Posts</div>
-      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:4px">Posts with reach &gt; ${BOOST_MULT}× their platform's median are flagged. Boosted posts have outsized reach by design — their engagement rate reflects a paid audience, not organic resonance. ${boostSummary ? `<strong style="color:#0d5a6c">${boostSummary}</strong>` : ''}</div>
+      <div class="audit-card-title">⚡ Reach Outlier Detection — Paid Status Unverified</div>
+      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:4px">Posts with reach &gt; ${BOOST_MULT}× their platform's median are flagged. The flag identifies unusually high reach; it does not establish paid distribution or organic performance. ${boostSummary ? `<strong style="color:#0d5a6c">${boostSummary}</strong>` : ''}</div>
       ${boostRows}
-      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">⚡ icon also appears in the top posts table. Before including a boosted post in reach-based recommendations, note it was paid distribution.</div>
+      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">⚡ icon also appears in the top posts table. Check paid distribution records before using an outlier to explain performance.</div>
     </div>
     <div class="audit-card">
       <div class="audit-card-title">🕐 Heatmap Reliability</div>
@@ -2587,13 +2588,13 @@ function renderInterpretationNotes(posts, organicPosts) {
     const peakBoostShare = peakWeek.total > 0 ? peakWeek.boostedReach / peakWeek.total : 0;
     let note = `Reach peaks in the week of ${peakLabel}, driven mainly by ${dominantPlatform}. `;
     if (peakWeek.boostedPosts > 0 && peakBoostShare >= 0.25) {
-      note += `${peakWeek.boostedPosts} post${peakWeek.boostedPosts !== 1 ? 's' : ''} that week show reach consistent with paid amplification, so the spike sits above the usual organic baseline. `;
+      note += `${peakWeek.boostedPosts} post${peakWeek.boostedPosts !== 1 ? 's' : ''} that week are statistical reach outliers; paid status is unverified and the spike cannot be attributed to promotion from these exports. `;
     } else {
       note += `That high point appears to come from stronger post performance rather than a broad sustained lift across the full period. `;
     }
     if (lowWeeks.length >= 2) {
       const lightWeeks = lowWeeks.filter(r => r.posts <= 3).length;
-      note += `Lower-reach stretches tend to coincide with a more normal organic baseline`;
+      note += `Lower-reach stretches sit closer to the recorded weekly baseline`;
       if (lightWeeks) note += ` and ${lightWeeks} week${lightWeeks !== 1 ? 's' : ''} with three or fewer posts`;
       note += `. Going forward, interpret dips alongside posting volume before reading them as a collapse in audience demand.`;
     } else {
@@ -2616,8 +2617,8 @@ function renderInterpretationNotes(posts, organicPosts) {
   if (engTypes.length) {
     const top = engTypes[0];
     const runner = engTypes[1];
-    let note = `${top.type} leads on organic engagement at ${top.avg.toFixed(2)}% across ${top.count} post${top.count !== 1 ? 's' : ''}. `;
-    if (runner) note += `${runner.type} is the next closest organic engagement performer, so the takeaway is to prioritise formats that reliably earn interaction without relying on paid reach.`;
+    let note = `${top.type} leads on engagement among posts below the outlier threshold at ${top.avg.toFixed(2)}% across ${top.count} post${top.count !== 1 ? 's' : ''}. `;
+    if (runner) note += `${runner.type} is the next closest performer in that subset. Use these formats as test candidates; paid status remains unverified.`;
     else note += `Treat this as an early signal rather than a final rule if the sample is still small.`;
     setChartNote('eng-type-note', note);
   }
@@ -2625,8 +2626,8 @@ function renderInterpretationNotes(posts, organicPosts) {
   const reachTypes = groupAveragesByType(organicPosts, p => p.reach || 0, 0);
   if (reachTypes.length) {
     const top = reachTypes[0];
-    let note = `${top.type} delivers the strongest average organic reach at ${Math.round(top.avg).toLocaleString()} per post. `;
-    note += `Because this view excludes likely boosted posts, it is the best guide to which formats naturally travel farthest before paid support is added.`;
+    let note = `${top.type} delivers the strongest average reach among posts below the outlier threshold at ${Math.round(top.avg).toLocaleString()} per post. `;
+    note += `This view excludes statistical reach outliers. It describes a subset of recorded performance; paid status has not been verified.`;
     setChartNote('reach-type-note', note);
   }
 
@@ -2634,9 +2635,9 @@ function renderInterpretationNotes(posts, organicPosts) {
   if (boosted.length) {
     const boostTypes = groupAveragesByType(boosted, p => p.reach || 0, 0);
     const top = boostTypes[0];
-    setChartNote('boost-reach-note', `${top.type} has the highest average reach among likely boosted posts at ${Math.round(top.avg).toLocaleString()}. Use this chart to understand what paid distribution has amplified most effectively, but keep it separate from organic format decisions.`);
+    setChartNote('boost-reach-note', `${top.type} has the highest average reach among statistical outliers at ${Math.round(top.avg).toLocaleString()}. Review these exceptional results separately and verify paid status before interpreting their cause.`);
   } else {
-    setChartNote('boost-reach-note', "No posts in this dataset cross the dashboard's likely-boosted threshold, so paid amplification is not a major explanatory factor in this period.");
+    setChartNote('boost-reach-note', "No posts cross the statistical reach-outlier threshold. This does not establish whether any posts received paid distribution.");
   }
 
   const igWithFollows = posts.filter(p => p.platform === 'ig' && (p.follows || 0) > 0);
@@ -2913,10 +2914,10 @@ function renderInsights(posts) {
   const bestFollows = rows.filter(function(row){return row.avgFollows>0;}).sort(function(a,b){return b.avgFollows-a.avgFollows;})[0];
   const bestPost = organicPosts.slice().sort(function(a,b){return b.engRate-a.engRate;})[0];
   const cards = [];
-  if (bestEngagement) cards.push('<div class="insight-box green"><div class="insight-label">Strongest Engagement Format</div><div class="insight-value">' + escapeHTML(bestEngagement.type) + '</div><div class="insight-desc">' + fmtPct(bestEngagement.avgEngagement) + ' average organic engagement · ' + bestEngagement.count + ' posts</div></div>');
-  if (bestReach) cards.push('<div class="insight-box"><div class="insight-label">Strongest Organic Reach Format</div><div class="insight-value">' + escapeHTML(bestReach.type) + '</div><div class="insight-desc">' + fmt(Math.round(bestReach.avgReach)) + ' average reach · ' + bestReach.count + ' posts</div></div>');
+  if (bestEngagement) cards.push('<div class="insight-box green"><div class="insight-label">Strongest Engagement Format</div><div class="insight-value">' + escapeHTML(bestEngagement.type) + '</div><div class="insight-desc">' + fmtPct(bestEngagement.avgEngagement) + ' average engagement below outlier threshold · ' + bestEngagement.count + ' posts</div></div>');
+  if (bestReach) cards.push('<div class="insight-box"><div class="insight-label">Strongest Reach Format Below Outlier Threshold</div><div class="insight-value">' + escapeHTML(bestReach.type) + '</div><div class="insight-desc">' + fmt(Math.round(bestReach.avgReach)) + ' average reach · ' + bestReach.count + ' posts</div></div>');
   if (bestFollows) cards.push('<div class="insight-box orange"><div class="insight-label">Strongest Follower Format</div><div class="insight-value">' + escapeHTML(bestFollows.type) + '</div><div class="insight-desc">' + bestFollows.avgFollows.toFixed(1) + ' Instagram follows per post</div></div>');
-  if (bestPost) cards.push('<div class="insight-box purple"><div class="insight-label">Best Organic Post</div><div class="insight-value">' + fmtPct(bestPost.engRate) + '</div><div class="insight-desc">' + escapeHTML(bestPost.type) + ' · ' + escapeHTML(bestPost.dateStr) + ' · ' + fmt(bestPost.reach) + ' reach</div>' + (bestPost.permalink ? '<a href="' + escapeHTML(bestPost.permalink) + '" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>' : '') + '</div>');
+  if (bestPost) cards.push('<div class="insight-box purple"><div class="insight-label">Best Engagement Below Outlier Threshold</div><div class="insight-value">' + fmtPct(bestPost.engRate) + '</div><div class="insight-desc">' + escapeHTML(bestPost.type) + ' · ' + escapeHTML(bestPost.dateStr) + ' · ' + fmt(bestPost.reach) + ' reach</div>' + (bestPost.permalink ? '<a href="' + escapeHTML(bestPost.permalink) + '" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>' : '') + '</div>');
   el.innerHTML = cards.join('');
 }
 
@@ -3058,7 +3059,7 @@ function renderEngByType(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg Organic Engagement Rate (%)',
+        label: 'Avg Engagement Rate Below Outlier Threshold (%)',
         data: avgs,
         backgroundColor: colors,
         borderRadius: 6,
@@ -3072,7 +3073,7 @@ function renderEngByType(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmtPct(ctx.raw)} avg organic engagement rate`
+            label: ctx => ` ${fmtPct(ctx.raw)} avg engagement rate below outlier threshold`
           }
         }
       },
@@ -3108,7 +3109,7 @@ function renderReachByType(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg Organic Reach',
+        label: 'Avg Reach Below Outlier Threshold',
         data: avgs,
         backgroundColor: colors.map(c => c + 'cc'),
         borderColor: colors,
@@ -3124,7 +3125,7 @@ function renderReachByType(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmt(ctx.raw)} avg organic reach per post`
+            label: ctx => ` ${fmt(ctx.raw)} avg reach below outlier threshold per post`
           }
         }
       },
@@ -3170,7 +3171,7 @@ function renderBoostReach(posts) {
   if (!ctx) return;
 
   if (!types.length) {
-    ctx.canvas.parentElement.innerHTML = '<div style="padding:24px;font-size:13px;color:#94a3b8;text-align:center">No estimated boosted posts detected in this dataset.</div>';
+    ctx.canvas.parentElement.innerHTML = '<div style="padding:24px;font-size:13px;color:#94a3b8;text-align:center">No statistical reach outliers in this dataset. Paid status is unverified.</div>';
     return;
   }
 
@@ -3179,7 +3180,7 @@ function renderBoostReach(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg reach when boosted',
+        label: 'Avg reach among statistical outliers',
         data: avgs,
         backgroundColor: colors.map(c => c + 'cc'),
         borderColor: colors,
@@ -3195,7 +3196,7 @@ function renderBoostReach(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmt(ctx.raw)} avg reach · ${counts[ctx.dataIndex]} boosted post${counts[ctx.dataIndex] !== 1 ? 's' : ''}`
+            label: ctx => ` ${fmt(ctx.raw)} avg reach · ${counts[ctx.dataIndex]} outlier post${counts[ctx.dataIndex] !== 1 ? 's' : ''}`
           }
         }
       },
@@ -3204,7 +3205,7 @@ function renderBoostReach(posts) {
         y: {
           grid: { color: '#f1f5f9' },
           ticks: { font: { size: 11 }, color: '#94a3b8', callback: v => fmt(v) },
-          title: { display: true, text: 'Avg reach per boosted post', font: { size: 11 }, color: '#94a3b8' }
+          title: { display: true, text: 'Avg reach per outlier post', font: { size: 11 }, color: '#94a3b8' }
         }
       }
     }
@@ -3533,7 +3534,7 @@ function renderTopPosts(posts) {
       <td><span class="type-tag ${typeClass(p.type)}">${p.type}</span></td>
       <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">${p.dateStr}</td>
       <td><div class="post-caption" title="${p.caption.replace(/"/g,"'")}">${p.caption || '—'}</div></td>
-      <td style="font-weight:600">${fmt(p.reach)}${p.reach > boostThreshold ? ' <span title="Reach is 4× above median — likely boosted" style="cursor:help;font-size:11px">⚡</span>' : ''}</td>
+      <td style="font-weight:600">${fmt(p.reach)}${p.reach > boostThreshold ? ' <span title="Reach exceeds the statistical outlier threshold — paid status unverified" style="cursor:help;font-size:11px">⚡</span>' : ''}</td>
       <td style="color:var(--text-muted)">${p.views > 0 ? fmt(p.views) : '—'}</td>
       <td style="color:var(--text-muted)">${fmt(p.interactions)}</td>
       <td>
@@ -3561,7 +3562,7 @@ function buildLowPerformanceFinding(organicPosts) {
   });
 
   if (lowPosts.length < 3) {
-    return 'There are not enough comparable organic posts to identify a reliable low-performance pattern yet.';
+    return 'There are not enough comparable posts below the outlier threshold to identify a reliable low-performance pattern yet.';
   }
 
   const timeBucket = hour => {
@@ -3632,13 +3633,13 @@ function buildLowPerformanceFinding(organicPosts) {
     b.count - a.count
   );
 
-  const definition = `The low-performing group is the bottom engagement-rate quartile within each platform, excluding posts flagged as likely boosted.`;
+  const definition = `The low-performing group is the bottom engagement-rate quartile within each platform, excluding statistical reach outliers; paid status unverified.`;
   if (!findings.length) {
     return `${definition} No format, publishing-time, or caption-length trait is materially overrepresented in that group, so the data does not support a single common weakness.`;
   }
 
   const detail = findings.slice(0, 2).map(finding =>
-    `<strong>${Math.round(finding.lowShare * 100)}%</strong> of low-performing posts ${finding.describe(finding.value)}, compared with <strong>${Math.round(finding.allShare * 100)}%</strong> of eligible organic posts overall`
+    `<strong>${Math.round(finding.lowShare * 100)}%</strong> of low-performing posts ${finding.describe(finding.value)}, compared with <strong>${Math.round(finding.allShare * 100)}%</strong> of eligible posts below the outlier threshold overall`
   ).join('; ');
 
   return `${definition} Across ${lowPosts.length} low-performing posts, ${detail}. These are measurable associations, not proof that the trait caused lower performance.`;

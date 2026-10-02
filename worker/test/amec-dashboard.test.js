@@ -160,3 +160,23 @@ test('plain strategy export includes each card heading once and the same narrati
   assert.match(result.html,/>What needs attention<\/h2><p>Approved narrative<\/p>/);
  }
 });
+test('Instagram investment examples account for saves alongside shares',()=>{
+ const c=context();vm.runInContext(`reportWindow={start:'2026-09-01',end:'2026-09-14'};
+ allPosts=[{platform:'ig',dateStr:'09/02/2026',caption:'Saved',reach:100,shares:0,saves:20},{platform:'ig',dateStr:'09/03/2026',caption:'Shared',reach:500,shares:5,saves:0},{platform:'ig',dateStr:'09/04/2026',caption:'Third',reach:1000,shares:4,saves:0}];`,c);
+ const result=vm.runInContext('socialAMECEvidence()',c);
+ assert.equal(result.platforms[0].examples[0].caption,'Saved');assert.equal(result.platforms[0].examples[0].saves,20);
+ assert.equal(result.platforms[0].examples[1].caption,'Shared');
+ assert.equal(vm.runInContext("audienceResponseScore({shares:3,saves:50},'fb')",c),3);
+});
+test('supporting audit describes reach outliers without inferring paid status',()=>{
+ for(const file of ['index.html','report.html']) {
+  const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');
+  const fn=markup.match(/function renderAnalystNotes\(posts\) \{[\s\S]*?\n\}/)[0];
+  const elements={};const c=vm.createContext({document:{getElementById:id=>elements[id]??=( {style:{},innerHTML:''} )},fmt:String,fmtPct:String,boostThreshold:Infinity,igPosts:[],fbPosts:[]});
+  vm.runInContext(fn,c);c.posts=[1,1,1,10].map((reach,i)=>({platform:'ig',type:'Image',reach,engRate:1,interactions:1,date:null,hour:null,dateStr:'09/0'+(i+1)+'/2026'}));
+  vm.runInContext('renderAnalystNotes(posts)',c);
+  const notes=elements['boost-caveat-note'].innerHTML+elements['analyst-notes-body'].innerHTML;
+  assert.match(notes,/paid status is unverified/);
+  assert.doesNotMatch(notes,/consistent with paid|reflects? a paid audience|note it was paid distribution|organic baseline/i);
+ }
+});
