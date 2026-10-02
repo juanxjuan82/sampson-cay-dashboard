@@ -1223,7 +1223,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const dashboard = document.getElementById('dashboard'); if (dashboard) dashboard.style.display = 'block';
     const footer = document.getElementById('footer'); if (footer) footer.style.display = 'block';
     currentFilter = 'all';
-    sharedEditableContent = embedded.editableOverrides || {};
+    sharedEditableContent = migrateEditableOverrides(embedded.editableOverrides || {});
     summaryMode = embedded.summaryMode === 'ai' ? 'ai' : 'deterministic';
     strategyEvidence = embedded.strategyEvidence || null;
     if (embedded.brandColors) {
@@ -3491,6 +3491,20 @@ function applyEditableOverrides(overrides = {}) {
     const element = document.querySelector(`[data-edit-key="${key}"]`);
     if (element && typeof html === 'string') element.innerHTML = html;
   });
+}
+
+function migrateEditableOverrides(overrides = {}) {
+  const migrated = { ...overrides };
+  const copyIfMissing = (nextKey, legacyKey) => {
+    if (!migrated[nextKey] && typeof migrated[legacyKey] === 'string' && migrated[legacyKey].trim()) {
+      migrated[nextKey] = migrated[legacyKey];
+    }
+  };
+  copyIfMissing('executive-read', 'performance-overview');
+  copyIfMissing('goal-progress', 'whats-working');
+  copyIfMissing('public-narrative', 'whats-needs-attention');
+  copyIfMissing('social-direction', 'recommended-direction');
+  return migrated;
 }
 
 function captureSharedEditableContent() {

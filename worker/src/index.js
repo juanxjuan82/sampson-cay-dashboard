@@ -201,12 +201,13 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   let rows;
   try {
     const result = await db.prepare(
-      `SELECT i.id,i.title,i.url,i.first_seen,i.published_at,i.tags,i.review_status,s.label AS source
+      `SELECT i.id,i.source_id,i.title,i.url,i.first_seen,i.published_at,i.tags,i.review_status,
+              substr(i.text,1,4000) AS text,s.label AS source
        FROM items i JOIN sources s ON s.id=i.source_id
        WHERE i.superseded_by IS NULL
        ORDER BY i.first_seen DESC LIMIT 1000`
     ).all();
-    rows = result.results || [];
+    rows = (result.results || []).filter(isCriticismEvidenceRow);
   } catch (error) {
     console.error('Narrative evidence query failed', { message: error?.message });
     return empty;
@@ -277,6 +278,22 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
     previous7Days: { items: previous.length, distinctSources: sources(previous) },
     leadingClaims,
   };
+}
+
+function isCriticismEvidenceRow(row) {
+  if (row.source_id === 'project') return false;
+  let tags = [];
+  try { tags = JSON.parse(row.tags || '[]'); } catch {}
+  if (!tags.some(tag => String(tag?.theme || '').trim())) return false;
+  const knownOpposition = new Set(['turtlegrass', 'sea', 'save-exuma', 'save_exuma', 'over-yonder', 'over_yonder']);
+  if (knownOpposition.has(row.source_id)) return true;
+  const value = `${row.title || ''} ${row.text || ''}`.toLowerCase();
+  return [
+    'opposition', 'oppose', 'challenge', 'critic', 'concern', 'claim', 'alleg',
+    'failure', 'failed', 'inadequate', 'destroy', 'harm', 'illegal', 'unlawful',
+    'salami', 'piecemeal', 'piece-meal', 'judicial review', 'court told',
+    'halt', 'stop', 'reject', 'appeal', 'controvers'
+  ].some(term => value.includes(term));
 }
 
 function getCorsHeaders(origin, configuredOrigins) {

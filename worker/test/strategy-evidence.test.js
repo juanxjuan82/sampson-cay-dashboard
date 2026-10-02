@@ -20,6 +20,7 @@ function setup() {
   };
   sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('sea', 'Save Exuma Alliance', 'https://example.com/sea');
   sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('press', 'Bahamian Press', 'https://example.com/press');
+  sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('project', 'Sampson Cay Project', 'https://example.com/project');
   const insert = sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
   return {DB, insert};
 }
@@ -41,6 +42,7 @@ test('narrative status uses deterministic seven-day counts and distinct sources'
   add('c', 'sea', '2026-09-27T12:00:00.000Z', 'Consultation');
   add('d', 'press', '2026-09-29T12:00:00.000Z', 'Consultation');
   add('e', 'press', '2026-10-01T12:00:00.000Z', 'Environment');
+  add('f', 'project', '2026-10-01T14:00:00.000Z', 'Consultation');
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.status, 'Rising');
   assert.deepEqual(evidence.current7Days, {items: 3, distinctSources: 2});
