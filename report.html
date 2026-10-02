@@ -1910,6 +1910,11 @@ function handleFile(hintPlatform, input) {
 function showUpload() {
   // Reset state for a fresh upload
   strategyRequestVersion += 1;
+  const generateButton = document.getElementById('btn-ai-generate');
+  if (generateButton) {
+    generateButton.disabled = false;
+    generateButton.textContent = '✨ Generate Strategy';
+  }
   rawIG = []; rawFB = [];
   sharedEditableContent = {};
   strategyEvidence = null;

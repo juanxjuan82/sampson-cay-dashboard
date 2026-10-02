@@ -215,7 +215,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
               s.label AS source
        FROM items i JOIN sources s ON s.id=i.source_id
        WHERE i.superseded_by IS NULL
-       ORDER BY CASE WHEN julianday(i.changed_at)>julianday(i.first_seen) THEN i.changed_at ELSE COALESCE(i.published_at,i.changed_at) END DESC,i.id DESC LIMIT 1000`
+       ORDER BY CASE WHEN julianday(i.changed_at)>julianday(i.first_seen) THEN i.changed_at ELSE COALESCE(i.published_at,i.changed_at) END DESC,i.id DESC`
       ).all(),
       db.prepare("SELECT at,detail FROM audit WHERE action='collection_run' ORDER BY at DESC LIMIT 1000").all(),
     ]);
@@ -252,22 +252,21 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   const current = rows.filter(row => activityAt(row) !== null && activityAt(row) >= currentStart && activityAt(row) <= nowMs);
   const previous = rows.filter(row => activityAt(row) !== null && activityAt(row) >= previousStart && activityAt(row) < currentStart);
   const maxObservationGapMs = 9 * 60 * 60 * 1000;
-  const fullRunTimes = collectionRuns
-    .filter(run => {
-      try {
-        const detail = JSON.parse(run.detail || '{}');
-        return Number(detail.totalSources) > 0 && Number(detail.successfulSources) >= Number(detail.totalSources);
-      } catch { return false; }
-    })
-    .map(run => Date.parse(run.at))
-    .filter(value => Number.isFinite(value) && value <= nowMs)
-    .sort((a, b) => a - b);
+  const observations = collectionRuns.map(run => {
+    let complete = false;
+    try {
+      const detail = JSON.parse(run.detail || '{}');
+      complete = Number(detail.totalSources) > 0 && Number(detail.successfulSources) >= Number(detail.totalSources);
+    } catch {}
+    return {at: Date.parse(run.at), complete};
+  }).filter(run => Number.isFinite(run.at) && run.at <= nowMs).sort((a, b) => a.at - b.at);
   let coverageStartedAtMs;
-  if (fullRunTimes.length && nowMs - fullRunTimes.at(-1) <= maxObservationGapMs) {
-    coverageStartedAtMs = fullRunTimes.at(-1);
-    for (let index = fullRunTimes.length - 2; index >= 0; index--) {
-      if (fullRunTimes[index + 1] - fullRunTimes[index] > maxObservationGapMs) break;
-      coverageStartedAtMs = fullRunTimes[index];
+  const latest = observations.at(-1);
+  if (latest?.complete && nowMs - latest.at <= maxObservationGapMs) {
+    coverageStartedAtMs = latest.at;
+    for (let index = observations.length - 2; index >= 0; index--) {
+      if (!observations[index].complete || observations[index + 1].at - observations[index].at > maxObservationGapMs) break;
+      coverageStartedAtMs = observations[index].at;
     }
   }
   const coverageDays = coverageStartedAtMs === undefined ? 0 : Math.max(1, Math.floor((nowMs - coverageStartedAtMs) / dayMs) + 1);

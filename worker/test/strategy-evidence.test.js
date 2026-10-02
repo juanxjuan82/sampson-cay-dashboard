@@ -156,12 +156,14 @@ test('the 1000-row evidence bound follows activity time rather than first captur
   seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
   const rawInsert = sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
   rawInsert.run('a'.repeat(64), 'sea', 'https://example.com/changed-today', 'Consultation criticism', '2026-01-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'changed', 'critical update', JSON.stringify([{theme: 'Consultation'}]));
+  rawInsert.run('b'.repeat(64), 'sea', 'https://example.com/prior-criticism', 'Consultation criticism', '2026-09-21T12:00:00.000Z', '2026-09-21T12:00:00.000Z', '2026-09-21', 'prior', 'criticism', JSON.stringify([{theme:'Consultation'}]));
   for (let index = 0; index < 1001; index++) {
     const id = index.toString(16).padStart(64, '0');
     rawInsert.run(id, 'project', `https://example.com/neutral-${index}`, 'Routine project update', '2026-09-01T12:00:00.000Z', '2026-09-01T12:00:00.000Z', '2026-09-01', `neutral-${index}`, 'routine update', JSON.stringify([{theme: 'Employment', criticismEvidence: false}]));
   }
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.current7Days.items, 1);
+  assert.equal(evidence.previous7Days.items, 1);
 });
 
 test('an undated page update uses its content-change time', async () => {
@@ -232,4 +234,16 @@ test('summary keeps private coaching separate and returns deterministic narrativ
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test('an incomplete run resets coverage even when a retry closes the time gap', async () => {
+  const {DB, insert, sql} = setup();
+  seedContinuousRuns(sql, '2026-09-17T12:00:00.000Z', '2026-10-02T12:00:00.000Z');
+  sql.prepare("UPDATE audit SET detail=? WHERE at=?").run(JSON.stringify({successfulSources:2,totalSources:3}), '2026-10-02T06:00:00.000Z');
+  sql.prepare("INSERT INTO audit(at,action,detail) VALUES(?,'collection_run',?)").run('2026-10-02T08:00:00.000Z', JSON.stringify({successfulSources:3,totalSources:3}));
+  insert.run('a'.repeat(64), 'sea', 'https://example.com/retry', 'Consultation criticism', '2026-10-01T12:00:00.000Z', '2026-10-01T12:00:00.000Z', '2026-10-01', 'retry', 'criticism', JSON.stringify([{theme:'Consultation'}]));
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.status, 'Baseline building');
+  assert.equal(evidence.coverageStartedAt, '2026-10-02T08:00:00.000Z');
 });
