@@ -1191,6 +1191,7 @@ let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let strategyEvidence = null;
 let aiGenerateAfterSettings = false;
+let strategyRequestVersion = 0;
 const DASHBOARD_VERSION = '2026-10-01.1'; // Bump whenever report-generation code changes.
 const DEFAULT_STRATEGY_CONTEXT = `Project: Sampson Cay / Rosewood Exuma.
 Primary communications goals: build trust through verifiable proof; show environmental stewardship; demonstrate local participation and benefits; maintain a calm, consistent public presence.
@@ -1789,6 +1790,7 @@ async function generateAISummary() {
   }
 
   const button = document.getElementById('btn-ai-generate');
+  const requestVersion = ++strategyRequestVersion;
   const original = button ? button.textContent : '';
   if (button) {
     button.disabled = true;
@@ -1813,17 +1815,20 @@ async function generateAISummary() {
       const detail = payload.requestId ? ' Request ID: ' + payload.requestId : '';
       throw new Error((payload.error || 'Summary generation failed.') + detail);
     }
+    if (requestVersion !== strategyRequestVersion) return;
     strategyEvidence = payload.narrativeEvidence || null;
     renderStrategySignal(strategyEvidence);
     applyAISummary(payload.summary);
     toggleEditMode(true);
     if (button) button.textContent = '✓ Private Draft Ready';
   } catch (error) {
+    if (requestVersion !== strategyRequestVersion) return;
     if (button) button.textContent = '⚠ Generation failed';
     alert(error.message || 'AI summary generation failed.');
   } finally {
-    if (button) {
+    if (button && requestVersion === strategyRequestVersion) {
       setTimeout(function() {
+        if (requestVersion !== strategyRequestVersion) return;
         button.disabled = false;
         button.textContent = original || '✨ Generate Strategy';
       }, 1800);
@@ -1896,6 +1901,7 @@ function handleFile(hintPlatform, input) {
 
 function showUpload() {
   // Reset state for a fresh upload
+  strategyRequestVersion += 1;
   rawIG = []; rawFB = [];
   sharedEditableContent = {};
   strategyEvidence = null;

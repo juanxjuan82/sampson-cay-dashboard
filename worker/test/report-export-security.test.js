@@ -55,5 +55,7 @@ for (const file of dashboardFiles) {
     const showUpload = html.match(/function showUpload\(\) \{[\s\S]*?\n\}/)?.[0] || '';
     assert.match(showUpload, /strategyEvidence = null;/);
     assert.match(showUpload, /renderStrategySignal\(null\);/);
+    assert.match(showUpload, /strategyRequestVersion \+= 1;/);
+    assert.match(html, /if \(requestVersion !== strategyRequestVersion\) return;/);
   });
 }
