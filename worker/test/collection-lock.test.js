@@ -21,6 +21,7 @@ test('lease renews across requests; a displaced collector cannot release its suc
   assert.equal(sql.prepare("SELECT owner FROM locks WHERE id='collect'").get().owner,null);
   sql.prepare("UPDATE locks SET expires_at=0").run();mode='displace';
   await assert.rejects(()=>collect({DB}),/Collection lock lost/);
+  assert.equal(JSON.parse(sql.prepare("SELECT detail FROM audit WHERE action='collection_run' ORDER BY id DESC LIMIT 1").get().detail).successfulSources,0);
   const lock=sql.prepare("SELECT * FROM locks WHERE id='collect'").get();assert.equal(lock.owner,'successor');assert.equal(lock.expires_at,successorLease);
   assert.equal((await collect({DB})).busy,true);
  }finally{globalThis.fetch=original;sql.close();}

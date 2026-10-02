@@ -1,4 +1,4 @@
-import {canonical, classify, PROJECT, normalize} from './rules.js';
+import {canonical, classify, criticismThemes, PROJECT, normalize} from './rules.js';
 export const SOURCES = [
   {id:'turtlegrass', label:'Turtlegrass · campaign & blog', url:'https://www.turtlegrassresort.com/defending-sampson-cay', host:'www.turtlegrassresort.com', path:/^\/(blog\/[^/]+\/?|defending-sampson-cay\/?)/},
   {id:'tribune', label:'The Tribune · Business', url:'https://www.tribune242.com/news/business/', host:'www.tribune242.com', path:/^\/news\/\d{4}\//},
@@ -49,18 +49,18 @@ export function robotsAllowed(raw, pathname) {
   return rules.length ? rules[0].allow : true;
 }
 export async function extract(raw, url) {
-  const text=[], title=[], links=[]; let published=null; let excluded=0;
+  const text=[], context=[], title=[], links=[]; let published=null; let excluded=0;
   const rewrite=new HTMLRewriter()
     .on('script,style,nav,header,footer,aside,form,noscript', {element(e){excluded++;e.onEndTag(()=>{excluded--;});e.remove();}})
     .on('title', {text(t){title.push(t.text);}})
     .on('meta[property="article:published_time"],meta[name="date"]', {element(e){published=e.getAttribute('content');}})
     .on('a[href]', {element(e){const link=canonical(e.getAttribute('href'),url);if(link) links.push(link);}})
-    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) text.push(' ');}})
-    .on('body', {text(t){if(!excluded) text.push(t.text);}});
+    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) {text.push(' ');context.push(' . ');e.onEndTag(()=>{if(!excluded)context.push(' . ');});}}})
+    .on('body', {text(t){if(!excluded) {text.push(t.text);context.push(t.text);}}});
   await rewrite.transform(new Response(raw,{headers:{'Content-Type':'text/html'}})).text();
   const clean=text.join('').replace(/\s+/g,' ').trim();
   const date=published && !Number.isNaN(Date.parse(published)) ? new Date(published).toISOString() : null;
-  return {text:clean,title:title.join('').trim()||url,published:date,links:[...new Set(links)]};
+  return {text:clean,contextText:context.join('').replace(/\s+/g,' ').trim(),title:title.join('').trim()||url,published:date,links:[...new Set(links)]};
 }
 export async function collect(env) {
   if(!env.DB) throw Error('Monitor database not configured');
@@ -73,7 +73,10 @@ export async function collect(env) {
   };
   const fetchWithLease=async(...args)=>{await renew();return fetch(...args);};
   const result={busy:false,newItems:0,changedItems:0,failures:[]};
+  let successfulSources=0;
+  const runAt=new Date(now).toISOString(),pendingRun=JSON.stringify({owner,state:'pending',successfulSources:0,totalSources:SOURCES.length});
   try {
+    await env.DB.prepare("INSERT INTO audit(at,item_id,action,detail) VALUES(?,NULL,'collection_run',?)").bind(runAt,pendingRun).run();
     for(const source of SOURCES) {
       const at=new Date().toISOString();
       await env.DB.prepare('INSERT OR IGNORE INTO sources(id,label,url) VALUES(?,?,?)').bind(source.id,source.label,source.url).run();
@@ -123,10 +126,21 @@ export async function collect(env) {
             // Retire a moved source item without deleting its captures or advice.
             // Advice is never transferred or published on the destination automatically.
             const id=destination?.id||await hash(identity), contentHash=await hash(parsed.title+'\n'+parsed.text), rawHash=await hash(captured.raw);
-            const old=await env.DB.prepare('SELECT content_hash FROM items WHERE id=?').bind(id).first();
-            const tags=JSON.stringify(classify(parsed.title+' '+parsed.text));
+            const old=await env.DB.prepare('SELECT content_hash,tags,text,title,published_at,first_seen FROM items WHERE id=?').bind(id).first();
+            const baseTags=classify(parsed.title+' '+parsed.text);
+            const criticalThemes=new Set(criticismThemes(source.id,baseTags,parsed.title+'. '+parsed.contextText));
+            const oldTags=old?JSON.parse(old.tags||'[]'):[];
+            const oldRaw=old && !oldTags.some(tag=>Object.hasOwn(tag,'criticismEvidence'))?await env.DB.prepare('SELECT raw_html FROM captures WHERE item_id=? ORDER BY captured_at DESC,rowid DESC LIMIT 1').bind(id).first():null;
+            const oldContext=oldRaw?(await extract(oldRaw.raw_html,identity)).contextText:old?.text||'';
+            const oldCritical=new Set(oldTags.some(tag=>Object.hasOwn(tag,'criticismEvidence'))?oldTags.filter(tag=>tag.criticismEvidence).map(tag=>tag.theme):criticismThemes(source.id,oldTags,(old?.title||'')+'. '+oldContext));
+            const tags=JSON.stringify(baseTags.map(tag=>{
+              const previous=oldTags.find(prior=>prior.theme===tag.theme);
+              const critical=criticalThemes.has(tag.theme);
+              const criticismAt=critical?(oldCritical.has(tag.theme)?previous?.criticismAt||old.published_at||old.first_seen:old?at:parsed.published||at):null;
+              return {...tag,criticismEvidence:critical,criticismAt};
+            }));
             const statements=[
-              env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET url=excluded.url,superseded_by=NULL,title=excluded.title,published_at=excluded.published_at,changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
+              env.DB.prepare(`INSERT INTO items(id,source_id,url,title,published_at,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET url=excluded.url,superseded_by=NULL,title=excluded.title,published_at=COALESCE(excluded.published_at,items.published_at),changed_at=CASE WHEN items.content_hash!=excluded.content_hash THEN excluded.changed_at ELSE items.changed_at END,last_seen=excluded.last_seen,checked_at=excluded.last_seen,collection_error=NULL,review_status=CASE WHEN items.content_hash!=excluded.content_hash THEN 'unreviewed' ELSE items.review_status END,content_hash=excluded.content_hash,text=excluded.text,tags=excluded.tags`).bind(id,source.id,identity,parsed.title,parsed.published,at,at,at,contentHash,parsed.text,tags),
               env.DB.prepare('INSERT OR IGNORE INTO captures(item_id,hash,captured_at,raw_html,text) VALUES(?,?,?,?,?)').bind(id,rawHash,at,captured.raw,parsed.text)
             ];
             if(prior && prior.id!==id)statements.push(env.DB.prepare("UPDATE items SET superseded_by=?,checked_at=?,collection_error=?,review_status='unreviewed' WHERE id=?").bind(id,at,'Redirected to '+identity,prior.id));
@@ -136,7 +150,8 @@ export async function collect(env) {
             if(!old) result.newItems++; else if(old.content_hash!==contentHash) result.changedItems++;
           } catch(e) {if(e.message==='Collection lock lost') throw e;if(candidateURLs.has(url)) await recordAttempt(url,e.message);failures++;result.failures.push({source:source.label,url,error:e.message});await env.DB.prepare('UPDATE items SET checked_at=?,collection_error=? WHERE url=?').bind(at,e.message,url).run();}
         }
-        await env.DB.prepare('UPDATE sources SET checked_at=?,success_at=?,error=? WHERE id=?').bind(at,at,failures?`${failures} page(s) could not be collected`:null,source.id).run();
+        await env.DB.prepare('UPDATE sources SET checked_at=?,success_at=CASE WHEN ?=0 THEN ? ELSE success_at END,error=? WHERE id=?').bind(at,failures,at,failures?`${failures} page(s) could not be collected`:null,source.id).run();
+        if(!failures) successfulSources++;
       } catch(e) {
         if(e.message==='Collection lock lost') throw e;
         result.failures.push({source:source.label,error:e.message});
@@ -144,6 +159,10 @@ export async function collect(env) {
         await env.DB.prepare('UPDATE sources SET checked_at=?,error=? WHERE id=?').bind(at,e.message,source.id).run();
       }
     }
+    await env.DB.prepare("UPDATE audit SET detail=? WHERE at=? AND action='collection_run' AND detail=?").bind(JSON.stringify({successfulSources,totalSources:SOURCES.length}),runAt,pendingRun).run();
     return result;
+  } catch(error) {
+    await env.DB.prepare("UPDATE audit SET detail=? WHERE at=? AND action='collection_run' AND detail=?").bind(JSON.stringify({state:'failed',successfulSources:0,totalSources:SOURCES.length}),runAt,pendingRun).run();
+    throw error;
   } finally {await env.DB.prepare("UPDATE locks SET expires_at=?,owner=NULL WHERE id='collect' AND owner=?").bind(Date.now()+300000,owner).run();}
 }

@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {Miniflare, convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 test('Cloudflare runtime collects once, preserves raw capture, tags and reports partial failures',async()=>{
- let revision='First consultation account', linkPresent=true, articleMissing=false, landingMissing=false, redirectTarget=null;
+ let revision='First consultation account', linkPresent=true, articleMissing=false, landingMissing=false, redirectTarget=null, includePublished=true;
  const articleURL='https://www.turtlegrassresort.com/blog/sampson-cay-review';
- const html=()=>`<html><head><title>Sampson Cay report</title><meta property="article:published_time" content="2026-09-28T12:00:00Z"></head><body><nav>irrelevant navigation</nav><main><h1>Yntegra at Sampson Cay</h1><p>${revision}. Solar farm, salami slicing, and mangrove consultation form this attributed report. ${'Additional factual source material. '.repeat(12)}</p></main><script>unsafe()</script></body></html>`;
+ const html=()=>`<html><head><title>Sampson Cay report</title>${includePublished?'<meta property="article:published_time" content="2026-09-28T12:00:00Z">':''}</head><body><nav>irrelevant navigation</nav><main><h1>Yntegra at Sampson Cay</h1><p>${revision}. Solar farm, salami slicing, and mangrove consultation form this attributed report. ${'Additional factual source material. '.repeat(12)}</p></main><script>unsafe()</script></body></html>`;
  const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/index.js',contents:readFileSync(new URL('../src/index.js',import.meta.url),'utf8')},...['index.js','collector.js','rules.js'].map(name=>({type:'ESModule',path:'src/monitor/'+name,contents:readFileSync(new URL('../src/monitor/'+name,import.meta.url),'utf8')}))],compatibilityDate:'2026-10-01',d1Databases:['DB'],bindings:{MONITOR_EDITOR_TOKEN:'editor',MONITOR_CLIENT_TOKEN:'client'},outboundService:async request=>{
  const url=new URL(request.url);
  if(url.pathname==='/robots.txt')return new Response('User-agent: *\nAllow: /');
@@ -25,15 +25,19 @@ test('Cloudflare runtime collects once, preserves raw capture, tags and reports 
  await DB.exec(readFileSync(new URL('../migrations/0005_redirect_history.sql',import.meta.url),'utf8').replace(/\n/g,' '));
  const call=(path,method='GET')=>mf.dispatchFetch('https://monitor.example'+path,{method,headers:{Authorization:'Bearer editor'}});
  let r=await (await call('/refresh','POST')).json();assert.equal(r.newItems,4);assert.equal(r.failures.length,1);
+ const firstRun=JSON.parse((await DB.prepare("SELECT detail FROM audit WHERE action='collection_run' ORDER BY id DESC LIMIT 1").first()).detail);assert.deepEqual(firstRun,{successfulSources:3,totalSources:4});
  let feed=await (await call('/feed')).json();assert.equal(feed.items.length,4);assert.ok(feed.items[0].tags.some(t=>t.theme==='Solar farm'));assert.equal(feed.sources.find(s=>s.id==='ewn').error,'1 page(s) could not be collected');
- const item=await DB.prepare('SELECT * FROM items LIMIT 1').first();assert.ok(!item.text.includes('unsafe'));assert.ok(!item.text.includes('irrelevant navigation'));assert.equal(item.published_at,'2026-09-28T12:00:00.000Z');
+ const item=await DB.prepare('SELECT * FROM items LIMIT 1').first();assert.ok(!item.text.includes('unsafe'));assert.ok(!item.text.includes('irrelevant navigation'));assert.match(item.text,/Sampson Cay First consultation account/);assert.equal(item.published_at,'2026-09-28T12:00:00.000Z');
  assert.ok((await DB.prepare('SELECT raw_html FROM captures LIMIT 1').first()).raw_html.includes('unsafe()'));
  r=await (await call('/refresh','POST')).json();assert.equal(r.busy,true);
- await DB.prepare('UPDATE locks SET expires_at=0').run();r=await (await call('/refresh','POST')).json();assert.equal(r.newItems,0);assert.equal(r.changedItems,0);
+ includePublished=false;await DB.prepare('UPDATE locks SET expires_at=0').run();r=await (await call('/refresh','POST')).json();assert.equal(r.newItems,0);assert.equal(r.changedItems,0);
+ assert.equal((await DB.prepare('SELECT published_at FROM items LIMIT 1').first()).published_at,'2026-09-28T12:00:00.000Z');
+ assert.equal((await DB.prepare('SELECT changed_at FROM items WHERE id=?').bind(item.id).first()).changed_at,item.changed_at);
+ const metadataCaptureCount=(await DB.prepare('SELECT COUNT(*) AS n FROM captures').first()).n;
  await DB.prepare("UPDATE items SET review_status='reviewed'").run();
  linkPresent=false;revision='Updated consultation account';await DB.prepare('UPDATE locks SET expires_at=0').run();r=await (await call('/refresh','POST')).json();assert.equal(r.changedItems,4);
- assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM captures').first()).n,8);
- const changedArticle=await DB.prepare('SELECT * FROM items WHERE url=?').bind(articleURL).first();assert.ok(changedArticle.text.includes('Updated consultation account'));assert.equal(changedArticle.review_status,'unreviewed');
+ assert.equal((await DB.prepare('SELECT COUNT(*) AS n FROM captures').first()).n,metadataCaptureCount+4);
+ const changedArticle=await DB.prepare('SELECT * FROM items WHERE url=?').bind(articleURL).first();assert.ok(changedArticle.text.includes('Updated consultation account'));assert.equal(changedArticle.review_status,'unreviewed');assert.equal(JSON.parse(changedArticle.tags).find(t=>t.theme==='Solar farm').criticismAt,'2026-09-28T12:00:00.000Z');
  await DB.prepare("UPDATE items SET review_status='reviewed'").run();
  await DB.prepare('UPDATE locks SET expires_at=0').run();await call('/refresh','POST');
  assert.equal((await DB.prepare('SELECT review_status FROM items WHERE url=?').bind(articleURL).first()).review_status,'reviewed');
@@ -96,4 +100,19 @@ test('rejected and failed candidates rotate so later valid links are discovered'
  await DB.prepare('UPDATE locks SET expires_at=0').run();assert.equal((await call()).status,200);
  assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM items WHERE source_id='turtlegrass'").first()).n,1);
  }finally {await mf.dispose();}
+});
+
+test('block context preserves legacy source text and content hashes',async()=>{
+ const mf=new Miniflare(convertV4MiniflareOptions({modules:[
+  {type:'ESModule',path:'entry.js',contents:`import {extract,hash} from './collector.js';import {classify,criticismThemes} from './rules.js';export default {async fetch(){const p=await extract('<html><head><title>Sampson Cay report</title></head><body><p>Permit challenge</p>Sampson Cay jobs will be created</body></html>','https://example.com');return Response.json({...p,contentHash:await hash(p.title+'\\n'+p.text),themes:criticismThemes('tribune',classify(p.text),p.title+'. '+p.contextText)});}};`},
+  ...['collector.js','rules.js'].map(name=>({type:'ESModule',path:name,contents:readFileSync(new URL('../src/monitor/'+name,import.meta.url),'utf8')}))
+ ],compatibilityDate:'2026-10-01'}));
+ try{
+  const p=await (await mf.dispatchFetch('https://example.com')).json();
+  assert.equal(p.text,'Permit challengeSampson Cay jobs will be created');
+  assert.match(p.contextText,/challenge \. Sampson Cay/);
+  assert.ok(!p.themes.includes('Employment'));
+  const {createHash}=await import('node:crypto');
+  assert.equal(p.contentHash,createHash('sha256').update('Sampson Cay report\nPermit challengeSampson Cay jobs will be created').digest('hex'));
+ }finally{await mf.dispose();}
 });

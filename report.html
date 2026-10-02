@@ -568,6 +568,19 @@
     align-items: center; justify-content: center; flex-shrink: 0;
   }
   .exec-divider { height: 1px; background: var(--border); margin: 18px 0; }
+  .strategy-signal {
+    display:grid; grid-template-columns:1.1fr .9fr .9fr; gap:12px;
+    margin-bottom:18px;
+  }
+  .signal-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:16px 18px;
+  }
+  .signal-label { font-size:10px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; color:var(--text-muted); }
+  .signal-value { margin-top:5px; font-size:19px; line-height:1.25; font-weight:800; color:var(--text); }
+  .signal-value.rising { color:#b45309; }
+  .signal-value.falling { color:#047857; }
+  .signal-detail { margin-top:5px; font-size:11.5px; line-height:1.45; color:var(--text-muted); }
 
   /* ── CONTENT CALENDAR ── */
   .cal-grid {
@@ -773,7 +786,10 @@
   .table-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
   .methodology { margin-top:12px; font-size:11px; color:var(--text-muted); }
   .methodology summary { cursor:pointer; font-weight:700; color:var(--accent); }
-  @media (max-width:900px) { .theme-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:900px) {
+    .theme-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .strategy-signal { grid-template-columns:1fr; }
+  }
   @media (max-width:560px) {
     .theme-grid { grid-template-columns:1fr; }
     .dashboard-tabs { width:100%; }
@@ -843,9 +859,7 @@
   <div class="toolbar">
     <div class="toolbar-left">
       <div class="pill-group">
-        <button class="pill active" onclick="setFilter('all', this)">All Platforms</button>
-        <button class="pill" onclick="setFilter('ig', this)">Instagram</button>
-        <button class="pill" onclick="setFilter('fb', this)">Facebook</button>
+        <button class="pill active" onclick="setFilter('all', this)">Overall</button>
       </div>
     </div>
     <div class="toolbar-right">
@@ -896,16 +910,18 @@
     </div>
   </div>
 
+  <div class="strategy-signal" id="strategy-signal" style="display:none" aria-live="polite"></div>
+
   <!-- EXEC SUMMARY -->
   <div id="exec-summary" style="display:none">
     <div class="exec-summary-card">
       <div class="exec-summary-header">
         <div>
-          <div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div>
+          <div class="exec-summary-title">Executive Social &amp; Public Narrative Strategy</div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-sm btn-edit" id="btn-ai-generate" onclick="generateAISummary()" title="Generate an editable narrative from the dashboard’s deterministic evidence">✨ Generate AI Summary</button>
+          <button class="btn btn-sm btn-edit" id="btn-ai-generate" onclick="generateAISummary()" title="Generate an editable strategy from deterministic performance and monitoring evidence">✨ Generate Strategy</button>
           <button class="btn btn-sm btn-edit" id="btn-ai-settings" onclick="openAISettings(false)" title="Configure the Cloudflare Worker connection">⚙ AI</button>
           <button class="btn btn-sm btn-edit" id="btn-copy-doc" onclick="copyStrategyForDoc()">📋 Copy for Google Doc</button>
           <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
@@ -913,7 +929,7 @@
         </div>
       </div>
       <div class="edit-mode-banner" id="edit-banner">
-        ✏️ <span><strong>Edit mode on</strong> — click any highlighted text to rewrite it. Changes carry through to the client report.</span>
+        ✏️ <span><strong>Private working copy</strong> — rewrite any highlighted text and coach the recommendation for the client. The client sees it only after you publish the report.</span>
       </div>
       <div id="exec-summary-body"></div>
     </div>
@@ -1143,8 +1159,8 @@
 <!-- ══════════════════ AI SUMMARY MODAL ══════════════════ -->
 <div class="modal-overlay" id="ai-modal">
   <div class="modal">
-    <h3>✨ Generate AI Summary</h3>
-    <p>Connect the dashboard to the protected Cloudflare Worker. The Worker URL is saved in this browser; the access token is kept only for this tab.</p>
+    <h3>✨ Generate Executive Strategy</h3>
+    <p>Build a private, editable strategy from content performance and monitored public claims. You review the language before it appears in the client report.</p>
 
     <label>Worker URL</label>
     <input type="url" id="ai-endpoint" placeholder="https://sampson-cay-dashboard-ai.your-subdomain.workers.dev" autocomplete="url">
@@ -1152,9 +1168,13 @@
     <label>Dashboard access token</label>
     <input type="password" id="ai-access-token" placeholder="Paste DASHBOARD_AI_TOKEN" autocomplete="off">
 
-    <label>Account context and priorities</label>
-    <textarea id="ai-account-context" maxlength="6000" placeholder="Add account history, business goals, priority audiences, important campaigns or events, known paid activity, constraints, and what recommendations should optimize for."></textarea>
-    <p class="modal-field-note">Saved only in this browser. It guides interpretation and recommendations but does not override the dashboard’s measured evidence.</p>
+    <label>Strategy context and goals</label>
+    <textarea id="ai-account-context" maxlength="6000" placeholder="Add approved project facts, business goals, priority audiences, important campaigns, constraints and what success should look like."></textarea>
+    <p class="modal-field-note">Saved only in this browser. It guides the strategy but cannot override measured results.</p>
+
+    <label>Private coaching notes</label>
+    <textarea id="ai-editor-guidance" maxlength="4000" placeholder="Coach the draft for this client: what they are ready to hear, where to be firm, what needs a softer approach, and any recommendation you do not want made yet."></textarea>
+    <p class="modal-field-note">Saved only in this browser and used to shape the draft. These notes are never shown in the client report.</p>
 
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closeAISettings()">Cancel</button>
@@ -1177,8 +1197,15 @@ let topPostsExpanded = false;
 let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
+let strategyEvidence = null;
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-08-11.9'; // Bump whenever report-generation code changes.
+let strategyRequestVersion = 0;
+const DASHBOARD_VERSION = '2026-10-01.1'; // Bump whenever report-generation code changes.
+const DEFAULT_STRATEGY_CONTEXT = `Project: Sampson Cay / Rosewood Exuma.
+Primary communications goals: build trust through verifiable proof; show environmental stewardship; demonstrate local participation and benefits; maintain a calm, consistent public presence.
+Priority audiences: Exuma residents, the wider Bahamian public, media and project stakeholders.
+Content pillars: Community, Economy, Environment and Site Activity.
+Response posture: do not answer every criticism. Prioritize claims that are growing across credible sources. Use approved records and visible proof. Refer court-related or legal claims to counsel before publication.`;
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1205,13 +1232,15 @@ window.addEventListener('DOMContentLoaded', () => {
     const dashboard = document.getElementById('dashboard'); if (dashboard) dashboard.style.display = 'block';
     const footer = document.getElementById('footer'); if (footer) footer.style.display = 'block';
     currentFilter = 'all';
-    sharedEditableContent = embedded.editableOverrides || {};
+    sharedEditableContent = migrateEditableOverrides(embedded.editableOverrides || {});
     summaryMode = embedded.summaryMode === 'ai' ? 'ai' : 'deterministic';
+    strategyEvidence = embedded.strategyEvidence || null;
     if (embedded.brandColors) {
       Object.assign(TYPE_COLORS, embedded.brandColors.typeColors);
       Object.assign(PLATFORM_COLORS, embedded.brandColors.platformColors);
     }
     renderAll();
+    renderStrategySignal(strategyEvidence);
   }
 });
 
@@ -1665,7 +1694,8 @@ function openAISettings(generateAfterSave) {
   aiGenerateAfterSettings = Boolean(generateAfterSave);
   document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
   document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
-  document.getElementById('ai-account-context').value = localStorage.getItem('dashboard_ai_context') || '';
+  document.getElementById('ai-account-context').value = getStrategyContext();
+  document.getElementById('ai-editor-guidance').value = localStorage.getItem('dashboard_ai_editor_guidance') || '';
   document.getElementById('ai-modal').classList.add('open');
 }
 
@@ -1678,18 +1708,25 @@ function saveAISettingsAndGenerate() {
   const endpoint = document.getElementById('ai-endpoint').value.trim().replace(/\/+$/, '');
   const token = document.getElementById('ai-access-token').value.trim();
   const accountContext = document.getElementById('ai-account-context').value.trim();
+  const editorGuidance = document.getElementById('ai-editor-guidance').value.trim();
   if (!/^https:\/\//i.test(endpoint) || !token) {
     alert('Enter the HTTPS Worker URL and the DASHBOARD_AI_TOKEN value.');
     return;
   }
   localStorage.setItem('dashboard_ai_endpoint', endpoint);
   sessionStorage.setItem('dashboard_ai_token', token);
-  if (accountContext) localStorage.setItem('dashboard_ai_context', accountContext);
-  else localStorage.removeItem('dashboard_ai_context');
+  localStorage.setItem('dashboard_ai_context', accountContext);
+  if (editorGuidance) localStorage.setItem('dashboard_ai_editor_guidance', editorGuidance);
+  else localStorage.removeItem('dashboard_ai_editor_guidance');
   document.getElementById('ai-modal').classList.remove('open');
   const shouldGenerate = aiGenerateAfterSettings;
   aiGenerateAfterSettings = false;
   if (shouldGenerate || allPosts.length) generateAISummary();
+}
+
+function getStrategyContext(storage = localStorage) {
+  const saved = storage.getItem('dashboard_ai_context');
+  return saved === null ? DEFAULT_STRATEGY_CONTEXT : saved;
 }
 
 function applyAISummary(summary) {
@@ -1698,10 +1735,11 @@ function applyAISummary(summary) {
     if (allButton) setFilter('all', allButton);
   }
   const values = {
-    'performance-overview': summary.performanceOverview,
-    'whats-working': summary.whatsWorking,
-    'whats-needs-attention': summary.whatsNotWorking,
-    'recommended-direction': summary.recommendedDirection
+    'executive-read': summary.executiveRead,
+    'goal-progress': summary.goalProgress,
+    'public-narrative': summary.publicNarrative,
+    'social-direction': summary.socialDirection,
+    'historical-precedent': summary.historicalPrecedent
   };
   Object.keys(values).forEach(function(key) {
     const element = document.querySelector('[data-edit-key="' + key + '"]');
@@ -1711,6 +1749,40 @@ function applyAISummary(summary) {
   });
   summaryMode = 'ai';
   captureSharedEditableContent();
+}
+
+function renderStrategySignal(evidence) {
+  const container = document.getElementById('strategy-signal');
+  if (!container) return;
+  if (!evidence) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  const current = evidence.current7Days || { items: 0, distinctSources: 0 };
+  const previous = evidence.previous7Days || { items: 0, distinctSources: 0 };
+  const leading = (evidence.leadingClaims || []).filter(function(claim) { return claim.currentItems > 0; }).slice(0, 3);
+  const leadingText = leading.length
+    ? leading.map(function(claim) { return claim.theme + ' (' + claim.currentItems + ')'; }).join(', ')
+    : 'No leading claim yet';
+  const statusClass = evidence.status === 'Rising' ? 'rising' : evidence.status === 'Falling' ? 'falling' : '';
+  container.innerHTML = `
+    <div class="signal-card">
+      <div class="signal-label">Public narrative status</div>
+      <div class="signal-value ${statusClass}">${escapeHTML(evidence.status || 'No monitoring data')}</div>
+      <div class="signal-detail">${escapeHTML(evidence.statusReason || 'Monitoring evidence is not available.')}</div>
+    </div>
+    <div class="signal-card">
+      <div class="signal-label">Monitored activity</div>
+      <div class="signal-value">${fmt(current.items)} items · ${fmt(current.distinctSources)} sources</div>
+      <div class="signal-detail">Previous 7 days: ${fmt(previous.items)} items across ${fmt(previous.distinctSources)} sources.</div>
+    </div>
+    <div class="signal-card">
+      <div class="signal-label">Leading claims</div>
+      <div class="signal-value" style="font-size:15px">${escapeHTML(leadingText)}</div>
+      <div class="signal-detail">Counts reflect only sources captured by the monitor.</div>
+    </div>`;
+  container.style.display = 'grid';
 }
 
 async function generateAISummary() {
@@ -1726,6 +1798,7 @@ async function generateAISummary() {
   }
 
   const button = document.getElementById('btn-ai-generate');
+  const requestVersion = ++strategyRequestVersion;
   const original = button ? button.textContent : '';
   if (button) {
     button.disabled = true;
@@ -1741,7 +1814,8 @@ async function generateAISummary() {
       },
       body: JSON.stringify({
         evidence: buildAISummaryEvidence(allPosts),
-        accountContext: localStorage.getItem('dashboard_ai_context') || ''
+        accountContext: getStrategyContext(),
+        editorGuidance: localStorage.getItem('dashboard_ai_editor_guidance') || ''
       })
     });
     const payload = await response.json().catch(function() { return {}; });
@@ -1749,16 +1823,22 @@ async function generateAISummary() {
       const detail = payload.requestId ? ' Request ID: ' + payload.requestId : '';
       throw new Error((payload.error || 'Summary generation failed.') + detail);
     }
+    if (requestVersion !== strategyRequestVersion) return;
+    strategyEvidence = payload.narrativeEvidence || null;
+    renderStrategySignal(strategyEvidence);
     applyAISummary(payload.summary);
-    if (button) button.textContent = '✓ AI Summary Updated';
+    toggleEditMode(true);
+    if (button) button.textContent = '✓ Private Draft Ready';
   } catch (error) {
+    if (requestVersion !== strategyRequestVersion) return;
     if (button) button.textContent = '⚠ Generation failed';
     alert(error.message || 'AI summary generation failed.');
   } finally {
-    if (button) {
+    if (button && requestVersion === strategyRequestVersion) {
       setTimeout(function() {
+        if (requestVersion !== strategyRequestVersion) return;
         button.disabled = false;
-        button.textContent = original || '✨ Generate AI Summary';
+        button.textContent = original || '✨ Generate Strategy';
       }, 1800);
     }
   }
@@ -1829,8 +1909,16 @@ function handleFile(hintPlatform, input) {
 
 function showUpload() {
   // Reset state for a fresh upload
+  strategyRequestVersion += 1;
+  const generateButton = document.getElementById('btn-ai-generate');
+  if (generateButton) {
+    generateButton.disabled = false;
+    generateButton.textContent = '✨ Generate Strategy';
+  }
   rawIG = []; rawFB = [];
   sharedEditableContent = {};
+  strategyEvidence = null;
+  renderStrategySignal(null);
   summaryMode = 'deterministic';
   ['ig','fb'].forEach(p => {
     document.getElementById(`label-${p}`).textContent = p === 'ig' ? 'Instagram CSV' : 'Facebook CSV';
@@ -3373,30 +3461,42 @@ function renderExecSummary() {
   const boostNote = boostedPosts.length
     ? ` ${boostedPosts.length} of ${totalPosts} posts show reach consistent with paid promotion; organic figures are separated where stated.`
     : '';
+  const provisionalGoal = strongestEngagement
+    ? `The strongest current path to trust is <strong>${escapeHTML(strongestEngagement.label)}</strong>, which has the best supported engagement signal. Keep using specific proof and local relevance so performance supports the wider communications goal.`
+    : 'The current sample is too small to judge progress by theme. Use trust, proof and local relevance as provisional goals while the evidence base grows.';
+  const narrativeFallback = strategyEvidence
+    ? `<strong>${escapeHTML(strategyEvidence.status)}</strong>. ${escapeHTML(strategyEvidence.statusReason)} Use the monitor to decide whether to watch, clarify, show proof or refer a claim to counsel.`
+    : 'Public-claims monitoring has not yet been added to this report. Generate the strategy to bring the deterministic monitor status into this page.';
+  const socialFallback = strongestEngagement
+    ? `Publish <strong>1–2 feed posts per week</strong>. Lead with <strong>${escapeHTML(strongestEngagement.label)}</strong> and support it with clear evidence from the project. This keeps the account present without making the response look rushed or defensive.`
+    : 'Publish <strong>1–2 feed posts per week</strong> while the theme sample grows. Each post should add new proof, a useful local voice or a clear project update.';
   el.innerHTML = `
     <div class="exec-block">
-      <div class="exec-block-label">Overview</div>
-      <div class="exec-block-body editable-field" data-edit-key="performance-overview" contenteditable="false">
-        The account recorded <strong>${fmt(totalReach)} total post reach</strong> across <strong>${totalPosts} posts</strong>, with <strong>${fmt(totalFollows)} Instagram follows attributed to posts</strong> and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' Facebook link clicks' : 'no Facebook link-click data recorded'}</strong>.${boostNote}
-        Estimated organic posts averaged <strong>${fmt(avgOrganicReach)} reach</strong>${avgBoostedReach ? `, while posts flagged as likely boosted averaged <strong>${fmt(avgBoostedReach)} reach</strong>` : ''}.
-        ${igOrganicER > 0 ? `Instagram estimated organic engagement rate averaged <strong>${fmtPct(igOrganicER)}</strong>.` : ''}
-        ${fbOrganicER > 0 ? `Facebook estimated organic engagement rate averaged <strong>${fmtPct(fbOrganicER)}</strong>.` : ''}
+      <div class="exec-block-label">Executive Read</div>
+      <div class="exec-block-body editable-field" data-edit-key="executive-read" contenteditable="false">
+        The combined social program recorded <strong>${fmt(totalReach)} total post reach</strong> across <strong>${totalPosts} posts</strong>.${boostNote}
+        Estimated organic posts averaged <strong>${fmt(avgOrganicReach)} reach</strong>${avgBoostedReach ? `, while posts flagged as likely boosted averaged <strong>${fmt(avgBoostedReach)} reach</strong>` : ''}. The next decision is to align the best-performing themes with the public claims that require a response.
       </div>
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
-      <div class="exec-block-label">What’s Working</div>
-      <div class="exec-block-body editable-field" data-edit-key="whats-working" contenteditable="false">${whatsWorkingFallback}</div>
+      <div class="exec-block-label">Progress Against Strategy</div>
+      <div class="exec-block-body editable-field" data-edit-key="goal-progress" contenteditable="false">${provisionalGoal} ${whatsWorkingFallback} ${whatsNeedsAttentionFallback}</div>
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
-      <div class="exec-block-label">Needs Attention</div>
-      <div class="exec-block-body editable-field" data-edit-key="whats-needs-attention" contenteditable="false">${whatsNeedsAttentionFallback}</div>
+      <div class="exec-block-label">Public Narrative &amp; Response</div>
+      <div class="exec-block-body editable-field" data-edit-key="public-narrative" contenteditable="false">${narrativeFallback}</div>
     </div>
     <div class="exec-divider"></div>
     <div class="exec-block">
-      <div class="exec-block-label">Recommended Direction</div>
-      <div class="exec-block-body editable-field" data-edit-key="recommended-direction" contenteditable="false">${recommendedDirectionFallback}</div>
+      <div class="exec-block-label">Social Direction</div>
+      <div class="exec-block-body editable-field" data-edit-key="social-direction" contenteditable="false">${socialFallback} ${recommendedDirectionFallback}</div>
+    </div>
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">Relevant Historical Precedent</div>
+      <div class="exec-block-body editable-field" data-edit-key="historical-precedent" contenteditable="false">Baker’s Bay shows the value of a clear consultation record. Bimini shows why permits, monitoring records and public statements must stay aligned. Neither case predicts the result of the current dispute.</div>
     </div>
   `;
 }
@@ -3416,6 +3516,26 @@ function applyEditableOverrides(overrides = {}) {
     const element = document.querySelector(`[data-edit-key="${key}"]`);
     if (element && typeof html === 'string') element.innerHTML = html;
   });
+}
+
+function migrateEditableOverrides(overrides = {}) {
+  const migrated = { ...overrides };
+  const copyIfMissing = (nextKey, legacyKey) => {
+    if (!migrated[nextKey] && typeof migrated[legacyKey] === 'string' && migrated[legacyKey].trim()) {
+      migrated[nextKey] = migrated[legacyKey];
+    }
+  };
+  copyIfMissing('executive-read', 'performance-overview');
+  if (!migrated['goal-progress']) {
+    const legacyProgress = [migrated['whats-working'], migrated['whats-needs-attention']]
+      .filter(value => typeof value === 'string' && value.trim());
+    if (legacyProgress.length) migrated['goal-progress'] = legacyProgress.join(' ');
+  }
+  if (!migrated['public-narrative'] && (migrated['performance-overview'] || migrated['whats-working'] || migrated['whats-needs-attention'])) {
+    migrated['public-narrative'] = 'No monitored public-claims evidence is embedded in this report. Review the live monitor before deciding whether to watch, clarify, show proof or refer an issue to counsel.';
+  }
+  copyIfMissing('social-direction', 'recommended-direction');
+  return migrated;
 }
 
 function captureSharedEditableContent() {
@@ -3476,7 +3596,7 @@ function cleanDocHTML(html) {
 
 function buildStrategyDocExport() {
   const execSummary = document.getElementById('exec-summary-body');
-  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Social Media Performance Review: Sampson Cay Project'));
+  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Executive Social & Public Narrative Strategy'));
   const meta = stripDocEmoji(normalizeCopyText(document.getElementById('exec-summary-meta')?.innerText || ''));
   const summaryHTML = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => {
     const label = stripDocEmoji(block.querySelector('.exec-block-label')?.innerText?.trim() || '');
@@ -3617,6 +3737,13 @@ function setPushStatus(type, msg) {
   }
 }
 
+function serializeForInlineScript(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 function buildClientHTML() {
   captureSharedEditableContent();
   const data = {
@@ -3624,12 +3751,13 @@ function buildClientHTML() {
     fbPosts: fbPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
     editableOverrides: { ...sharedEditableContent },
     summaryMode: summaryMode,
+    strategyEvidence: strategyEvidence,
     brandColors: {
       typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
     },
   };
-  const dataJSON = JSON.stringify(data);
+  const dataJSON = serializeForInlineScript(data);
   const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
