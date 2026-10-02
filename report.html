@@ -2545,7 +2545,7 @@ function renderAnalystNotes(posts) {
       <div class="audit-item"><strong>Total reach in this view:</strong> ${fmt(totalLoadedReach)}<br>
         <span style="font-size:11px;color:var(--text-muted)">If client audits raw CSV and finds higher totals, note: <em>"Totals exclude duplicate/cross-posted rows."</em></span>
       </div>
-      <div class="audit-item"><strong>Reach split:</strong> IG ${fmt(igPosts.reduce((s,p)=>s+p.reach,0))} · FB ${fmt(fbPosts.reduce((s,p)=>s+p.reach,0))}</div>
+      <div class="audit-item"><strong>Reach split:</strong> IG ${fmt(posts.filter(p=>p.platform==='ig').reduce((s,p)=>s+p.reach,0))} · FB ${fmt(posts.filter(p=>p.platform==='fb').reduce((s,p)=>s+p.reach,0))}</div>
     </div>
   `;
 }

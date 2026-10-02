@@ -173,11 +173,12 @@ test('supporting audit describes reach outliers without inferring paid status',(
  for(const file of ['index.html','report.html']) {
   const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');
   const fn=markup.match(/function renderAnalystNotes\(posts\) \{[\s\S]*?\n\}/)[0];
-  const elements={};const c=vm.createContext({document:{getElementById:id=>elements[id]??=( {style:{},innerHTML:''} )},fmt:String,fmtPct:String,boostThreshold:Infinity,igPosts:[],fbPosts:[]});
+  const elements={};const c=vm.createContext({document:{getElementById:id=>elements[id]??=( {style:{},innerHTML:''} )},fmt:String,fmtPct:String,igPosts:[{reach:10000}],fbPosts:[{reach:20000}]});
   vm.runInContext(fn,c);c.posts=[1,1,1,10].map((reach,i)=>({platform:'ig',type:'Image',reach,engRate:1,interactions:1,date:null,hour:null,dateStr:'09/0'+(i+1)+'/2026'}));
   vm.runInContext('renderAnalystNotes(posts)',c);
   const notes=elements['boost-caveat-note'].innerHTML+elements['analyst-notes-body'].innerHTML;
   assert.match(notes,/paid status is unverified/);
+  assert.match(notes,/Reach split:<\/strong> IG 13 · FB 0/);
   assert.doesNotMatch(markup,/Likely Paid Posts/);
   assert.match(markup,/Reach Outliers: Reach by Format/);
   assert.doesNotMatch(notes,/consistent with paid|reflects? a paid audience|note it was paid distribution|organic baseline/i);
