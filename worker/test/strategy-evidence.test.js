@@ -22,7 +22,7 @@ function setup() {
   sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('press', 'Bahamian Press', 'https://example.com/press');
   sql.prepare('INSERT INTO sources(id,label,url) VALUES(?,?,?)').run('project', 'Sampson Cay Project', 'https://example.com/project');
   const insert = sql.prepare('INSERT INTO items(id,source_id,url,title,first_seen,changed_at,last_seen,content_hash,text,tags) VALUES(?,?,?,?,?,?,?,?,?,?)');
-  return {DB, insert};
+  return {DB, insert, sql};
 }
 
 test('narrative status remains baseline-building until fourteen days of coverage', async () => {
@@ -70,6 +70,18 @@ test('narrative coverage includes quiet captured history before criticism appear
   assert.equal(evidence.coverageDays, 21);
   assert.equal(evidence.status, 'Rising');
   assert.deepEqual(evidence.current7Days, {items: 1, distinctSources: 1});
+  assert.deepEqual(evidence.previous7Days, {items: 0, distinctSources: 0});
+});
+
+test('archived criticism uses publication time and zero recent criticism is explicit', async () => {
+  const {DB, insert, sql} = setup();
+  insert.run('a'.repeat(64), 'press', 'https://example.com/quiet', 'Routine project update', '2026-09-01T12:00:00.000Z', '2026-09-01', '2026-09-01', 'quiet', 'neutral coverage', JSON.stringify([{theme: 'Employment'}]));
+  insert.run('b'.repeat(64), 'sea', 'https://example.com/archive', 'Archived consultation criticism', '2026-10-01T12:00:00.000Z', '2026-10-01', '2026-10-01', 'archive', 'critical coverage', JSON.stringify([{theme: 'Consultation'}]));
+  sql.prepare('UPDATE items SET published_at=? WHERE url=?').run('2026-06-01T12:00:00.000Z', 'https://example.com/archive');
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.available, true);
+  assert.equal(evidence.status, 'No monitored criticism');
+  assert.deepEqual(evidence.current7Days, {items: 0, distinctSources: 0});
   assert.deepEqual(evidence.previous7Days, {items: 0, distinctSources: 0});
 });
 

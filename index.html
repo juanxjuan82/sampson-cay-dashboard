@@ -1685,7 +1685,7 @@ function openAISettings(generateAfterSave) {
   aiGenerateAfterSettings = Boolean(generateAfterSave);
   document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
   document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
-  document.getElementById('ai-account-context').value = localStorage.getItem('dashboard_ai_context') || DEFAULT_STRATEGY_CONTEXT;
+  document.getElementById('ai-account-context').value = getStrategyContext();
   document.getElementById('ai-editor-guidance').value = localStorage.getItem('dashboard_ai_editor_guidance') || '';
   document.getElementById('ai-modal').classList.add('open');
 }
@@ -1706,14 +1706,18 @@ function saveAISettingsAndGenerate() {
   }
   localStorage.setItem('dashboard_ai_endpoint', endpoint);
   sessionStorage.setItem('dashboard_ai_token', token);
-  if (accountContext) localStorage.setItem('dashboard_ai_context', accountContext);
-  else localStorage.removeItem('dashboard_ai_context');
+  localStorage.setItem('dashboard_ai_context', accountContext);
   if (editorGuidance) localStorage.setItem('dashboard_ai_editor_guidance', editorGuidance);
   else localStorage.removeItem('dashboard_ai_editor_guidance');
   document.getElementById('ai-modal').classList.remove('open');
   const shouldGenerate = aiGenerateAfterSettings;
   aiGenerateAfterSettings = false;
   if (shouldGenerate || allPosts.length) generateAISummary();
+}
+
+function getStrategyContext(storage = localStorage) {
+  const saved = storage.getItem('dashboard_ai_context');
+  return saved === null ? DEFAULT_STRATEGY_CONTEXT : saved;
 }
 
 function applyAISummary(summary) {
@@ -1800,7 +1804,7 @@ async function generateAISummary() {
       },
       body: JSON.stringify({
         evidence: buildAISummaryEvidence(allPosts),
-        accountContext: localStorage.getItem('dashboard_ai_context') || DEFAULT_STRATEGY_CONTEXT,
+        accountContext: getStrategyContext(),
         editorGuidance: localStorage.getItem('dashboard_ai_editor_guidance') || ''
       })
     });

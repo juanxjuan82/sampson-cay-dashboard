@@ -40,4 +40,13 @@ for (const file of dashboardFiles) {
     assert.doesNotMatch(migrated['public-narrative'], /Economy needs more specific proof/);
     assert.match(migrated['public-narrative'], /No monitored public-claims evidence/);
   });
+
+  test(`${file.pathname.split('/').pop()} honors a deliberately cleared strategy context`, () => {
+    const html = readFileSync(file, 'utf8');
+    const helperSource = html.match(/function getStrategyContext\(storage = localStorage\) \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(helperSource, 'strategy context helper is present');
+    const getStrategyContext = Function('DEFAULT_STRATEGY_CONTEXT', `${helperSource}; return getStrategyContext;`)('Default goals');
+    assert.equal(getStrategyContext({getItem: () => null}), 'Default goals');
+    assert.equal(getStrategyContext({getItem: () => ''}), '');
+  });
 }

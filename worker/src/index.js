@@ -227,21 +227,30 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
     const value = Date.parse(row.first_seen);
     return Number.isFinite(value) ? value : null;
   };
-  const current = rows.filter(row => seenAt(row) !== null && seenAt(row) >= currentStart && seenAt(row) <= nowMs);
-  const previous = rows.filter(row => seenAt(row) !== null && seenAt(row) >= previousStart && seenAt(row) < currentStart);
+  const activityAt = row => {
+    const published = Date.parse(row.published_at);
+    return Number.isFinite(published) ? published : seenAt(row);
+  };
+  const current = rows.filter(row => activityAt(row) !== null && activityAt(row) >= currentStart && activityAt(row) <= nowMs);
+  const previous = rows.filter(row => activityAt(row) !== null && activityAt(row) >= previousStart && activityAt(row) < currentStart);
   const earliest = capturedRows.map(seenAt).filter(value => value !== null).sort((a, b) => a - b)[0];
   const coverageDays = earliest === undefined ? 0 : Math.max(1, Math.floor((nowMs - earliest) / dayMs) + 1);
   const hasFullComparisonWindow = earliest !== undefined && earliest <= previousStart;
   const sources = list => new Set(list.map(row => row.source)).size;
 
   let status = 'Baseline building';
-  let statusReason = `The monitor has ${coverageDays} day${coverageDays === 1 ? '' : 's'} of coverage. Fourteen days are required before a week-over-week direction is shown.`;
+  let statusReason = `The monitor has ${coverageDays} day${coverageDays === 1 ? '' : 's'} of coverage. Fourteen full days are required before a week-over-week direction is shown.`;
   if (hasFullComparisonWindow) {
-    const ratio = previous.length ? current.length / previous.length : (current.length ? Infinity : 1);
-    if (ratio >= 1.25) status = 'Rising';
-    else if (ratio <= 0.75) status = 'Falling';
-    else status = 'Steady';
-    statusReason = `${current.length} monitored item${current.length === 1 ? '' : 's'} in the last 7 days versus ${previous.length} in the 7 days before.`;
+    if (!current.length && !previous.length) {
+      status = 'No monitored criticism';
+      statusReason = 'No qualifying criticism was captured in either of the last two 7-day periods.';
+    } else {
+      const ratio = previous.length ? current.length / previous.length : Infinity;
+      if (ratio >= 1.25) status = 'Rising';
+      else if (ratio <= 0.75) status = 'Falling';
+      else status = 'Steady';
+      statusReason = `${current.length} monitored item${current.length === 1 ? '' : 's'} in the last 7 days versus ${previous.length} in the 7 days before.`;
+    }
   }
 
   const claimMap = new Map();
