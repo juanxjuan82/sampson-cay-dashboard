@@ -325,3 +325,10 @@ test('declared complete quiet periods and article-only evidence can produce repo
  assert.match(html.match(/function renderExecSummary\(\) \{[\s\S]*?\n\}/)[0],/!hasReportEvidence\(\)/);
  assert.match(html,/async function generateAISummary\(\) \{\s*if \(!hasReportEvidence\(\)\)/);
 });
+test('valid article tracker enables the normal Load Dashboard action without social files',()=>{
+ const c=context();const button={disabled:true};c.rawIG=[];c.rawFB=[];c.document={getElementById:()=>button};
+ vm.runInContext('updateLoadAvailability()',c);assert.equal(button.disabled,true);
+ vm.runInContext("articleTracker.rows=[{title:'Court hearing'}];updateLoadAvailability()",c);assert.equal(button.disabled,false);
+ vm.runInContext('articleTracker.rows=[];updateLoadAvailability()',c);assert.equal(button.disabled,true);
+ c.rawIG=['ig csv'];c.rawFB=['fb csv'];vm.runInContext('updateLoadAvailability()',c);assert.equal(button.disabled,false);
+});

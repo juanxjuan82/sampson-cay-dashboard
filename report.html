@@ -904,6 +904,7 @@ async function uploadArticleTracker(input) {
     if (version !== articleImportVersion) return;
     captureSharedEditableContent();
     articleTracker = { ...parsed, filename:file.name, importedAt:new Date().toISOString() };
+    updateLoadAvailability();
     strategyRequestVersion++;
     editorialReviewNeeded = Object.keys(sharedEditableContent).length > 0;
     const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
@@ -960,6 +961,7 @@ function countSocialContentItems(posts) {
   // Pair matching copies across platforms, keeping every distinct same-platform post.
   return [...groups.values()].reduce((total,platforms)=>total+Math.max(...[...platforms.values()].map(ids=>ids.size)),0);
 }
+function updateLoadAvailability() { const button=document.getElementById('load-btn'); if(button) button.disabled=!(rawIG.length && rawFB.length || articleTracker.rows.length); }
 function hasReportEvidence() { return allPosts.length>0 || articleTracker.rows.length>0 || socialAMECEvidence().coverageComplete===true; }
 function selectedSocialPosts() {
   ensureReportWindow();
@@ -1023,8 +1025,9 @@ function renderAMEC() {
   const s=socialAMECEvidence(),a=articleAMECEvidence();
   const period=document.getElementById('amec-period');
   if (s.available) { document.getElementById('header-period').textContent=`Communications review · ${s.start} – ${s.end}`; }
+  else if(a.available) document.getElementById('header-period').textContent=`Article review · ${a.start} – ${a.end}`;
   document.querySelectorAll('#header-badges .badge').forEach(el=>{if (!el.textContent.includes('on file')) el.append(' on file');});
-  period.textContent=s.available?`Social: ${s.start} – ${s.end} · Lifetime post results · Articles: ${a.available?a.start+' – '+a.end:'not uploaded'}`:'Upload social exports to establish the reporting period.';
+  period.textContent=s.available?`Social: ${s.start} – ${s.end} · Lifetime post results · Articles: ${a.available?a.start+' – '+a.end:'not uploaded'}`:a.available?`Articles: ${a.start} – ${a.end} · Social exports not uploaded.`:'Upload social exports to establish the reporting period.';
   if (s.available) { document.getElementById('social-window-start').value=s.start;document.getElementById('social-window-end').value=s.end; }
   document.getElementById('amec-review-needed').hidden=!editorialReviewNeeded;
   const countText=a.available?`${a.currentItems} tracked items across ${a.currentOutlets} outlets; ${a.previousItems} items in the preceding fortnight. Editorial: ${a.currentCategories['Editorial coverage']}; paid: ${a.currentCategories['Paid placement']}; notices: ${a.currentCategories['Public notice']}; releases: ${a.currentCategories['Press release']}; other: ${a.currentCategories['Other / unclassified']}.`:'';
@@ -2170,7 +2173,7 @@ function updateZoneLabel(platform) {
   document.getElementById(id).textContent =
     arr.length === 1 ? `✓ 1 file loaded` : `✓ ${arr.length} files loaded`;
   document.getElementById(zid).classList.add('loaded');
-  document.getElementById('load-btn').disabled = !(rawIG.length && rawFB.length);
+  updateLoadAvailability();
 }
 
 function handleFile(hintPlatform, input) {
@@ -3689,7 +3692,7 @@ function renderExecSummary() {
   if (!el || !hasReportEvidence()) return;
   document.getElementById('exec-summary').style.display = 'block';
   const social = socialAMECEvidence(), articles = articleAMECEvidence();
-  document.getElementById('exec-summary-meta').textContent = `${social.start || ''} – ${social.end || ''} · ONWRD`;
+  document.getElementById('exec-summary-meta').textContent = `${social.start || articles.start || ''} – ${social.end || articles.end || ''} · ONWRD`;
   el.innerHTML = `<div class="exec-block"><div class="exec-block-label">Executive read</div>${amecEditable('executive-read', `Review social performance and public coverage together, then agree on the next week’s priorities. ${social.available ? social.contentItems + ' caption-based feed content items are recorded in the selected social period.'+(social.coverageComplete?'':' Period coverage is incomplete or unknown; cadence is unavailable.') : ''} ${articles.available ? articles.currentItems + ' coverage items are recorded in the latest article fortnight.' : 'Upload the article tracker to add the media context.'} Reach and coverage indicate visibility; audience trust has not been measured.`)}</div>`;
   el.querySelectorAll('[data-edit-key]').forEach(field=>field.dataset.defaultHtml=field.innerHTML);
   document.getElementById('executive-slot').appendChild(document.getElementById('exec-summary'));
