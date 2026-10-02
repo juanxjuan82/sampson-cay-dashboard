@@ -217,7 +217,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
        WHERE i.superseded_by IS NULL AND NOT (i.source_id IN ('tribune','ewn') AND i.url=s.url)
        ORDER BY CASE WHEN julianday(i.changed_at)>julianday(i.first_seen) THEN i.changed_at ELSE COALESCE(i.published_at,i.changed_at) END DESC,i.id DESC`
       ).all(),
-      db.prepare("SELECT at,detail FROM audit WHERE action='collection_run' ORDER BY at DESC LIMIT 1000").all(),
+      db.prepare("SELECT at,detail,(SELECT owner FROM locks WHERE id='collect') AS active_owner,(SELECT expires_at FROM locks WHERE id='collect') AS lock_expires_at FROM audit WHERE action='collection_run' ORDER BY at DESC LIMIT 1000").all(),
     ]);
     capturedRows = itemResult.results || [];
     collectionRuns = runResult.results || [];
@@ -261,7 +261,7 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
     let complete = false, pending = false;
     try {
       const detail = JSON.parse(run.detail || '{}');
-      pending = detail.state === 'pending' && nowMs - Date.parse(run.at) < 10 * 60 * 1000;
+      pending = detail.state === 'pending' && detail.owner === run.active_owner && Number(run.lock_expires_at) > nowMs;
       complete = Number(detail.totalSources) > 0 && Number(detail.successfulSources) >= Number(detail.totalSources);
     } catch {}
     return {at: Date.parse(run.at), complete, pending};

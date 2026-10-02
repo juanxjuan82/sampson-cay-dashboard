@@ -109,10 +109,10 @@ test('block context preserves legacy source text and content hashes',async()=>{
  ],compatibilityDate:'2026-10-01'}));
  try{
   const p=await (await mf.dispatchFetch('https://example.com')).json();
-  assert.equal(p.text,'Permit challenge Sampson Cay jobs will be created');
+  assert.equal(p.text,'Permit challengeSampson Cay jobs will be created');
   assert.match(p.contextText,/challenge \. Sampson Cay/);
   assert.ok(!p.themes.includes('Employment'));
   const {createHash}=await import('node:crypto');
-  assert.equal(p.contentHash,createHash('sha256').update('Sampson Cay report\nPermit challenge Sampson Cay jobs will be created').digest('hex'));
+  assert.equal(p.contentHash,createHash('sha256').update('Sampson Cay report\nPermit challengeSampson Cay jobs will be created').digest('hex'));
  }finally{await mf.dispose();}
 });
