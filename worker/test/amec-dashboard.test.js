@@ -223,7 +223,7 @@ test('combined AI historical comparison stays combined under either platform dis
   c.isLikelyBoostedPost=()=>false;c.getThemeStats=()=>({totalContentItems:0,unclassifiedCount:0,rows:[]});
   c.buildAlignedComparisonEvidence=posts=>({platforms:posts.map(p=>p.platform)});
   vm.runInContext(markup.match(/function platformHistory\(\)[^\n]+/)[0],c);
-  vm.runInContext(markup.match(/function buildAISummaryEvidence\(posts\) \{[\s\S]*?\n\}/)[0],c);
+  vm.runInContext(markup.match(/function buildAISummaryEvidence\(posts=selectedSocialPosts\(\)\) \{[\s\S]*?\n\}/)[0],c);
   for(const filter of ['ig','fb','all']) {
    c.currentFilter=filter;
    const r=vm.runInContext('buildAISummaryEvidence(allPosts)',c);
@@ -270,5 +270,26 @@ test('legacy AI responses preserve changed-evidence review gate until every card
   vm.runInContext('applyAISummary(summary)',c);
   assert.equal(vm.runInContext('editorialReviewNeeded',c),false);
   assert.match(markup,/applyAISummary\(payload.summary\);\s*document.getElementById\('amec-review-needed'\).hidden = !editorialReviewNeeded/);
+ }
+});
+test('current AI totals use selected all-platform dates while historical comparison retains history',()=>{
+ const c=context();c.allPosts=[{platform:'ig',dateStr:'01/01/2026',date:new Date('2026-01-01'),caption:'Old',reach:1000,interactions:100,views:1000},{platform:'fb',dateStr:'09/02/2026',date:new Date('2026-09-02'),caption:'Current',reach:10,interactions:1,views:10}];
+ c.currentFilter='ig';c.DASHBOARD_VERSION='test';c.THEME_MIN_SAMPLE=5;c.isLikelyBoostedPost=()=>false;c.getThemeStats=posts=>({totalContentItems:posts.length,classifiedCount:posts.length,unclassifiedCount:0,rows:[]});
+ c.buildAlignedComparisonEvidence=posts=>({posts:posts.length});
+ vm.runInContext(html.match(/function buildAISummaryEvidence\(posts=selectedSocialPosts\(\)\) \{[\s\S]*?\n\}/)[0],c);
+ vm.runInContext("reportWindow={start:'2026-09-01',end:'2026-09-14'}",c);
+ const r=vm.runInContext('buildAISummaryEvidence()',c);
+ assert.equal(r.overall.posts,1);assert.equal(r.overall.totalReach,10);assert.equal(r.comparison.posts,2);
+ assert.equal(r.period.start,'2026-09-02');assert.equal(r.amecSocial.platformObservations,1);
+ assert.match(html,/evidence: buildAISummaryEvidence\(\)/);
+});
+test('zero-reach periods render unavailable engagement instead of NaN while genuine zero engagement stays zero',()=>{
+ for(const file of ['index.html','report.html']) {
+  const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');const elements={};
+  const c=vm.createContext({document:{getElementById:id=>elements[id]??=({textContent:''})},fmt:String,fmtPct:value=>value+'%',currentFilter:'all'});
+  vm.runInContext(markup.match(/function renderKPIs\(posts\) \{[\s\S]*?\n\}/)[0],c);
+  c.posts=[{platform:'ig',reach:0,views:0,follows:0,engRate:0}];vm.runInContext('renderKPIs(posts)',c);
+  assert.equal(elements['kpi-eng'].textContent,'N/A');assert.equal(elements['kpi-reach'].textContent,'0');
+  c.posts[0].reach=10;vm.runInContext('renderKPIs(posts)',c);assert.equal(elements['kpi-eng'].textContent,'0%');
  }
 });

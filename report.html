@@ -960,6 +960,10 @@ function countSocialContentItems(posts) {
   // Pair matching copies across platforms, keeping every distinct same-platform post.
   return [...groups.values()].reduce((total,platforms)=>total+Math.max(...[...platforms.values()].map(ids=>ids.size)),0);
 }
+function selectedSocialPosts() {
+  ensureReportWindow();
+  return allPosts.filter(post=>{ const date=postDayKey(post); return date && date>=reportWindow.start && date<=reportWindow.end; });
+}
 function socialAMECEvidence() {
   ensureReportWindow();
   const {start,end} = reportWindow;
@@ -1909,7 +1913,7 @@ function htmlToPlainText(html) {
   return normalizeCopyText(holder.textContent || '');
 }
 
-function buildAISummaryEvidence(posts) {
+function buildAISummaryEvidence(posts=selectedSocialPosts()) {
   const organicPosts = posts.filter(function(post) {
     return !isLikelyBoostedPost(post,posts) && post.reach > 0;
   });
@@ -2097,7 +2101,7 @@ async function generateAISummary() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        evidence: buildAISummaryEvidence(allPosts),
+        evidence: buildAISummaryEvidence(),
         accountContext: getStrategyContext(),
         editorGuidance: localStorage.getItem('dashboard_ai_editor_guidance') || ''
       })
@@ -2740,14 +2744,15 @@ function renderAll() {
 function renderKPIs(posts) {
   const totalReach = posts.reduce((s,p) => s + p.reach, 0);
   const totalViews = posts.reduce((s,p) => s + p.views, 0);
-  const avgEng = posts.length > 0
-    ? posts.filter(p=>p.reach>0).reduce((s,p) => s + p.engRate, 0) / posts.filter(p=>p.reach>0).length
-    : 0;
+  const postsWithReach=posts.filter(p=>p.reach>0);
+  const avgEng = postsWithReach.length
+    ? postsWithReach.reduce((s,p) => s + p.engRate, 0) / postsWithReach.length
+    : null;
   const totalFollowers = posts.filter(p=>p.platform==='ig').reduce((s,p) => s + p.follows, 0);
 
   document.getElementById('kpi-reach').textContent = fmt(totalReach);
   document.getElementById('kpi-views').textContent = fmt(totalViews);
-  document.getElementById('kpi-eng').textContent = fmtPct(avgEng);
+  document.getElementById('kpi-eng').textContent = avgEng===null ? 'N/A' : fmtPct(avgEng);
   document.getElementById('kpi-posts').textContent = posts.length;
   document.getElementById('kpi-followers').textContent = fmt(totalFollowers);
 
