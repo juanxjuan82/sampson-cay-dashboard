@@ -231,11 +231,12 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   const previous = rows.filter(row => seenAt(row) !== null && seenAt(row) >= previousStart && seenAt(row) < currentStart);
   const earliest = capturedRows.map(seenAt).filter(value => value !== null).sort((a, b) => a - b)[0];
   const coverageDays = earliest === undefined ? 0 : Math.max(1, Math.floor((nowMs - earliest) / dayMs) + 1);
+  const hasFullComparisonWindow = earliest !== undefined && earliest <= previousStart;
   const sources = list => new Set(list.map(row => row.source)).size;
 
   let status = 'Baseline building';
   let statusReason = `The monitor has ${coverageDays} day${coverageDays === 1 ? '' : 's'} of coverage. Fourteen days are required before a week-over-week direction is shown.`;
-  if (coverageDays >= 14) {
+  if (hasFullComparisonWindow) {
     const ratio = previous.length ? current.length / previous.length : (current.length ? Infinity : 1);
     if (ratio >= 1.25) status = 'Rising';
     else if (ratio <= 0.75) status = 'Falling';

@@ -34,6 +34,15 @@ test('narrative status remains baseline-building until fourteen days of coverage
   assert.equal(evidence.leadingClaims[0].theme, 'Consultation');
 });
 
+test('inclusive day fourteen remains baseline until fourteen full days have elapsed', async () => {
+  const {DB, insert} = setup();
+  insert.run('a'.repeat(64), 'sea', 'https://example.com/a', 'Consultation criticism', '2026-09-19T12:00:00.000Z', '2026-09-19', '2026-09-19', 'h1', 'text', JSON.stringify([{theme: 'Consultation'}]));
+  insert.run('b'.repeat(64), 'sea', 'https://example.com/b', 'Environment criticism', '2026-10-01T12:00:00.000Z', '2026-10-01', '2026-10-01', 'h2', 'text', JSON.stringify([{theme: 'Environment'}]));
+  const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
+  assert.equal(evidence.coverageDays, 14);
+  assert.equal(evidence.status, 'Baseline building');
+});
+
 test('narrative status uses deterministic seven-day counts and distinct sources', async () => {
   const {DB, insert} = setup();
   const add = (id, source, seen, theme) => insert.run(id.repeat(64), source, `https://example.com/${id}`, `${theme} opposition challenge`, seen, seen, seen, id, 'text', JSON.stringify([{theme}]));
