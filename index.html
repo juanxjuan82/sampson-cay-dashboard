@@ -3501,8 +3501,14 @@ function migrateEditableOverrides(overrides = {}) {
     }
   };
   copyIfMissing('executive-read', 'performance-overview');
-  copyIfMissing('goal-progress', 'whats-working');
-  copyIfMissing('public-narrative', 'whats-needs-attention');
+  if (!migrated['goal-progress']) {
+    const legacyProgress = [migrated['whats-working'], migrated['whats-needs-attention']]
+      .filter(value => typeof value === 'string' && value.trim());
+    if (legacyProgress.length) migrated['goal-progress'] = legacyProgress.join(' ');
+  }
+  if (!migrated['public-narrative'] && (migrated['performance-overview'] || migrated['whats-working'] || migrated['whats-needs-attention'])) {
+    migrated['public-narrative'] = 'No monitored public-claims evidence is embedded in this report. Review the live monitor before deciding whether to watch, clarify, show proof or refer an issue to counsel.';
+  }
   copyIfMissing('social-direction', 'recommended-direction');
   return migrated;
 }

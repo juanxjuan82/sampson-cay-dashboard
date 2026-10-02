@@ -43,6 +43,7 @@ test('narrative status uses deterministic seven-day counts and distinct sources'
   add('d', 'press', '2026-09-29T12:00:00.000Z', 'Consultation');
   add('e', 'press', '2026-10-01T12:00:00.000Z', 'Environment');
   add('f', 'project', '2026-10-01T14:00:00.000Z', 'Consultation');
+  insert.run('g'.repeat(64), 'press', 'https://example.com/g', 'Growth in harmony with unstoppable progress', '2026-10-01T15:00:00.000Z', '2026-10-01', '2026-10-01', 'g', 'neutral coverage', JSON.stringify([{theme: 'Environment'}]));
   const evidence = await buildNarrativeEvidence(DB, new Date('2026-10-02T12:00:00.000Z'));
   assert.equal(evidence.status, 'Rising');
   assert.deepEqual(evidence.current7Days, {items: 3, distinctSources: 2});

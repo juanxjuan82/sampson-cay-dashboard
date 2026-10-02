@@ -24,4 +24,20 @@ for (const file of dashboardFiles) {
     assert.equal(serialized.includes('\u2029'), false);
     assert.equal(JSON.parse(serialized).strategyEvidence.leadingClaims[0].examples[0], hostileTitle);
   });
+
+  test(`${file.pathname.split('/').pop()} keeps legacy performance copy out of public narrative`, () => {
+    const html = readFileSync(file, 'utf8');
+    const helperSource = html.match(/function migrateEditableOverrides\(overrides = \{\}\) \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(helperSource, 'legacy migration helper is present');
+    const migrate = Function(`${helperSource}; return migrateEditableOverrides;`)();
+    const migrated = migrate({
+      'whats-working': 'Community evidence is strongest.',
+      'whats-needs-attention': 'Economy needs more specific proof.',
+    });
+
+    assert.match(migrated['goal-progress'], /Community evidence is strongest/);
+    assert.match(migrated['goal-progress'], /Economy needs more specific proof/);
+    assert.doesNotMatch(migrated['public-narrative'], /Economy needs more specific proof/);
+    assert.match(migrated['public-narrative'], /No monitored public-claims evidence/);
+  });
 }

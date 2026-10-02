@@ -289,11 +289,16 @@ function isCriticismEvidenceRow(row) {
   if (knownOpposition.has(row.source_id)) return true;
   const value = `${row.title || ''} ${row.text || ''}`.toLowerCase();
   return [
-    'opposition', 'oppose', 'challenge', 'critic', 'concern', 'claim', 'alleg',
-    'failure', 'failed', 'inadequate', 'destroy', 'harm', 'illegal', 'unlawful',
-    'salami', 'piecemeal', 'piece-meal', 'judicial review', 'court told',
-    'halt', 'stop', 'reject', 'appeal', 'controvers'
-  ].some(term => value.includes(term));
+    /\bopposition\b/, /\boppos(?:e|ed|es|ing)\b/, /\bchalleng(?:e|ed|es|ing)\b/,
+    /\bcritic(?:s|ism|ized|ised|ize|ise|izing|ising)?\b/, /\bconcerns?\b/,
+    /\bclaims?\b/, /\bclaimed\b/, /\balleg(?:e|ed|es|ing|ation|ations)\b/,
+    /\bfail(?:ed|ure|ures)\b/, /\binadequate\b/,
+    /\bdestroy(?:ed|s|ing)?\b/, /\bdestruction\b/, /\bharm(?:ed|ful|s|ing)?\b/,
+    /\billegal(?:ity)?\b/, /\bunlawful\b/, /\bsalami\b/, /\bpiece[-\s]?meal\b/,
+    /\bjudicial\s+review\b/, /\bcourt\s+told\b/, /\bhalt(?:ed|s|ing)?\b/,
+    /\bstop(?:ped|s|ping)?\b/, /\breject(?:ed|ion|s|ing)?\b/,
+    /\bappeal(?:ed|s|ing)?\b/, /\bcontrovers(?:y|ies|ial)\b/
+  ].some(pattern => pattern.test(value));
 }
 
 function getCorsHeaders(origin, configuredOrigins) {
