@@ -798,6 +798,220 @@
   }
 
 </style>
+<script src="vendor/xlsx.full.min.js"></script>
+<style>
+.amec-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:16px 0 26px}.amec-grid.social{grid-template-columns:repeat(2,minmax(0,1fr))}.amec-card{padding:22px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}.amec-card h3{font-size:14px;color:var(--accent);margin:0 0 12px}.amec-card .exec-block-body{font-size:14px;line-height:1.65}.amec-evidence{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:12px;margin-top:14px;line-height:1.6}.amec-evidence a{color:var(--accent)}.amec-section-title{font-size:21px;margin:24px 0 8px}.amec-date-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0}.amec-date-controls label{font-size:12px}.amec-date-controls input{padding:7px;border:1px solid var(--border);border-radius:6px}.article-upload-status{font-size:12px;line-height:1.5;color:var(--text-muted)}#amec-period{font-size:12px;color:var(--text-muted);margin-bottom:16px}#amec-review-needed{padding:12px;background:#fff7ed;color:#9a3412;border-radius:8px;margin-bottom:16px}#supporting-evidence>summary{padding:20px;font-weight:700;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin:24px 0}#supporting-evidence table{font-size:12px;width:100%;border-collapse:collapse}#supporting-evidence td,#supporting-evidence th{padding:10px;text-align:left;border-bottom:1px solid var(--border)}#article-evidence-body{overflow:auto}.amec-method{font-size:12px;color:var(--text-muted);line-height:1.6}#amec-overall[hidden]{display:none}#view-overview .kpi-label{font-size:12px}@media(max-width:900px){.amec-grid,.amec-grid.social{grid-template-columns:1fr}}
+</style>
+<script>
+// AMEC-guided evidence. Included inline in the dashboard and client exports.
+let articleTracker = { rows: [], filename: '', importedAt: null, rejected: 0, duplicates: 0 };
+let socialExportRanges = { ig: [], fb: [] };
+let reportWindow = { start: '', end: '' };
+let editorialReviewNeeded = false;
+let editorEditMode = false;
+const dayMs = 86400000;
+function dayKey(value) {
+  if (value instanceof Date && !isNaN(value)) return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
+  return '';
+}
+function utcDay(key) { return new Date(key + 'T00:00:00Z').getTime(); }
+function shiftDay(key, days) { return new Date(utcDay(key) + days * dayMs).toISOString().slice(0,10); }
+function cleanLabel(value) { return String(value ?? '').replace(/\s+/g,' ').trim(); }
+function safeSourceURL(value) {
+  try { const u = new URL(String(value)); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; }
+}
+function trackerDate(value) {
+  if (value instanceof Date) return dayKey(value);
+  if (typeof value === 'number' && typeof XLSX !== 'undefined') {
+    const d = XLSX.SSF.parse_date_code(value);
+    return d ? `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}` : '';
+  }
+  const s = cleanLabel(value);
+  let match = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[ T])/);
+  if (match) {
+    const key = match.slice(1).join('-');
+    return Number.isFinite(utcDay(key)) && new Date(utcDay(key)).toISOString().slice(0,10) === key ? key : '';
+  }
+  match = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) return trackerDate(`${match[3]}-${match[1].padStart(2,'0')}-${match[2].padStart(2,'0')}`);
+  return '';
+}
+function normalizeArticleRows(input) {
+  const rows = [], seen = new Set();
+  let rejected = 0, duplicates = 0;
+  for (const r of input) {
+    const title = cleanLabel(r['Article Title & URL'] || r['Article Title'] || r['Title']);
+    if (!title) continue; // Ignore pre-numbered template rows.
+    const date = trackerDate(r['Publish Date'] || r['Date']);
+    const outlet = cleanLabel(r['Publication Name'] || r['Outlet']);
+    if (!date || !outlet) { rejected++; continue; }
+    const key = [outlet.toLowerCase().replace(/^the /,''), date, title.toLowerCase()].join('|');
+    if (seen.has(key)) { duplicates++; continue; }
+    seen.add(key);
+    const type = cleanLabel(r['Coverage Type'] || r['Type']) || 'Unspecified';
+    const category = /ad\b|advert|paid|sponsored/i.test(type) ? 'Paid placement'
+      : /public notice/i.test(type) ? 'Public notice'
+      : /press release/i.test(type) ? 'Press release'
+      : /article|broadcast|radio|online|interview/i.test(type) ? 'Editorial coverage' : 'Other / unclassified';
+    // The tracker reference is an actor, not a sentiment label.
+    rows.push({ title: title.slice(0,2000), date, outlet: outlet.slice(0,200), type, category,
+      reference: cleanLabel(r.Reference).slice(0,200), opposition: cleanLabel(r['Opposition Articles']),
+      theme: cleanLabel(r.Theme).slice(0,300),
+      url: safeSourceURL(r.__url || r['Article URL'] || r.URL || (title.match(/https?:\/\/\S+/) || [])[0]) });
+  }
+  if (!rows.length) throw new Error('No valid coverage rows found. Use the Media Mentions sheet with Publication Name, Article Title & URL and Publish Date columns.');
+  return { rows: rows.sort((a,b) => b.date.localeCompare(a.date)), rejected, duplicates };
+}
+let articleImportVersion = 0;
+async function uploadArticleTracker(input) {
+  const file = input.files?.[0]; if (!file) return;
+  const version = ++articleImportVersion;
+  const notices = () => document.querySelectorAll('.article-upload-status');
+  notices().forEach(el => el.textContent = 'Reading tracker…');
+  try {
+    if (file.size > 15 * 1024 * 1024) throw new Error('Choose a tracker smaller than 15 MB.');
+    let records;
+    if (/\.csv$/i.test(file.name)) {
+      const parsed = Papa.parse(await file.text(), { header:true, skipEmptyLines:true });
+      if (parsed.errors.length) throw new Error('The CSV contains malformed rows. Export Media Mentions again.');
+      records = parsed.data;
+    } else {
+      if (typeof XLSX === 'undefined') throw new Error('The Excel reader did not load. Reload the dashboard or upload Media Mentions as CSV.');
+      const book = XLSX.read(await file.arrayBuffer(), { type:'array', cellDates:true });
+      const name = book.SheetNames.find(name => name.trim().toLowerCase() === 'media mentions');
+      if (!name) throw new Error('The workbook needs a sheet named Media Mentions.');
+      const sheet = book.Sheets[name];
+      records = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+      const header = XLSX.utils.sheet_to_json(sheet, { header:1 })[0] || [];
+      const col = header.indexOf('Article Title & URL');
+      // Capture spreadsheet hyperlink targets without including private document tabs.
+      if (col >= 0) records.forEach((r,i) => { const cell = sheet[XLSX.utils.encode_cell({r:i+1,c:col})]; if (cell?.l?.Target) r.__url = cell.l.Target; });
+    }
+    const parsed = normalizeArticleRows(records);
+    if (version !== articleImportVersion) return;
+    captureSharedEditableContent();
+    articleTracker = { ...parsed, filename:file.name, importedAt:new Date().toISOString() };
+    strategyRequestVersion++;
+    editorialReviewNeeded = Object.keys(sharedEditableContent).length > 0;
+    const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
+    renderAMEC(); restoreSharedEditableContent();
+    notices().forEach(el => el.textContent = `${parsed.rows.length} coverage records loaded · ${parsed.duplicates} duplicates removed · ${parsed.rejected} invalid rows skipped. Replaces the previous tracker.`);
+  } catch (error) { if (version === articleImportVersion) notices().forEach(el => el.textContent = error.message); }
+  finally { input.value=''; }
+}
+function rememberExportRange(platform, filename) {
+  const match = filename.match(/^([A-Z][a-z]{2}-\d{1,2}-\d{4})_([A-Z][a-z]{2}-\d{1,2}-\d{4})_/);
+  if (!match) return;
+  const start = dayKey(new Date(match[1])), end = dayKey(new Date(match[2]));
+  if (start && end && start <= end) socialExportRanges[platform].push({ start, end });
+}
+function rangeCovered(platform, start, end) {
+  let cursor = start;
+  for (const range of socialExportRanges[platform].slice().sort((a,b) => a.start.localeCompare(b.start))) {
+    if (range.end < cursor) continue;
+    if (range.start > cursor) return false;
+    cursor = shiftDay(range.end,1);
+    if (cursor > end) return true;
+  }
+  return false;
+}
+function ensureReportWindow() {
+  if (reportWindow.start && reportWindow.end) return;
+  const ranges = [...socialExportRanges.ig,...socialExportRanges.fb].sort((a,b) => b.end.localeCompare(a.end) || b.start.localeCompare(a.start));
+  const dates = allPosts.map(p => dayKey(p.date)).filter(Boolean).sort();
+  const end = ranges[0]?.end || dates[dates.length-1];
+  if (end) reportWindow = { start:ranges[0]?.start || shiftDay(end,-36), end };
+}
+function changeReportWindow() {
+  const start = document.getElementById('social-window-start').value, end = document.getElementById('social-window-end').value;
+  if (!start || !end || start > end) { alert('Choose a valid start and end date.'); return; }
+  captureSharedEditableContent(); reportWindow = {start,end};
+  editorialReviewNeeded = Object.keys(sharedEditableContent).length > 0;
+  strategyRequestVersion++;
+  const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
+  renderAll();
+}
+function socialAMECEvidence() {
+  ensureReportWindow();
+  const {start,end} = reportWindow;
+  if (!start || !end) return { available:false };
+  const days = Math.round((utcDay(end)-utcDay(start))/dayMs)+1;
+  const priorStart = shiftDay(start,-days), priorEnd = shiftDay(start,-1);
+  const inRange = (p,a,b) => { const d=dayKey(p.date); return d && d>=a && d<=b; };
+  const recent = allPosts.filter(p => inRange(p,start,end));
+  const platforms = ['ig','fb'].map(platform => {
+    const current = recent.filter(p => p.platform===platform);
+    const previous = allPosts.filter(p => p.platform===platform && inRange(p,priorStart,priorEnd));
+    const currentMedianReach = medianValue(current.map(p=>p.reach));
+    const previousMedianReach = medianValue(previous.map(p=>p.reach));
+    const comparable = rangeCovered(platform,start,end) && rangeCovered(platform,priorStart,priorEnd) && current.length>=5 && previous.length>=5;
+    return {platform,currentPosts:current.length,previousPosts:previous.length,currentMedianReach,previousMedianReach,comparable,
+      changePercent:comparable && previousMedianReach>0 ? (currentMedianReach/previousMedianReach-1)*100 : null,
+      shares:current.reduce((s,p)=>s+(p.shares||0),0),saves:platform==='ig'?current.reduce((s,p)=>s+(p.saves||0),0):null,
+      totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
+      examples:current.filter(p=>! /condolence|passing of|funeral|bereave/i.test(p.caption)).slice().sort((a,b)=>b.shares-a.shares || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:dayKey(p.date),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
+  });
+  const keys = new Set(recent.map(p=>cleanLabel(p.caption).toLowerCase() || `${p.platform}|${p.dateStr}|${p.permalink}`));
+  return { available:true,start,end,priorStart,priorEnd,days,contentItems:keys.size,platformObservations:recent.length,
+    feedPostsPerWeek:keys.size/days*7,platforms,
+    caveats:['Lifetime results, not equal-age post performance.','Export coverage uses declared filename ranges; unknown coverage disables comparisons.','Paid status is not verified. High reach alone cannot prove promotion.','Comments are blocked; do not recommend comments as a success measure.','Facebook total clicks are not necessarily link clicks.','No measured change in public trust or sentiment.'] };
+}
+function articleAMECEvidence() {
+  const rows = articleTracker.rows;
+  if (!rows.length) return {available:false};
+  const end=rows[0].date,start=shiftDay(end,-13),priorStart=shiftDay(start,-14),priorEnd=shiftDay(start,-1);
+  const current=rows.filter(r=>r.date>=start && r.date<=end),previous=rows.filter(r=>r.date>=priorStart && r.date<=priorEnd);
+  const counts=rs=>Object.fromEntries(['Editorial coverage','Paid placement','Public notice','Press release','Other / unclassified'].map(c=>[c,rs.filter(r=>r.category===c).length]));
+  const terms = [ ['Approvals & court proceedings',/court|judge|hearing|permit|approval|DEPP|salami slicing/i],['Environment & marine impacts',/dredg|seawall|dock|marine|environment|eco-tourism/i],['Community & local benefits',/community|classroom|school|job|training|scholarship/i] ];
+  const topics=terms.map(([label,re])=>({label,currentItems:current.filter(r=>re.test(r.title)).length,previousItems:previous.filter(r=>re.test(r.title)).length})).sort((a,b)=>b.currentItems-a.currentItems);
+  return {available:true,start,end,priorStart,priorEnd,totalRecords:rows.length,currentItems:current.length,previousItems:previous.length,
+    currentOutlets:new Set(current.map(r=>r.outlet.toLowerCase().replace(/^the /,''))).size,
+    currentCategories:counts(current),previousCategories:counts(previous),topics,
+    examples:current.slice(0,5).map(({title,date,outlet,category,url})=>({title,date,outlet,category,url})),
+    caveats:['Tracked coverage, not exhaustive media or public sentiment.','Topics are headline matches and can overlap; they are not validated criticism.','Actor references and opposition flags are not sentiment labels.','No inference of coordination, truth, trust or causal impact.']};
+}
+function amecEditable(key,text) { return `<div class="exec-block-body editable-field" data-edit-key="${key}" contenteditable="false">${text}</div>`; }
+function amecCard(label,key,text,evidence='') { return `<article class="amec-card"><h3>${label}</h3>${amecEditable(key,text)}${evidence?`<div class="amec-evidence">${evidence}</div>`:''}</article>`; }
+function amecSourceLink(url,label) { const u=safeSourceURL(url); return u?`<a href="${escapeHTML(u)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)}</a>`:escapeHTML(label); }
+function renderAMEC() {
+  const root=document.getElementById('amec-overall'); if (!root) return;
+  const s=socialAMECEvidence(),a=articleAMECEvidence();
+  const period=document.getElementById('amec-period');
+  if (s.available) { document.getElementById('header-period').textContent=`Communications review · ${s.start} – ${s.end}`; }
+  document.querySelectorAll('#header-badges .badge').forEach(el=>{if (!el.textContent.includes('on file')) el.append(' on file');});
+  period.textContent=s.available?`Social: ${s.start} – ${s.end} · Lifetime post results · Articles: ${a.available?a.start+' – '+a.end:'not uploaded'}`:'Upload social exports to establish the reporting period.';
+  if (s.available) { document.getElementById('social-window-start').value=s.start;document.getElementById('social-window-end').value=s.end; }
+  document.getElementById('amec-review-needed').hidden=!editorialReviewNeeded;
+  const countText=a.available?`${a.currentItems} tracked items across ${a.currentOutlets} outlets; ${a.previousItems} items in the preceding fortnight. Editorial: ${a.currentCategories['Editorial coverage']}; paid: ${a.currentCategories['Paid placement']}; notices: ${a.currentCategories['Public notice']}; releases: ${a.currentCategories['Press release']}; other: ${a.currentCategories['Other / unclassified']}.`:'';
+  const leading=a.topics?.find(t=>t.currentItems>0);
+  const narrative=a.available?`<strong>${leading?escapeHTML(leading.label)+' leads recent headline coverage.':'Review the recent coverage before setting response priorities.'}</strong> The tracker records activity, not whether the public accepts a claim. Review the underlying articles to distinguish new issues from repeated coverage.`:'Upload the article tracker to identify recent coverage and recurring issues. Live monitoring is shown separately below when available.';
+  const message=a.available?'Assess whether editorial coverage carries approved community, environmental and economic messages. The tracker’s actor labels and opposition flags cannot establish message acceptance or public trust.':'Message visibility will appear after the tracker is uploaded and its articles reviewed.';
+  const response=a.available?'Prioritise recurring, material questions. Prepare an approved explanation with accessible supporting evidence; send court-related wording to counsel. Use community and environmental proof where relevant, rather than answering every headline.':'Review current source material before choosing Monitor, Clarify, Publish proof or Refer to counsel.';
+  document.getElementById('amec-articles').innerHTML=amecCard('What needs attention','public-narrative',narrative,countText)+amecCard('Which messages are landing','goal-progress',message,'Coverage is an output. Trust and understanding require separate audience evidence.')+amecCard('Recommended response','recommended-response',response);
+  const changes=s.available?s.platforms.map(p=>`${p.platform.toUpperCase()}: median reach ${fmt(p.currentMedianReach)} per post${p.changePercent===null?' · comparison unavailable':` (${p.changePercent>=0?'+':''}${Math.round(p.changePercent)}% vs preceding ${s.days} days)`}; ${p.currentPosts} recent posts.`).join('<br>'):'';
+  const lower=s.available && s.platforms.every(p=>p.changePercent!==null && p.changePercent<0);
+  const perf=s.available?`<strong>${lower?'Recorded median reach is lower on both platforms.':s.contentItems+' feed content items were published across Instagram and Facebook.'}</strong> ${lower?s.contentItems+' feed content items are in the selected period. ':''}Review typical reach separately for each platform. These lifetime snapshots do not establish a like-for-like trend in distribution.`:'Upload the social exports to assess reach, shares, saves and available clicks.';
+  const examples=s.available?s.platforms.flatMap(p=>p.examples.map(e=>`${p.platform.toUpperCase()} · ${e.date} · ${fmt(e.reach)} reach · ${e.shares} shares · ${amecSourceLink(e.url,e.caption.slice(0,95)+'…')}`)).join('<br>'):'';
+  document.getElementById('amec-social').innerHTML=amecCard('Are we improving?','social-performance',perf,changes)+amecCard('What deserves more investment?','social-investment','Use the strongest recorded examples as candidates to test again. Prioritise useful facts, identifiable people and visible progress. Check paid status before attributing unusually high reach to the creative.',examples);
+  document.getElementById('amec-plan').innerHTML=amecEditable('social-direction',`<strong>Test two feed posts per week for four weeks.</strong> Publish one community milestone or participant-led post and one approved environmental or economic proof post. Adapt both for Facebook and Instagram; a material, counsel-approved legal update can replace a slot. ${s.available?`The selected period averages ${s.feedPostsPerWeek.toFixed(1)} content items per week; this is a proposed test, not a proven optimum.`:''} Communications lead: prepare content and targeted outreach. Review reach, shares and saves at the next update; use confirmed link clicks only when available.`);
+  document.getElementById('amec-decisions').innerHTML=amecEditable('decisions-needed','Approve or revise the proposed four-week content test. Confirm available people, photographs, milestones and approved project facts. Assign a communications owner and publication dates; obtain counsel clearance for any legal clarification.');
+  const body=document.getElementById('article-evidence-body');
+  body.innerHTML=a.available?`<p>${escapeHTML(articleTracker.filename)} · Imported ${escapeHTML(articleTracker.importedAt?.slice(0,10)||'')} · ${a.totalRecords} records · ${articleTracker.rejected} invalid rows skipped · ${articleTracker.duplicates} duplicates removed.</p><p>Headline topic matches may overlap. No automatic positive/negative sentiment score is assigned.</p><table><thead><tr><th>Date</th><th>Outlet</th><th>Type</th><th>Tracked headline</th></tr></thead><tbody>${articleTracker.rows.slice(0,100).map(r=>`<tr><td>${r.date}</td><td>${escapeHTML(r.outlet)}</td><td>${escapeHTML(r.category)}</td><td>${amecSourceLink(r.url,r.title)}</td></tr>`).join('')}</tbody></table><p>Showing the latest ${Math.min(100,a.totalRecords)} records; all records are retained for calculations.</p>`:'No article tracker loaded. Upload XLSX or a CSV export of Media Mentions.';
+  document.querySelectorAll('#amec-articles [data-edit-key], #amec-social [data-edit-key], #amec-plan [data-edit-key], #amec-decisions [data-edit-key]').forEach(el=>el.dataset.defaultHtml=el.innerHTML);
+  syncAMECLayout();
+  document.querySelectorAll('.editable-field').forEach(el=>el.contentEditable=editorEditMode?'true':'false');
+}
+function syncAMECLayout() {
+  const overall=currentFilter==='all';
+  document.getElementById('amec-overall').hidden=!overall;
+  document.getElementById('supporting-evidence').open=!overall;
+  document.querySelectorAll('.pill').forEach(el=>el.setAttribute('aria-selected',String(el.dataset.platform===currentFilter)));
+  document.querySelectorAll('.dashboard-view').forEach(el=>el.classList.add('active'));
+  document.getElementById('chart-comments-type')?.closest('.chart-card').setAttribute('hidden','');
+  requestAnimationFrame(()=>Object.values(charts).forEach(chart=>chart.resize?.()));
+}
+
+</script>
 </head>
 <body>
 
@@ -815,7 +1029,7 @@
 <div id="upload-screen">
   <div class="upload-card">
     <h2>📊 Upload Your Data</h2>
-    <p>Upload the Facebook and Instagram CSV exports from Meta Business Suite. Both files are required to generate the full dashboard.</p>
+    <p>Upload the Facebook and Instagram CSV exports from Meta Business Suite. Both files are required for platform comparisons. You can also upload the article tracker below.</p>
 
     <div class="upload-zones">
       <div class="upload-zone" id="zone-fb">
@@ -832,12 +1046,13 @@
       </div>
     </div>
 
+    <div class="amec-card" style="margin:18px 0;text-align:left"><label><strong>Article tracker (optional)</strong><br><input type="file" accept=".xlsx,.csv" onchange="uploadArticleTracker(this)"></label><p class="article-upload-status" role="status">Reads Media Mentions only. Files are processed in your browser.</p></div>
     <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()" disabled>
       Generate Dashboard →
     </button>
 
     <p style="margin-top:16px; font-size:12px; color:#94a3b8;">
-      Multiple CSVs per platform are merged and deduplicated by Post ID. Data is processed locally — nothing leaves your browser.
+      Multiple CSVs per platform are merged and deduplicated by Post ID. Uploads are read locally. Generate Strategy sends compact evidence to the AI service; publishing includes the report data.
     </p>
   </div>
 </div>
@@ -848,8 +1063,10 @@
   <!-- TOOLBAR -->
   <div class="toolbar">
     <div class="toolbar-left">
-      <div class="pill-group">
-        <button class="pill active" onclick="setFilter('all', this)">Overall</button>
+      <div class="pill-group" role="tablist" aria-label="Reporting platforms">
+        <button class="pill active" role="tab" data-platform="all" aria-selected="true" onclick="setFilter('all', this)">Overall</button>
+        <button class="pill" role="tab" data-platform="fb" aria-selected="false" onclick="setFilter('fb', this)">Facebook</button>
+        <button class="pill" role="tab" data-platform="ig" aria-selected="false" onclick="setFilter('ig', this)">Instagram</button>
       </div>
     </div>
     <div class="toolbar-right">
@@ -859,20 +1076,31 @@
     </div>
   </div>
 
-  <div class="dashboard-tabs" role="tablist" aria-label="Dashboard sections">
-    <button class="dashboard-tab active" type="button" onclick="switchDashboardView('overview', this)">Overview</button>
-    <button class="dashboard-tab" type="button" onclick="switchDashboardView('details', this)">Detailed Performance</button>
-    <button class="dashboard-tab" type="button" onclick="switchDashboardView('posts', this)">Top Posts</button>
-  </div>
-
+  <section id="amec-overall">
+    <div id="amec-period"></div>
+    <div id="amec-review-needed" hidden>Evidence has changed. Your saved wording is preserved; review it or generate a new private strategy draft before publishing.</div>
+    <div id="executive-slot"></div>
+    <h2 class="amec-section-title">Public narrative</h2>
+    <div class="amec-card admin-only"><label><strong>Upload or replace article tracker</strong> <input type="file" accept=".xlsx,.csv" onchange="uploadArticleTracker(this)"></label><p class="article-upload-status" role="status">XLSX: Media Mentions sheet · CSV: the same headers. Only coverage rows are imported.</p></div>
+    <div class="amec-grid" id="amec-articles"></div>
+    <h2 class="amec-section-title">Social performance</h2>
+    <div class="amec-date-controls admin-only"><label>From <input type="date" id="social-window-start"></label><label>Through <input type="date" id="social-window-end"></label><button class="btn btn-outline btn-sm" onclick="changeReportWindow()">Update reporting period</button></div>
+    <div class="amec-grid social" id="amec-social"></div>
+    <h2 class="amec-section-title">This week’s plan</h2><div class="amec-card" id="amec-plan"></div>
+    <h2 class="amec-section-title">Decisions needed</h2><div class="amec-card" id="amec-decisions"></div>
+    <p class="amec-method">AMEC-guided reporting: coverage and reach show visibility; shares and saves show response. Neither proves improved trust. Comments are blocked. Paid status is unverified. Social exports contain lifetime results, so newer posts have had less time to accumulate results.</p>
+  </section>
+  <details id="supporting-evidence"><summary>Supporting evidence · platform metrics, posts and coverage</summary>
+    <div class="amec-card"><h3>Article coverage log</h3><div id="article-evidence-body"></div></div>
+    <details class="amec-card" style="margin-top:16px"><summary>Historical precedent · advisor interpretation</summary><div class="editable-field exec-block-body" data-edit-key="historical-precedent" contenteditable="false">Apply historical precedents only after checking the sources and relevance to the current issue. Communications activity does not establish what caused a court outcome.</div></details>
   <div id="view-overview" class="dashboard-view active">
   <!-- KPI CARDS -->
   <div class="kpi-grid">
     <div class="kpi-card reach">
       <div class="kpi-icon">👁</div>
-      <div class="kpi-label">Accounts Reached</div>
+      <div class="kpi-label">Sum of Post Reach</div>
       <div class="kpi-value" id="kpi-reach">—</div>
-      <div class="kpi-sub" id="kpi-reach-sub">Unique accounts</div>
+      <div class="kpi-sub" id="kpi-reach-sub">Not unique across posts or platforms</div>
     </div>
     <div class="kpi-card views">
       <div class="kpi-icon">▶</div>
@@ -1063,7 +1291,7 @@
       <div class="chart-note" id="shares-type-note"></div>
     </div>
     <div class="chart-card col-4">
-      <div class="chart-title">Avg Comments by Post Type</div>
+      <div class="chart-title">Comments (blocked)</div>
       <div class="chart-sub">Average comments per post by format</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-comments-type"></canvas>
@@ -1102,6 +1330,7 @@
   </div>
 
   </div><!-- /view-posts -->
+  </details><!-- /supporting-evidence -->
 
   <!-- ANALYST NOTES — hidden from client report -->
   <div id="analyst-notes" style="display:none">
@@ -1192,11 +1421,12 @@ let summaryMode = 'deterministic';
 let strategyEvidence = null;
 let aiGenerateAfterSettings = false;
 let strategyRequestVersion = 0;
-const DASHBOARD_VERSION = '2026-10-01.1'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-10-02.amec1'; // Bump whenever report-generation code changes.
 const DEFAULT_STRATEGY_CONTEXT = `Project: Sampson Cay / Rosewood Exuma.
 Primary communications goals: build trust through verifiable proof; show environmental stewardship; demonstrate local participation and benefits; maintain a calm, consistent public presence.
 Priority audiences: Exuma residents, the wider Bahamian public, media and project stakeholders.
 Content pillars: Community, Economy, Environment and Site Activity.
+Operational constraints: feed posts only (images, carousels and reels/videos). Comments are blocked. Measure reach, shares, saves and verified link clicks, not comments. Do not call feed posts Stories.
 Response posture: do not answer every criticism. Prioritize claims that are growing across credible sources. Use approved records and visible proof. Refer court-related or legal claims to counsel before publication.`;
 
 // Capture a clean page template before any charts or data are rendered.
@@ -1227,12 +1457,17 @@ window.addEventListener('DOMContentLoaded', () => {
     sharedEditableContent = migrateEditableOverrides(embedded.editableOverrides || {});
     summaryMode = embedded.summaryMode === 'ai' ? 'ai' : 'deterministic';
     strategyEvidence = embedded.strategyEvidence || null;
+    articleTracker = embedded.articleTracker || articleTracker;
+    socialExportRanges = embedded.socialExportRanges || socialExportRanges;
+    reportWindow = embedded.reportWindow || reportWindow;
+    editorialReviewNeeded = embedded.editorialReviewNeeded || false;
     if (embedded.brandColors) {
       Object.assign(TYPE_COLORS, embedded.brandColors.typeColors);
       Object.assign(PLATFORM_COLORS, embedded.brandColors.platformColors);
     }
     renderAll();
     renderStrategySignal(strategyEvidence);
+    renderAMEC(); restoreSharedEditableContent();
   }
 });
 
@@ -1642,6 +1877,8 @@ function buildAISummaryEvidence(posts) {
 
   return {
     evidenceVersion: DASHBOARD_VERSION,
+    amecSocial: socialAMECEvidence(),
+    amecArticles: articleAMECEvidence(),
     period: dated.length ? {
       start: dated[0].date.toISOString().slice(0, 10),
       end: dated[dated.length - 1].date.toISOString().slice(0, 10)
@@ -1731,9 +1968,14 @@ function applyAISummary(summary) {
     'goal-progress': summary.goalProgress,
     'public-narrative': summary.publicNarrative,
     'social-direction': summary.socialDirection,
-    'historical-precedent': summary.historicalPrecedent
+    'historical-precedent': summary.historicalPrecedent,
+    'recommended-response': summary.recommendedResponse,
+    'social-performance': summary.socialPerformance,
+    'social-investment': summary.socialInvestment,
+    'decisions-needed': summary.decisionsNeeded
   };
   Object.keys(values).forEach(function(key) {
+    if (typeof values[key] !== 'string' || !values[key].trim()) return;
     const element = document.querySelector('[data-edit-key="' + key + '"]');
     const value = String(values[key] || '').trim();
     if (!element || !value) return;
@@ -1819,6 +2061,8 @@ async function generateAISummary() {
     strategyEvidence = payload.narrativeEvidence || null;
     renderStrategySignal(strategyEvidence);
     applyAISummary(payload.summary);
+    editorialReviewNeeded = false;
+    document.getElementById('amec-review-needed').hidden = true;
     toggleEditMode(true);
     if (button) button.textContent = '✓ Private Draft Ready';
   } catch (error) {
@@ -1877,6 +2121,7 @@ function handleFile(hintPlatform, input) {
       const csv = e.target.result;
       const detected = detectPlatform(csv);
       const platform = detected || hintPlatform;
+      rememberExportRange(platform, file.name);
 
       if (detected && detected !== hintPlatform) {
         alert(`"${file.name}" looks like a ${detected.toUpperCase()} file — assigning it there automatically.`);
@@ -1908,6 +2153,10 @@ function showUpload() {
     generateButton.textContent = '✨ Generate Strategy';
   }
   rawIG = []; rawFB = [];
+  socialExportRanges = { ig: [], fb: [] }; reportWindow = { start:'', end:'' };
+  articleImportVersion++; articleTracker = {rows:[],filename:'',importedAt:null,rejected:0,duplicates:0};
+  editorialReviewNeeded = false;
+  document.querySelectorAll('.article-upload-status').forEach(el => el.textContent = 'No article tracker loaded.');
   sharedEditableContent = {};
   strategyEvidence = null;
   renderStrategySignal(null);
@@ -2032,9 +2281,8 @@ function parseFB(csvArr) {
 
 // ── Filter posts ──
 function filtered() {
-  if (currentFilter === 'ig') return igPosts;
-  if (currentFilter === 'fb') return fbPosts;
-  return allPosts;
+  const posts = currentFilter === 'ig' ? igPosts : currentFilter === 'fb' ? fbPosts : allPosts;
+  return reportWindow.start && reportWindow.end ? posts.filter(p => { const d=dayKey(p.date); return d>=reportWindow.start && d<=reportWindow.end; }) : posts;
 }
 
 function setFilter(f, el) {
@@ -2412,6 +2660,7 @@ function renderInterpretationNotes(posts, organicPosts) {
 }
 
 function renderAll() {
+  ensureReportWindow();
   const posts = filtered();
   const organicPosts = posts.filter(p => !isLikelyBoostedPost(p));
   renderKPIs(posts);
@@ -2431,8 +2680,10 @@ function renderAll() {
   renderInterpretationNotes(posts, organicPosts);
   renderTopPosts(posts);
   renderExecSummary();
+  document.querySelectorAll('#view-overview [data-edit-key], #exec-summary [data-edit-key], [data-edit-key=historical-precedent]').forEach(el=>el.dataset.defaultHtml=el.innerHTML);
   restoreSharedEditableContent();
   renderAnalystNotes(posts);
+  renderAMEC(); restoreSharedEditableContent();
 }
 
 // ── KPIs ──
@@ -3372,125 +3623,12 @@ function buildLowPerformanceFinding(organicPosts) {
 
 function renderExecSummary() {
   const el = document.getElementById('exec-summary-body');
-  if (!el || allPosts.length === 0) return;
+  if (!el || !allPosts.length) return;
   document.getElementById('exec-summary').style.display = 'block';
-  const avg = values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-  const totalReach = allPosts.reduce((sum, post) => sum + post.reach, 0);
-  const totalPosts = allPosts.length;
-  const totalFollows = igPosts.reduce((sum, post) => sum + (post.follows || 0), 0);
-  const totalLinkClicks = allPosts.reduce((sum, post) => sum + (post.linkClicks || 0), 0);
-  const medianReach = platform => {
-    const reaches = (platform === 'ig' ? igPosts : fbPosts).filter(post => post.reach > 0).map(post => post.reach).sort((a, b) => a - b);
-    if (!reaches.length) return 0;
-    const middle = Math.floor(reaches.length / 2);
-    return reaches.length % 2 ? reaches[middle] : (reaches[middle - 1] + reaches[middle]) / 2;
-  };
-  const medians = { ig: medianReach('ig'), fb: medianReach('fb') };
-  const isBoosted = post => post.reach > medians[post.platform] * 4;
-  const boostedPosts = allPosts.filter(isBoosted);
-  const organicPosts = allPosts.filter(post => !isBoosted(post));
-  const avgOrganicReach = Math.round(avg(organicPosts.map(post => post.reach)));
-  const avgBoostedReach = boostedPosts.length ? Math.round(avg(boostedPosts.map(post => post.reach))) : 0;
-  const igOrganic = organicPosts.filter(post => post.platform === 'ig' && post.reach > 0);
-  const fbOrganic = organicPosts.filter(post => post.platform === 'fb' && post.reach > 0);
-  const igOrganicER = avg(igOrganic.map(post => post.engRate));
-  const fbOrganicER = avg(fbOrganic.map(post => post.engRate));
-  const themeResult = getThemeStats(allPosts);
-  const eligibleThemes = themeResult.rows.filter(function(row) {
-    return row.organicCount >= THEME_MIN_SAMPLE;
-  });
-  const strongestEngagement = eligibleThemes.slice().sort(function(a, b) {
-    return b.medianEngagement - a.medianEngagement;
-  })[0];
-  const strongestReach = eligibleThemes.slice().sort(function(a, b) {
-    return b.medianReach - a.medianReach;
-  })[0];
-  const weakestEngagement = eligibleThemes.slice().sort(function(a, b) {
-    return a.medianEngagement - b.medianEngagement;
-  })[0];
-  const highestLowShare = eligibleThemes.slice().sort(function(a, b) {
-    return b.lowShare - a.lowShare;
-  })[0];
-  const workingParts = [];
-  if (strongestEngagement) {
-    workingParts.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median estimated organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
-  }
-  if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
-    workingParts.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median estimated organic reach at <strong>' + fmt(Math.round(strongestReach.medianReach)) + '</strong> per post.');
-  }
-  const whatsWorkingFallback = workingParts.length
-    ? workingParts.join(' ')
-    : 'No theme has enough estimated organic posts for a reliable comparison.';
-  const attentionParts = [];
-  if (weakestEngagement) {
-    attentionParts.push('<strong>' + escapeHTML(weakestEngagement.label) + '</strong> has the lowest eligible median estimated organic engagement rate at <strong>' + fmtPct(weakestEngagement.medianEngagement) + '</strong>.');
-  }
-  if (highestLowShare && highestLowShare.lowShare >= 0.25) {
-    attentionParts.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> appears in the bottom engagement quartile for <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong> of its estimated organic posts; treat this as a review signal, not proof of cause.');
-  }
-  const whatsNeedsAttentionFallback = attentionParts.length
-    ? attentionParts.join(' ')
-    : 'No eligible theme is consistently concentrated among the lowest-engagement posts.';
-  const directionParts = [];
-  if (strongestEngagement) {
-    directionParts.push('Use <strong>' + escapeHTML(strongestEngagement.label) + '</strong> as the primary engagement pillar.');
-  }
-  if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
-    directionParts.push('Retain <strong>' + escapeHTML(strongestReach.label) + '</strong> for awareness, supported by specific proof and audience relevance.');
-  }
-  if (weakestEngagement) {
-    directionParts.push('Refine <strong>' + escapeHTML(weakestEngagement.label) + '</strong> before increasing its share of the content plan.');
-  }
-  const recommendedDirectionFallback = directionParts.length
-    ? directionParts.join(' ')
-    : 'Use the next reporting period to establish reliable theme samples before changing the content mix.';
-
-  const dated = allPosts.filter(post => post.date).sort((a, b) => a.date - b.date);
-  const dateRange = dated.length
-    ? `${dated[0].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} – ${dated[dated.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
-    : 'Period on file';
-  document.getElementById('exec-summary-meta').textContent = `${dateRange} · ${totalPosts} posts · ONWRD`;
-  const boostNote = boostedPosts.length
-    ? ` ${boostedPosts.length} of ${totalPosts} posts show reach consistent with paid promotion; organic figures are separated where stated.`
-    : '';
-  const provisionalGoal = strongestEngagement
-    ? `The strongest current path to trust is <strong>${escapeHTML(strongestEngagement.label)}</strong>, which has the best supported engagement signal. Keep using specific proof and local relevance so performance supports the wider communications goal.`
-    : 'The current sample is too small to judge progress by theme. Use trust, proof and local relevance as provisional goals while the evidence base grows.';
-  const narrativeFallback = strategyEvidence
-    ? `<strong>${escapeHTML(strategyEvidence.status)}</strong>. ${escapeHTML(strategyEvidence.statusReason)} Use the monitor to decide whether to watch, clarify, show proof or refer a claim to counsel.`
-    : 'Public-claims monitoring has not yet been added to this report. Generate the strategy to bring the deterministic monitor status into this page.';
-  const socialFallback = strongestEngagement
-    ? `Publish <strong>1–2 feed posts per week</strong>. Lead with <strong>${escapeHTML(strongestEngagement.label)}</strong> and support it with clear evidence from the project. This keeps the account present without making the response look rushed or defensive.`
-    : 'Publish <strong>1–2 feed posts per week</strong> while the theme sample grows. Each post should add new proof, a useful local voice or a clear project update.';
-  el.innerHTML = `
-    <div class="exec-block">
-      <div class="exec-block-label">Executive Read</div>
-      <div class="exec-block-body editable-field" data-edit-key="executive-read" contenteditable="false">
-        The combined social program recorded <strong>${fmt(totalReach)} total post reach</strong> across <strong>${totalPosts} posts</strong>.${boostNote}
-        Estimated organic posts averaged <strong>${fmt(avgOrganicReach)} reach</strong>${avgBoostedReach ? `, while posts flagged as likely boosted averaged <strong>${fmt(avgBoostedReach)} reach</strong>` : ''}. The next decision is to align the best-performing themes with the public claims that require a response.
-      </div>
-    </div>
-    <div class="exec-divider"></div>
-    <div class="exec-block">
-      <div class="exec-block-label">Progress Against Strategy</div>
-      <div class="exec-block-body editable-field" data-edit-key="goal-progress" contenteditable="false">${provisionalGoal} ${whatsWorkingFallback} ${whatsNeedsAttentionFallback}</div>
-    </div>
-    <div class="exec-divider"></div>
-    <div class="exec-block">
-      <div class="exec-block-label">Public Narrative &amp; Response</div>
-      <div class="exec-block-body editable-field" data-edit-key="public-narrative" contenteditable="false">${narrativeFallback}</div>
-    </div>
-    <div class="exec-divider"></div>
-    <div class="exec-block">
-      <div class="exec-block-label">Social Direction</div>
-      <div class="exec-block-body editable-field" data-edit-key="social-direction" contenteditable="false">${socialFallback} ${recommendedDirectionFallback}</div>
-    </div>
-    <div class="exec-divider"></div>
-    <div class="exec-block">
-      <div class="exec-block-label">Relevant Historical Precedent</div>
-      <div class="exec-block-body editable-field" data-edit-key="historical-precedent" contenteditable="false">Baker’s Bay shows the value of a clear consultation record. Bimini shows why permits, monitoring records and public statements must stay aligned. Neither case predicts the result of the current dispute.</div>
-    </div>
-  `;
+  const social = socialAMECEvidence(), articles = articleAMECEvidence();
+  document.getElementById('exec-summary-meta').textContent = `${social.start || ''} – ${social.end || ''} · ONWRD`;
+  el.innerHTML = `<div class="exec-block"><div class="exec-block-label">Executive read</div>${amecEditable('executive-read', `Review social performance and public coverage together, then agree on the next week’s priorities. ${social.available ? social.contentItems + ' caption-based feed content items are in the selected social period.' : ''} ${articles.available ? articles.currentItems + ' coverage items are recorded in the latest article fortnight.' : 'Upload the article tracker to add the media context.'} Reach and coverage indicate visibility; audience trust has not been measured.`)}</div>`;
+  document.getElementById('executive-slot').appendChild(document.getElementById('exec-summary'));
 }
 
 // ── Editable narrative persistence ──
@@ -3498,7 +3636,7 @@ function collectEditableOverrides() {
   const overrides = {};
   document.querySelectorAll('[data-edit-key]').forEach(element => {
     const key = element.getAttribute('data-edit-key');
-    if (key) overrides[key] = element.innerHTML;
+    if (key && (Object.hasOwn(sharedEditableContent, key) || (element.dataset.defaultHtml !== undefined && element.innerHTML !== element.dataset.defaultHtml))) overrides[key] = element.innerHTML;
   });
   return overrides;
 }
@@ -3540,6 +3678,7 @@ function restoreSharedEditableContent() {
 
 // ── Edit mode for strategy recommendations ──
 function toggleEditMode(on) {
+  editorEditMode = Boolean(on);
   document.querySelectorAll('.editable-field').forEach(el => {
     el.contentEditable = on ? 'true' : 'false';
   });
@@ -3599,11 +3738,14 @@ function buildStrategyDocExport() {
       + '</section>';
   }).join('');
   const plainSummary = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
-  const plainText = [title, meta, '', ...plainSummary].join('\n\n');
+  const additional = Array.from(document.querySelectorAll('#amec-overall [data-edit-key], [data-edit-key=historical-precedent]')).filter(el => !execSummary.contains(el));
+  const sectionLabels = {'public-narrative':'What needs attention','goal-progress':'Which messages are landing','recommended-response':'Recommended response','social-performance':'Are we improving?','social-investment':'What deserves more investment?','social-direction':'This week’s plan','decisions-needed':'Decisions needed','historical-precedent':'Historical precedent'};
+  const extraText = additional.map(el => sectionLabels[el.dataset.editKey] + '\n' + normalizeCopyText(el.closest('.amec-card')?.innerText || el.innerText));
+  const plainText = [title, meta, '', ...plainSummary, ...extraText].join('\n\n');
   const richHTML = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111111;">'
     + '<h1 style="font-size:20px;margin:0 0 8px 0;font-weight:700;color:#111111;">' + escapeHTML(title) + '</h1>'
     + (meta ? '<p style="margin:0 0 20px 0;font-size:11px;color:#111111;">' + escapeHTML(meta) + '</p>' : '')
-    + summaryHTML + '</div>';
+    + summaryHTML + additional.map(el => '<h2 style="font-size:15px">' + escapeHTML(sectionLabels[el.dataset.editKey] || '') + '</h2><p>' + cleanDocHTML(el.innerHTML) + '</p>').join('') + '</div>';
   return { html: richHTML, text: plainText };
 }
 
@@ -3744,16 +3886,18 @@ function buildClientHTML() {
     editableOverrides: { ...sharedEditableContent },
     summaryMode: summaryMode,
     strategyEvidence: strategyEvidence,
+    articleTracker: articleTracker, socialExportRanges: socialExportRanges, reportWindow: reportWindow,
+    editorialReviewNeeded: editorialReviewNeeded,
     brandColors: {
       typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
     },
   };
   const dataJSON = serializeForInlineScript(data);
-  const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
+  const currentHTML = (_pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML)).replace('<script src="vendor/xlsx.full.min.js"><\/script>', '');
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
-    #upload-screen, #github-modal, #ai-modal, #analyst-notes,
+    .admin-only, #amec-review-needed, #upload-screen, #github-modal, #ai-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
     #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
@@ -3766,6 +3910,8 @@ function buildClientHTML() {
 }
 
 async function pushToGitHub() {
+  if (editorialReviewNeeded && !confirm('Evidence changed. Have you reviewed and updated the saved analysis before publishing?')) return;
+  editorialReviewNeeded = false;
   const token = document.getElementById('gh-token').value.trim();
   const repoFull = document.getElementById('gh-repo').value.trim();
   if (!token || !repoFull || !repoFull.includes('/')) {
@@ -3884,6 +4030,8 @@ function destroyChart(key) {
 
 // ── Download Client Version (uses shared buildClientHTML) ──
 async function downloadShareable() {
+  if (editorialReviewNeeded && !confirm('Evidence changed. Have you reviewed and updated the saved analysis before exporting?')) return;
+  editorialReviewNeeded = false;
   if (igPosts.length === 0 && fbPosts.length === 0) {
     alert('No data loaded yet — upload your CSVs first.');
     return;
