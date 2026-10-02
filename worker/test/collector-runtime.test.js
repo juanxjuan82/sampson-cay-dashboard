@@ -104,7 +104,7 @@ test('rejected and failed candidates rotate so later valid links are discovered'
 
 test('block context preserves legacy source text and content hashes',async()=>{
  const mf=new Miniflare(convertV4MiniflareOptions({modules:[
-  {type:'ESModule',path:'entry.js',contents:`import {extract,hash} from './collector.js';import {classify,criticismThemes} from './rules.js';export default {async fetch(){const p=await extract('<html><head><title>Sampson Cay report</title></head><body><h2>Permit challenge</h2><p>Sampson Cay jobs will be created</p></body></html>','https://example.com');return Response.json({...p,contentHash:await hash(p.title+'\\n'+p.text),themes:criticismThemes('tribune',classify(p.text),p.title+'. '+p.contextText)});}};`},
+  {type:'ESModule',path:'entry.js',contents:`import {extract,hash} from './collector.js';import {classify,criticismThemes} from './rules.js';export default {async fetch(){const p=await extract('<html><head><title>Sampson Cay report</title></head><body><p>Permit challenge</p>Sampson Cay jobs will be created</body></html>','https://example.com');return Response.json({...p,contentHash:await hash(p.title+'\\n'+p.text),themes:criticismThemes('tribune',classify(p.text),p.title+'. '+p.contextText)});}};`},
   ...['collector.js','rules.js'].map(name=>({type:'ESModule',path:name,contents:readFileSync(new URL('../src/monitor/'+name,import.meta.url),'utf8')}))
  ],compatibilityDate:'2026-10-01'}));
  try{

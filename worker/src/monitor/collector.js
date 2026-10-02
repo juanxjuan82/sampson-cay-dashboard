@@ -55,7 +55,7 @@ export async function extract(raw, url) {
     .on('title', {text(t){title.push(t.text);}})
     .on('meta[property="article:published_time"],meta[name="date"]', {element(e){published=e.getAttribute('content');}})
     .on('a[href]', {element(e){const link=canonical(e.getAttribute('href'),url);if(link) links.push(link);}})
-    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) {text.push(' ');context.push(' . ');}}})
+    .on('p,h1,h2,h3,h4,li,div,br', {element(e){if(!excluded) {text.push(' ');context.push(' . ');e.onEndTag(()=>{if(!excluded)context.push(' . ');});}}})
     .on('body', {text(t){if(!excluded) {text.push(t.text);context.push(t.text);}}});
   await rewrite.transform(new Response(raw,{headers:{'Content-Type':'text/html'}})).text();
   const clean=text.join('').replace(/\s+/g,' ').trim();
@@ -74,7 +74,7 @@ export async function collect(env) {
   const fetchWithLease=async(...args)=>{await renew();return fetch(...args);};
   const result={busy:false,newItems:0,changedItems:0,failures:[]};
   let successfulSources=0;
-  const runAt=new Date(now).toISOString(),pendingRun=JSON.stringify({owner,successfulSources:0,totalSources:SOURCES.length});
+  const runAt=new Date(now).toISOString(),pendingRun=JSON.stringify({owner,state:'pending',successfulSources:0,totalSources:SOURCES.length});
   try {
     await env.DB.prepare("INSERT INTO audit(at,item_id,action,detail) VALUES(?,NULL,'collection_run',?)").bind(runAt,pendingRun).run();
     for(const source of SOURCES) {
@@ -161,5 +161,8 @@ export async function collect(env) {
     }
     await env.DB.prepare("UPDATE audit SET detail=? WHERE at=? AND action='collection_run' AND detail=?").bind(JSON.stringify({successfulSources,totalSources:SOURCES.length}),runAt,pendingRun).run();
     return result;
+  } catch(error) {
+    await env.DB.prepare("UPDATE audit SET detail=? WHERE at=? AND action='collection_run' AND detail=?").bind(JSON.stringify({state:'failed',successfulSources:0,totalSources:SOURCES.length}),runAt,pendingRun).run();
+    throw error;
   } finally {await env.DB.prepare("UPDATE locks SET expires_at=?,owner=NULL WHERE id='collect' AND owner=?").bind(Date.now()+300000,owner).run();}
 }

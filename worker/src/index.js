@@ -258,13 +258,14 @@ export async function buildNarrativeEvidence(db, now = new Date()) {
   const previous = rows.filter(row => row.evidenceTags.some(tag=>tagPeriod(row,tag)==='previous'));
   const maxObservationGapMs = 9 * 60 * 60 * 1000;
   const observations = collectionRuns.map(run => {
-    let complete = false;
+    let complete = false, pending = false;
     try {
       const detail = JSON.parse(run.detail || '{}');
+      pending = detail.state === 'pending' && nowMs - Date.parse(run.at) < 10 * 60 * 1000;
       complete = Number(detail.totalSources) > 0 && Number(detail.successfulSources) >= Number(detail.totalSources);
     } catch {}
-    return {at: Date.parse(run.at), complete};
-  }).filter(run => Number.isFinite(run.at) && run.at <= nowMs).sort((a, b) => a.at - b.at);
+    return {at: Date.parse(run.at), complete, pending};
+  }).filter(run => !run.pending && Number.isFinite(run.at) && run.at <= nowMs).sort((a, b) => a.at - b.at);
   let coverageStartedAtMs;
   const latest = observations.at(-1);
   if (latest?.complete && nowMs - latest.at <= maxObservationGapMs) {

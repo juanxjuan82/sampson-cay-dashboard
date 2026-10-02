@@ -275,3 +275,12 @@ test('press index pages do not duplicate the linked article count',async()=>{
  const evidence=await buildNarrativeEvidence(DB,new Date('2026-10-02T12:00:00.000Z'));
  assert.equal(evidence.current7Days.items,1);assert.equal(evidence.leadingClaims[0].currentItems,1);
 });
+
+test('a live pending crawl preserves coverage, but an abandoned crawl breaks it',async()=>{
+ const {DB,insert,sql}=setup();
+ seedContinuousRuns(sql,'2026-09-17T12:00:00.000Z','2026-10-02T06:00:00.000Z');
+ insert.run('a'.repeat(64),'sea','https://example.com/current','Consultation criticism','2026-10-01','2026-10-01','2026-10-01','h','criticism',JSON.stringify([{theme:'Consultation'}]));
+ sql.prepare("INSERT INTO audit(at,item_id,action,detail) VALUES(?,NULL,'collection_run',?)").run('2026-10-02T11:59:00.000Z',JSON.stringify({state:'pending',successfulSources:0,totalSources:4}));
+ assert.equal((await buildNarrativeEvidence(DB,new Date('2026-10-02T12:00:00.000Z'))).status,'Rising');
+ assert.equal((await buildNarrativeEvidence(DB,new Date('2026-10-02T12:10:00.000Z'))).status,'Baseline building');
+});
