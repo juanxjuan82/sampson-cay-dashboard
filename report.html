@@ -1462,7 +1462,6 @@ let embeddedData = null;
 let tableSortKey = 'engRate';
 let tableSortDir = 'desc';
 let topPostsExpanded = false;
-let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let strategyEvidence = null;
@@ -1695,7 +1694,7 @@ function getThemeStats(posts) {
   });
   const contentItems = uniqueThemeContent(annotated);
   const eligibleOrganic = annotated.filter(function(item) {
-    return !isLikelyBoostedPost(item.post) && item.post.reach > 0 && Number.isFinite(Number(item.post.engRate));
+    return !isLikelyBoostedPost(item.post,posts) && item.post.reach > 0 && Number.isFinite(Number(item.post.engRate));
   });
   const lowPosts = new Set();
   ['ig', 'fb'].forEach(function(platform) {
@@ -1912,9 +1911,9 @@ function htmlToPlainText(html) {
 
 function buildAISummaryEvidence(posts) {
   const organicPosts = posts.filter(function(post) {
-    return !isLikelyBoostedPost(post) && post.reach > 0;
+    return !isLikelyBoostedPost(post,posts) && post.reach > 0;
   });
-  const likelyBoosted = posts.filter(isLikelyBoostedPost);
+  const likelyBoosted = posts.filter(post=>isLikelyBoostedPost(post,posts));
   const sum = function(items, value) {
     return items.reduce(function(total, post) { return total + value(post); }, 0);
   };
@@ -2471,8 +2470,6 @@ function renderAnalystNotes(posts) {
   const BOOST_MULT = 4; // posts with reach > 4× platform median are flagged
   const igBoostThreshold = igMedian * BOOST_MULT;
   const fbBoostThreshold = fbMedian * BOOST_MULT;
-  // Set the module-level threshold for renderTopPosts (use lower of the two for mixed views)
-  boostThreshold = Math.min(igBoostThreshold || Infinity, fbBoostThreshold || Infinity);
 
   const likelyBoosted = posts.filter(p =>
     (p.platform === 'ig' && p.reach > igBoostThreshold) ||
@@ -2545,10 +2542,10 @@ function renderAnalystNotes(posts) {
   `;
 }
 
-function isLikelyBoostedPost(p) {
+function isLikelyBoostedPost(p, baselinePosts=filtered()) {
   const medianReach = platform => {
-    const reaches = (platform === 'ig' ? igPosts : fbPosts)
-      .filter(post => post.reach > 0)
+    const reaches = baselinePosts
+      .filter(post => post.platform===platform && post.reach > 0)
       .map(post => post.reach)
       .sort((a, b) => a - b);
     if (!reaches.length) return 0;
@@ -2596,7 +2593,7 @@ function renderInterpretationNotes(posts, organicPosts) {
     if (!weeklyMap[key]) weeklyMap[key] = { ig: 0, fb: 0, posts: 0, boostedPosts: 0, boostedReach: 0 };
     weeklyMap[key][p.platform] += p.reach || 0;
     weeklyMap[key].posts += 1;
-    if (isLikelyBoostedPost(p)) {
+    if (isLikelyBoostedPost(p,posts)) {
       weeklyMap[key].boostedPosts += 1;
       weeklyMap[key].boostedReach += p.reach || 0;
     }
@@ -2658,7 +2655,7 @@ function renderInterpretationNotes(posts, organicPosts) {
     setChartNote('reach-type-note', note);
   }
 
-  const boosted = posts.filter(p => p.reach > 0 && isLikelyBoostedPost(p));
+  const boosted = posts.filter(p => p.reach > 0 && isLikelyBoostedPost(p,posts));
   if (boosted.length) {
     const boostTypes = groupAveragesByType(boosted, p => p.reach || 0, 0);
     const top = boostTypes[0];
@@ -2713,7 +2710,7 @@ function renderInterpretationNotes(posts, organicPosts) {
 function renderAll() {
   ensureReportWindow();
   const posts = filtered();
-  const organicPosts = posts.filter(p => !isLikelyBoostedPost(p));
+  const organicPosts = posts.filter(p => !isLikelyBoostedPost(p,posts));
   renderKPIs(posts);
   renderComparison(platformHistory());
   renderInsights(posts);
@@ -2920,7 +2917,7 @@ function renderComparison(posts) {
 function renderInsights(posts) {
   const el = document.getElementById('insight-grid');
   if (posts.length === 0) { el.innerHTML = ''; return; }
-  const organicPosts = posts.filter(function(post) { return !isLikelyBoostedPost(post) && post.reach > 0; });
+  const organicPosts = posts.filter(function(post) { return !isLikelyBoostedPost(post,posts) && post.reach > 0; });
   const byType = {};
   organicPosts.forEach(function(post) {
     if (!byType[post.type]) byType[post.type] = { count: 0, engagement: [], reach: [], follows: [] };
@@ -3171,15 +3168,7 @@ function renderReachByType(posts) {
 function renderBoostReach(posts) {
   const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
 
-  const medianReach = platform => {
-    const r = (platform === 'ig' ? igPosts : fbPosts)
-      .filter(p => p.reach > 0).map(p => p.reach).sort((a,b) => a-b);
-    if (!r.length) return 0;
-    const m = Math.floor(r.length / 2);
-    return r.length % 2 ? r[m] : (r[m-1]+r[m])/2;
-  };
-  const igMed = medianReach('ig'), fbMed = medianReach('fb');
-  const isBoosted = p => p.reach > (p.platform === 'ig' ? igMed : fbMed) * 4;
+  const isBoosted = p => isLikelyBoostedPost(p,posts);
 
   // Boosted posts only, grouped by type
   const boostByType = {};
@@ -3561,7 +3550,7 @@ function renderTopPosts(posts) {
       <td><span class="type-tag ${typeClass(p.type)}">${p.type}</span></td>
       <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">${p.dateStr}</td>
       <td><div class="post-caption" title="${p.caption.replace(/"/g,"'")}">${p.caption || '—'}</div></td>
-      <td style="font-weight:600">${fmt(p.reach)}${p.reach > boostThreshold ? ' <span title="Reach exceeds the statistical outlier threshold — paid status unverified" style="cursor:help;font-size:11px">⚡</span>' : ''}</td>
+      <td style="font-weight:600">${fmt(p.reach)}${isLikelyBoostedPost(p,posts) ? ' <span title="Reach exceeds the statistical outlier threshold — paid status unverified" style="cursor:help;font-size:11px">⚡</span>' : ''}</td>
       <td style="color:var(--text-muted)">${p.views > 0 ? fmt(p.views) : '—'}</td>
       <td style="color:var(--text-muted)">${fmt(p.interactions)}</td>
       <td>

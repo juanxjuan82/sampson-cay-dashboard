@@ -240,3 +240,20 @@ test('bereavement phrasing stays in performance totals but never in investment c
  assert.equal(r.platforms[0].examples[0].caption,'Community roof completed');
  assert.equal(vm.runInContext("isBereavementPost({caption:'Passing our school examinations'})",c),false);
 });
+test('outlier classification follows the selected period independently of old high-reach history',()=>{
+ for(const file of ['index.html','report.html']) {
+  const markup=readFileSync(new URL('../../'+file,import.meta.url),'utf8');const c=context();
+  const selected=[10,10,10,100].map(reach=>({platform:'ig',reach,dateStr:'09/02/2026'}));
+  const older=Array(10).fill(null).map(()=>({platform:'ig',reach:1000,dateStr:'01/01/2026'}));
+  c.igPosts=[...older,...selected];c.fbPosts=[];c.allPosts=c.igPosts;c.currentFilter='all';c.selected=selected;
+  vm.runInContext(markup.match(/function platformHistory\(\)[^\n]+/)[0],c);
+  vm.runInContext(markup.match(/function filtered\(\) \{[\s\S]*?\n\}/)[0],c);
+  vm.runInContext(markup.match(/function isLikelyBoostedPost\(p, baselinePosts=filtered\(\)\) \{[\s\S]*?\n\}/)[0],c);
+  vm.runInContext("reportWindow={start:'2026-09-01',end:'2026-09-14'}",c);
+  assert.equal(vm.runInContext('isLikelyBoostedPost(selected[3])',c),true);
+  assert.equal(vm.runInContext('isLikelyBoostedPost(selected[3],allPosts)',c),false);
+  assert.equal(vm.runInContext('isLikelyBoostedPost(selected[0])',c),false);
+  assert.match(markup,/\$\{isLikelyBoostedPost\(p,posts\) \?/);
+  assert.match(markup.match(/function renderBoostReach\(posts\) \{[\s\S]*?\n\}/)[0],/const isBoosted = p => isLikelyBoostedPost\(p,posts\)/);
+ }
+});
