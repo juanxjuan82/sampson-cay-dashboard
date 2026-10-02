@@ -177,6 +177,8 @@ test('supporting audit describes reach outliers without inferring paid status',(
   vm.runInContext('renderAnalystNotes(posts)',c);
   const notes=elements['boost-caveat-note'].innerHTML+elements['analyst-notes-body'].innerHTML;
   assert.match(notes,/paid status is unverified/);
+  assert.doesNotMatch(markup,/Likely Paid Posts/);
+  assert.match(markup,/Reach Outliers: Reach by Format/);
   assert.doesNotMatch(notes,/consistent with paid|reflects? a paid audience|note it was paid distribution|organic baseline/i);
  }
 });
