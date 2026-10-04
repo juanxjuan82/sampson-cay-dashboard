@@ -569,19 +569,6 @@
     align-items: center; justify-content: center; flex-shrink: 0;
   }
   .exec-divider { height: 1px; background: var(--border); margin: 18px 0; }
-  .strategy-signal {
-    display:grid; grid-template-columns:1.1fr .9fr .9fr; gap:12px;
-    margin-bottom:18px;
-  }
-  .signal-card {
-    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-    box-shadow:var(--shadow); padding:16px 18px;
-  }
-  .signal-label { font-size:10px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; color:var(--text-muted); }
-  .signal-value { margin-top:5px; font-size:19px; line-height:1.25; font-weight:800; color:var(--text); }
-  .signal-value.rising { color:#b45309; }
-  .signal-value.falling { color:#047857; }
-  .signal-detail { margin-top:5px; font-size:11.5px; line-height:1.45; color:var(--text-muted); }
 
   /* ── CONTENT CALENDAR ── */
   .cal-grid {
@@ -787,10 +774,7 @@
   .table-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
   .methodology { margin-top:12px; font-size:11px; color:var(--text-muted); }
   .methodology summary { cursor:pointer; font-weight:700; color:var(--accent); }
-  @media (max-width:900px) {
-    .theme-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    .strategy-signal { grid-template-columns:1fr; }
-  }
+  @media (max-width:900px) { .theme-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
   @media (max-width:560px) {
     .theme-grid { grid-template-columns:1fr; }
     .dashboard-tabs { width:100%; }
@@ -798,280 +782,12 @@
   }
 
 </style>
-<script src="vendor/xlsx.full.min.js"></script>
-<style>
-.amec-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:16px 0 26px}.amec-grid.social{grid-template-columns:repeat(2,minmax(0,1fr))}.amec-card{padding:22px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}.amec-card h3{font-size:14px;color:var(--accent);margin:0 0 12px}.amec-card .exec-block-body{font-size:14px;line-height:1.65}.amec-evidence{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:12px;margin-top:14px;line-height:1.6}.amec-evidence a{color:var(--accent)}.amec-section-title{font-size:21px;margin:24px 0 8px}.amec-date-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0}.amec-date-controls label{font-size:12px}.amec-date-controls input{padding:7px;border:1px solid var(--border);border-radius:6px}.article-upload-status{font-size:12px;line-height:1.5;color:var(--text-muted)}#amec-period{font-size:12px;color:var(--text-muted);margin-bottom:16px}#amec-review-needed{padding:12px;background:#fff7ed;color:#9a3412;border-radius:8px;margin-bottom:16px}#supporting-evidence>summary{padding:20px;font-weight:700;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin:24px 0}#supporting-evidence table{font-size:12px;width:100%;border-collapse:collapse}#supporting-evidence td,#supporting-evidence th{padding:10px;text-align:left;border-bottom:1px solid var(--border)}#article-evidence-body{overflow:auto}.amec-method{font-size:12px;color:var(--text-muted);line-height:1.6}#amec-overall[hidden]{display:none}#view-overview .kpi-label{font-size:12px}@media(max-width:900px){.amec-grid,.amec-grid.social{grid-template-columns:1fr}}
-</style>
-<script>
-// AMEC-guided evidence. Included inline in the dashboard and client exports.
-let articleTracker = { rows: [], filename: '', importedAt: null, rejected: 0, duplicates: 0 };
-let socialExportRanges = { ig: [], fb: [] };
-let reportWindow = { start: '', end: '' };
-let editorialReviewNeeded = false;
-let editorEditMode = false;
-const dayMs = 86400000;
-function dayKey(value) {
-  if (value instanceof Date && !isNaN(value)) return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
-  return '';
-}
-function postDayKey(post) { return trackerDate(post.dateStr) || dayKey(post.date); }
-function utcDay(key) { return new Date(key + 'T00:00:00Z').getTime(); }
-function shiftDay(key, days) { return new Date(utcDay(key) + days * dayMs).toISOString().slice(0,10); }
-function cleanLabel(value) { return String(value ?? '').replace(/\s+/g,' ').trim(); }
-function safeSourceURL(value) {
-  try { const u = new URL(String(value)); return ['https:', 'http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; }
-}
-function trackerDate(value, date1904=false) {
-  if (value instanceof Date) return !isNaN(value) ? value.toISOString().slice(0,10) : '';
-  if (typeof value === 'number' && typeof XLSX !== 'undefined') {
-    const d = XLSX.SSF.parse_date_code(value, {date1904});
-    return d ? `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}` : '';
-  }
-  const s = cleanLabel(value);
-  let match = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[ T])/);
-  if (match) {
-    const key = match.slice(1).join('-');
-    return Number.isFinite(utcDay(key)) && new Date(utcDay(key)).toISOString().slice(0,10) === key ? key : '';
-  }
-  match = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (match) return trackerDate(`${match[3]}-${match[1].padStart(2,'0')}-${match[2].padStart(2,'0')}`);
-  return '';
-}
-function coverageCategory(type) {
-  return /ad\b|advert|paid|sponsored/i.test(type) ? 'Paid placement'
-    : /public notice/i.test(type) ? 'Public notice'
-    : /press release/i.test(type) ? 'Press release'
-    : /article|broadcast|radio|online|interview|tv\b|media show|editorial|opinion|commentary|letter to (?:the )?editor/i.test(type) ? 'Editorial coverage' : 'Other / unclassified';
-}
-function normalizeArticleRows(input) {
-  const rows = [], seen = new Set();
-  let rejected = 0, duplicates = 0;
-  for (const r of input) {
-    const title = cleanLabel(r['Article Title & URL'] || r['Article Title'] || r['Title']);
-    if (!title) {
-      // Ignore only empty/pre-numbered templates, not incomplete coverage records.
-      if (Object.entries(r).some(([key,value]) => key!=='Mention ID' && key!=='__rowNum__' && cleanLabel(value))) rejected++;
-      continue;
-    }
-    const date = trackerDate(r['Publish Date'] || r['Date']);
-    const outlet = cleanLabel(r['Publication Name'] || r['Outlet']);
-    if (!date || !outlet) { rejected++; continue; }
-    const key = [outlet.toLowerCase().replace(/^the /,''), date, title.toLowerCase()].join('|');
-    if (seen.has(key)) { duplicates++; continue; }
-    seen.add(key);
-    const type = cleanLabel(r['Coverage Type'] || r['Type']) || 'Unspecified';
-    const category = coverageCategory(type);
-    // The tracker reference is an actor, not a sentiment label.
-    rows.push({ title: title.slice(0,2000), date, outlet: outlet.slice(0,200), type, category,
-      reference: cleanLabel(r.Reference).slice(0,200), opposition: cleanLabel(r['Opposition Articles']),
-      theme: cleanLabel(r.Theme).slice(0,300),
-      url: safeSourceURL(r.__url || r['Article URL'] || r.URL || (title.match(/https?:\/\/\S+/) || [])[0]) });
-  }
-  if (!rows.length) throw new Error('No valid coverage rows found. Use the Media Mentions sheet with Publication Name, Article Title & URL and Publish Date columns.');
-  return { rows: rows.sort((a,b) => b.date.localeCompare(a.date)), rejected, duplicates };
-}
-function articleWorksheetRecords(sheet, date1904=false) {
-  const records = XLSX.utils.sheet_to_json(sheet, { defval:'' });
-  const header = XLSX.utils.sheet_to_json(sheet, { header:1 })[0] || [];
-  const titleHeaders = ['Article Title & URL','Article Title','Title'];
-  // SheetJS retains physical row indexes even when blank worksheet rows are skipped.
-  records.forEach(record => {
-    ['Publish Date','Date'].forEach(key=>{ if (typeof record[key]==='number') record[key]=trackerDate(record[key],date1904); });
-    const col = header.indexOf(titleHeaders.find(name=>record[name]));
-    if (col < 0) return;
-    const cell = sheet[XLSX.utils.encode_cell({r:record.__rowNum__,c:col})];
-    if (cell?.l?.Target) record.__url = cell.l.Target;
-  });
-  return records;
-}
-let articleImportVersion = 0;
-async function uploadArticleTracker(input) {
-  const file = input.files?.[0]; if (!file) return;
-  const version = ++articleImportVersion;
-  const notices = () => document.querySelectorAll('.article-upload-status');
-  notices().forEach(el => el.textContent = 'Reading tracker…');
-  try {
-    if (file.size > 15 * 1024 * 1024) throw new Error('Choose a tracker smaller than 15 MB.');
-    let records;
-    if (/\.csv$/i.test(file.name)) {
-      const parsed = Papa.parse(await file.text(), { header:true, skipEmptyLines:true });
-      if (parsed.errors.length) throw new Error('The CSV contains malformed rows. Export Media Mentions again.');
-      records = parsed.data;
-    } else {
-      if (typeof XLSX === 'undefined') throw new Error('The Excel reader did not load. Reload the dashboard or upload Media Mentions as CSV.');
-      const book = XLSX.read(await file.arrayBuffer(), { type:'array', cellDates:false });
-      const name = book.SheetNames.find(name => name.trim().toLowerCase() === 'media mentions');
-      if (!name) throw new Error('The workbook needs a sheet named Media Mentions.');
-      const sheet = book.Sheets[name];
-      records = articleWorksheetRecords(sheet, Boolean(book.Workbook?.WBProps?.date1904));
-    }
-    const parsed = normalizeArticleRows(records);
-    if (version !== articleImportVersion) return;
-    captureSharedEditableContent();
-    articleTracker = { ...parsed, filename:file.name, importedAt:new Date().toISOString() };
-    updateLoadAvailability();
-    strategyRequestVersion++;
-    editorialReviewNeeded = Object.keys(sharedEditableContent).length > 0;
-    const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
-    renderExecSummary(); renderAMEC(); restoreSharedEditableContent();
-    notices().forEach(el => el.textContent = `${parsed.rows.length} coverage records loaded · ${parsed.duplicates} duplicates removed · ${parsed.rejected} invalid rows skipped. Replaces the previous tracker.`);
-  } catch (error) { if (version === articleImportVersion) notices().forEach(el => el.textContent = error.message); }
-  finally { input.value=''; }
-}
-function rememberExportRange(platform, filename) {
-  const match = filename.match(/^([A-Z][a-z]{2}-\d{1,2}-\d{4})_([A-Z][a-z]{2}-\d{1,2}-\d{4})_/);
-  if (!match) return;
-  const start = dayKey(new Date(match[1])), end = dayKey(new Date(match[2]));
-  if (start && end && start <= end) socialExportRanges[platform].push({ start, end });
-}
-function rangeCovered(platform, start, end) {
-  let cursor = start;
-  for (const range of socialExportRanges[platform].slice().sort((a,b) => a.start.localeCompare(b.start))) {
-    if (range.end < cursor) continue;
-    if (range.start > cursor) return false;
-    cursor = shiftDay(range.end,1);
-    if (cursor > end) return true;
-  }
-  return false;
-}
-function ensureReportWindow() {
-  if (reportWindow.start && reportWindow.end) return;
-  const ranges = [...socialExportRanges.ig,...socialExportRanges.fb].sort((a,b) => b.end.localeCompare(a.end) || b.start.localeCompare(a.start));
-  const dates = allPosts.map(p => postDayKey(p)).filter(Boolean).sort();
-  const end = ranges[0]?.end || dates[dates.length-1];
-  if (end) reportWindow = { start:ranges[0]?.start || shiftDay(end,-36), end };
-}
-function changeReportWindow() {
-  const start = document.getElementById('social-window-start').value, end = document.getElementById('social-window-end').value;
-  if (!start || !end || start > end) { alert('Choose a valid start and end date.'); return; }
-  captureSharedEditableContent(); reportWindow = {start,end};
-  editorialReviewNeeded = Object.keys(sharedEditableContent).length > 0;
-  strategyRequestVersion++;
-  const button = document.getElementById('btn-ai-generate'); if (button) { button.disabled=false; button.textContent='✨ Generate Strategy'; }
-  renderAll();
-}
-function isBereavementPost(post) { return /\b(?:condolences?|passing of|passed away|funerals?|bereav\w*|in (?:loving )?memory of|we mourn|mourning|rest in peace|memorial\w*|death of|loss of|deepest sympath\w*)\b/i.test(post.caption||''); }
-function audienceResponseScore(post,platform) { return (post.shares||0)+(platform==='ig'?(post.saves||0):0); }
-function countSocialContentItems(posts) {
-  const groups=new Map();
-  posts.forEach((post,index)=>{
-    const caption=cleanLabel(post.caption).toLowerCase();
-    const identity=post.id||post.permalink||'row:'+index;
-    const key=caption ? `${postDayKey(post)}|${caption}` : `${post.platform}|${postDayKey(post)}|${identity}`;
-    if (!groups.has(key)) groups.set(key,new Map());
-    const platforms=groups.get(key);
-    if (!platforms.has(post.platform)) platforms.set(post.platform,new Set());
-    platforms.get(post.platform).add(identity);
-  });
-  // Pair matching copies across platforms, keeping every distinct same-platform post.
-  return [...groups.values()].reduce((total,platforms)=>total+Math.max(...[...platforms.values()].map(ids=>ids.size)),0);
-}
-function updateLoadAvailability() { const button=document.getElementById('load-btn'); if(button) button.disabled=!(rawIG.length && rawFB.length || articleTracker.rows.length); }
-function hasReportEvidence() { return allPosts.length>0 || articleTracker.rows.length>0 || socialAMECEvidence().coverageComplete===true; }
-function selectedSocialPosts() {
-  ensureReportWindow();
-  return allPosts.filter(post=>{ const date=postDayKey(post); return date && date>=reportWindow.start && date<=reportWindow.end; });
-}
-function socialAMECEvidence() {
-  ensureReportWindow();
-  const {start,end} = reportWindow;
-  if (!start || !end) return { available:false };
-  const days = Math.round((utcDay(end)-utcDay(start))/dayMs)+1;
-  const priorStart = shiftDay(start,-days), priorEnd = shiftDay(start,-1);
-  const inRange = (p,a,b) => { const d=postDayKey(p); return d && d>=a && d<=b; };
-  const recent = allPosts.filter(p => inRange(p,start,end));
-  const platforms = ['ig','fb'].map(platform => {
-    const current = recent.filter(p => p.platform===platform);
-    const previous = allPosts.filter(p => p.platform===platform && inRange(p,priorStart,priorEnd));
-    const currentMedianReach = current.length ? medianValue(current.map(p=>p.reach)) : null;
-    const previousMedianReach = previous.length ? medianValue(previous.map(p=>p.reach)) : null;
-    const currentCoverageComplete=rangeCovered(platform,start,end);
-    const comparable = currentCoverageComplete && rangeCovered(platform,priorStart,priorEnd) && current.length>=5 && previous.length>=5;
-    return {platform,currentCoverageComplete,currentPosts:current.length,previousPosts:previous.length,currentMedianReach,previousMedianReach,comparable,
-      changePercent:comparable && previousMedianReach>0 ? (currentMedianReach/previousMedianReach-1)*100 : null,
-      shares:current.reduce((s,p)=>s+(p.shares||0),0),saves:platform==='ig'?current.reduce((s,p)=>s+(p.saves||0),0):null,
-      totalClicks:platform==='fb'?current.reduce((s,p)=>s+(p.totalClicks||0),0):null,
-      examples:current.filter(p=>!isBereavementPost(p)).slice().sort((a,b)=>audienceResponseScore(b,platform)-audienceResponseScore(a,platform) || b.reach-a.reach).slice(0,2).map(p=>({caption:p.caption.slice(0,400),date:postDayKey(p),reach:p.reach,shares:p.shares||0,saves:p.saves??null,url:safeSourceURL(p.permalink)}))};
-  });
-  const contentItems=countSocialContentItems(recent);
-  const coverageComplete=platforms.every(p=>p.currentCoverageComplete);
-  return { available:true,start,end,priorStart,priorEnd,days,coverageComplete,contentItems,platformObservations:recent.length,
-    feedPostsPerWeek:coverageComplete?contentItems/days*7:null,platforms,
-    caveats:[coverageComplete?'Current period has declared export coverage on both platforms.':'Current coverage is incomplete or unknown: counts are observed records only and publishing cadence is unavailable.','Lifetime results, not equal-age post performance.','Export coverage uses declared filename ranges; unknown coverage disables comparisons.','Paid status is not verified. High reach alone cannot prove promotion.','Comments are blocked; do not recommend comments as a success measure.','Facebook total clicks are not necessarily link clicks.','No measured change in public trust or sentiment.'] };
-}
-function articleAMECEvidence() {
-  const rows = articleTracker.rows;
-  if (!rows.length) return {available:false};
-  const end=rows[0].date,start=shiftDay(end,-13),priorStart=shiftDay(start,-14),priorEnd=shiftDay(start,-1);
-  const current=rows.filter(r=>r.date>=start && r.date<=end),previous=rows.filter(r=>r.date>=priorStart && r.date<=priorEnd);
-  const counts=rs=>Object.fromEntries(['Editorial coverage','Paid placement','Public notice','Press release','Other / unclassified'].map(c=>[c,rs.filter(r=>r.category===c).length]));
-  const terms = [ ['Approvals & court proceedings',/court|judge|hearing|permit|approval|DEPP|salami slicing/i],['Environment & marine impacts',/dredg|seawall|dock|marine|environment|eco-tourism/i],['Community & local benefits',/community|classroom|school|job|training|scholarship/i] ];
-  const editorialCurrent=current.filter(r=>r.category==='Editorial coverage'),editorialPrevious=previous.filter(r=>r.category==='Editorial coverage');
-  const topics=terms.map(([label,re])=>({label,currentItems:editorialCurrent.filter(r=>re.test(r.title)).length,previousItems:editorialPrevious.filter(r=>re.test(r.title)).length})).sort((a,b)=>b.currentItems-a.currentItems);
-  return {available:true,start,end,priorStart,priorEnd,totalRecords:rows.length,currentItems:current.length,previousItems:previous.length,
-    currentOutlets:new Set(current.map(r=>r.outlet.toLowerCase().replace(/^the /,''))).size,
-    currentCategories:counts(current),previousCategories:counts(previous),topicCategory:'Editorial coverage',topics,
-    examples:current.slice(0,5).map(({title,date,outlet,category,url})=>({title,date,outlet,category,url})),
-    caveats:['Tracked coverage, not exhaustive media or public sentiment.','Topics use editorial headlines only, exclude paid placements, notices and releases, and can overlap; they are not validated criticism.','Actor references and opposition flags are not sentiment labels.','No inference of coordination, truth, trust or causal impact.']};
-}
-function articleTopicSummary(topics) {
-  const maximum=Math.max(0,...topics.map(t=>t.currentItems));
-  const leaders=topics.filter(t=>maximum>0 && t.currentItems===maximum).map(t=>t.label);
-  if (!leaders.length) return 'Review the recent coverage before setting response priorities.';
-  return leaders.join('; ') + (leaders.length===1 ? ' leads recent editorial headline coverage.' : ' are tied for the most recent editorial headline matches.');
-}
-function socialExampleResponseText(platform,example) { return `${example.shares} shares`+(platform==='ig'?` · ${example.saves??0} saves`:''); }
-function socialMedianText(value) { return value===null ? 'median reach unavailable (no posts)' : `median reach ${fmt(value)} per post`; }
-function amecEditable(key,text) { return `<div class="exec-block-body editable-field" data-edit-key="${key}" contenteditable="false">${text}</div>`; }
-function amecCard(label,key,text,evidence='') { return `<article class="amec-card"><h3>${label}</h3>${amecEditable(key,text)}${evidence?`<div class="amec-evidence">${evidence}</div>`:''}</article>`; }
-function amecSourceLink(url,label) { const u=safeSourceURL(url); return u?`<a href="${escapeHTML(u)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)}</a>`:escapeHTML(label); }
-function renderAMEC() {
-  const root=document.getElementById('amec-overall'); if (!root) return;
-  const s=socialAMECEvidence(),a=articleAMECEvidence();
-  const period=document.getElementById('amec-period');
-  if (s.available) { document.getElementById('header-period').textContent=`Communications review · ${s.start} – ${s.end}`; }
-  else if(a.available) document.getElementById('header-period').textContent=`Article review · ${a.start} – ${a.end}`;
-  document.querySelectorAll('#header-badges .badge').forEach(el=>{if (!el.textContent.includes('on file')) el.append(' on file');});
-  period.textContent=s.available?`Social: ${s.start} – ${s.end} · Lifetime post results · Articles: ${a.available?a.start+' – '+a.end:'not uploaded'}`:a.available?`Articles: ${a.start} – ${a.end} · Social exports not uploaded.`:'Upload social exports to establish the reporting period.';
-  if (s.available) { document.getElementById('social-window-start').value=s.start;document.getElementById('social-window-end').value=s.end; }
-  document.getElementById('amec-review-needed').hidden=!editorialReviewNeeded;
-  const countText=a.available?`${a.currentItems} tracked items across ${a.currentOutlets} outlets; ${a.previousItems} items in the preceding fortnight. Editorial: ${a.currentCategories['Editorial coverage']}; paid: ${a.currentCategories['Paid placement']}; notices: ${a.currentCategories['Public notice']}; releases: ${a.currentCategories['Press release']}; other: ${a.currentCategories['Other / unclassified']}.`:'';
-  const topicSummary=articleTopicSummary(a.topics || []);
-  const narrative=a.available?`<strong>${escapeHTML(topicSummary)}</strong> The tracker records activity, not whether the public accepts a claim. Review the underlying articles to distinguish new issues from repeated coverage.`:'Upload the article tracker to identify recent coverage and recurring issues. Live monitoring is shown separately below when available.';
-  const message=a.available?'Assess whether editorial coverage carries approved community, environmental and economic messages. The tracker’s actor labels and opposition flags cannot establish message acceptance or public trust.':'Message visibility will appear after the tracker is uploaded and its articles reviewed.';
-  const response=a.available?'Prioritise recurring, material questions. Prepare an approved explanation with accessible supporting evidence; send court-related wording to counsel. Use community and environmental proof where relevant, rather than answering every headline.':'Review current source material before choosing Monitor, Clarify, Publish proof or Refer to counsel.';
-  document.getElementById('amec-articles').innerHTML=amecCard('What needs attention','public-narrative',narrative,countText)+amecCard('Which messages are landing','goal-progress',message,'Coverage is an output. Trust and understanding require separate audience evidence.')+amecCard('Recommended response','recommended-response',response);
-  const changes=s.available?s.platforms.map(p=>`${p.platform.toUpperCase()}: ${socialMedianText(p.currentMedianReach)}${p.changePercent===null?' · comparison unavailable':` (${p.changePercent>=0?'+':''}${Math.round(p.changePercent)}% vs preceding ${s.days} days)`}; ${p.currentPosts} recorded posts${p.currentCoverageComplete?'':' · incomplete or unknown period coverage'}.`).join('<br>'):'';
-  const lower=s.available && s.platforms.every(p=>p.changePercent!==null && p.changePercent<0);
-  const perf=s.available?`<strong>${lower?'Recorded median reach is lower on both platforms.':s.contentItems+' feed content items are recorded across Instagram and Facebook'+(s.coverageComplete?'.':'; period coverage is incomplete or unknown.')}</strong> ${lower?s.contentItems+' feed content items are recorded in the selected period. ':''}Review typical reach separately for each platform. These lifetime snapshots do not establish a like-for-like trend in distribution.`:'Upload the social exports to assess reach, shares, saves and available clicks.';
-  const examples=s.available?s.platforms.flatMap(p=>p.examples.map(e=>`${p.platform.toUpperCase()} · ${e.date} · ${fmt(e.reach)} reach · ${socialExampleResponseText(p.platform,e)} · ${amecSourceLink(e.url,e.caption.slice(0,95)+'…')}`)).join('<br>'):'';
-  document.getElementById('amec-social').innerHTML=amecCard('Are we improving?','social-performance',perf,changes)+amecCard('What deserves more investment?','social-investment','Use the strongest recorded examples as candidates to test again. Prioritise useful facts, identifiable people and visible progress. Check paid status before attributing unusually high reach to the creative.',examples);
-  document.getElementById('amec-plan').innerHTML=amecEditable('social-direction',`<strong>Test two feed posts per week for four weeks.</strong> Publish one community milestone or participant-led post and one approved environmental or economic proof post. Adapt both for Facebook and Instagram; a material, counsel-approved legal update can replace a slot. ${s.available?`${s.coverageComplete?'The selected period averages '+s.feedPostsPerWeek.toFixed(1)+' content items per week.':'Period coverage is incomplete or unknown; publishing cadence cannot be calculated.'} This is a proposed test, not a proven optimum.`:''} Communications lead: prepare content and targeted outreach. Review reach, shares and saves at the next update; use confirmed link clicks only when available.`);
-  document.getElementById('amec-decisions').innerHTML=amecEditable('decisions-needed','Approve or revise the proposed four-week content test. Confirm available people, photographs, milestones and approved project facts. Assign a communications owner and publication dates; obtain counsel clearance for any legal clarification.');
-  const body=document.getElementById('article-evidence-body');
-  body.innerHTML=a.available?`<p>${escapeHTML(articleTracker.filename)} · Imported ${escapeHTML(articleTracker.importedAt?.slice(0,10)||'')} · ${a.totalRecords} records · ${articleTracker.rejected} invalid rows skipped · ${articleTracker.duplicates} duplicates removed.</p><p>Headline topic matches may overlap. No automatic positive/negative sentiment score is assigned.</p><table><thead><tr><th>Date</th><th>Outlet</th><th>Type</th><th>Tracked headline</th></tr></thead><tbody>${articleTracker.rows.slice(0,100).map(r=>`<tr><td>${r.date}</td><td>${escapeHTML(r.outlet)}</td><td>${escapeHTML(r.category)}</td><td>${amecSourceLink(r.url,r.title)}</td></tr>`).join('')}</tbody></table><p>Showing the latest ${Math.min(100,a.totalRecords)} records; all records are retained for calculations.</p>`:'No article tracker loaded. Upload XLSX or a CSV export of Media Mentions.';
-  document.querySelectorAll('#amec-articles [data-edit-key], #amec-social [data-edit-key], #amec-plan [data-edit-key], #amec-decisions [data-edit-key]').forEach(el=>el.dataset.defaultHtml=el.innerHTML);
-  syncAMECLayout();
-  document.querySelectorAll('.editable-field').forEach(el=>el.contentEditable=editorEditMode?'true':'false');
-}
-function syncAMECLayout() {
-  const overall=currentFilter==='all';
-  document.getElementById('amec-overall').hidden=!overall;
-  document.getElementById('supporting-evidence').open=!overall;
-  document.querySelectorAll('.pill').forEach(el=>el.setAttribute('aria-selected',String(el.dataset.platform===currentFilter)));
-  document.querySelectorAll('.dashboard-view').forEach(el=>el.classList.add('active'));
-  document.getElementById('chart-comments-type')?.closest('.chart-card').setAttribute('hidden','');
-  requestAnimationFrame(()=>Object.values(charts).forEach(chart=>chart.resize?.()));
-}
-
-</script>
 </head>
 <body>
 
 <!-- ══════════════════ HEADER ══════════════════ -->
 <div class="header">
   <div class="header-left">
-    <a href="monitor.html" style="color:#b6dfe4;font-size:12px;text-decoration:none">Media &amp; Public Claims Monitor →</a>
     <h1 id="header-client">Sampson Cay Project</h1>
     <p id="header-period">Social Media Performance Report &nbsp;·&nbsp; Upload CSVs to populate</p>
   </div>
@@ -1082,7 +798,7 @@ function syncAMECLayout() {
 <div id="upload-screen">
   <div class="upload-card">
     <h2>📊 Upload Your Data</h2>
-    <p>Upload the Facebook and Instagram CSV exports from Meta Business Suite. Both files are required for platform comparisons. You can also upload the article tracker below.</p>
+    <p>Upload the Facebook and Instagram CSV exports from Meta Business Suite. Both files are required to generate the full dashboard.</p>
 
     <div class="upload-zones">
       <div class="upload-zone" id="zone-fb">
@@ -1099,13 +815,12 @@ function syncAMECLayout() {
       </div>
     </div>
 
-    <div class="amec-card" style="margin:18px 0;text-align:left"><label><strong>Article tracker (optional)</strong><br><input type="file" accept=".xlsx,.csv" onchange="uploadArticleTracker(this)"></label><p class="article-upload-status" role="status">Reads Media Mentions only. Files are processed in your browser.</p></div>
     <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()" disabled>
       Generate Dashboard →
     </button>
 
     <p style="margin-top:16px; font-size:12px; color:#94a3b8;">
-      Multiple CSVs per platform are merged and deduplicated by Post ID. Uploads are read locally. Generate Strategy sends compact evidence to the AI service; publishing includes the report data.
+      Multiple CSVs per platform are merged and deduplicated by Post ID. Data is processed locally — nothing leaves your browser.
     </p>
   </div>
 </div>
@@ -1116,10 +831,10 @@ function syncAMECLayout() {
   <!-- TOOLBAR -->
   <div class="toolbar">
     <div class="toolbar-left">
-      <div class="pill-group" role="tablist" aria-label="Reporting platforms">
-        <button class="pill active" role="tab" data-platform="all" aria-selected="true" onclick="setFilter('all', this)">Overall</button>
-        <button class="pill" role="tab" data-platform="fb" aria-selected="false" onclick="setFilter('fb', this)">Facebook</button>
-        <button class="pill" role="tab" data-platform="ig" aria-selected="false" onclick="setFilter('ig', this)">Instagram</button>
+      <div class="pill-group">
+        <button class="pill active" onclick="setFilter('all', this)">All Platforms</button>
+        <button class="pill" onclick="setFilter('ig', this)">Instagram</button>
+        <button class="pill" onclick="setFilter('fb', this)">Facebook</button>
       </div>
     </div>
     <div class="toolbar-right">
@@ -1129,31 +844,20 @@ function syncAMECLayout() {
     </div>
   </div>
 
-  <section id="amec-overall">
-    <div id="amec-period"></div>
-    <div id="amec-review-needed" hidden>Evidence has changed. Your saved wording is preserved; review it or generate a new private strategy draft before publishing.</div>
-    <div id="executive-slot"></div>
-    <h2 class="amec-section-title">Public narrative</h2>
-    <div class="amec-card admin-only"><label><strong>Upload or replace article tracker</strong> <input type="file" accept=".xlsx,.csv" onchange="uploadArticleTracker(this)"></label><p class="article-upload-status" role="status">XLSX: Media Mentions sheet · CSV: the same headers. Only coverage rows are imported.</p></div>
-    <div class="amec-grid" id="amec-articles"></div>
-    <h2 class="amec-section-title">Social performance</h2>
-    <div class="amec-date-controls admin-only"><label>From <input type="date" id="social-window-start"></label><label>Through <input type="date" id="social-window-end"></label><button class="btn btn-outline btn-sm" onclick="changeReportWindow()">Update reporting period</button></div>
-    <div class="amec-grid social" id="amec-social"></div>
-    <h2 class="amec-section-title">This week’s plan</h2><div class="amec-card" id="amec-plan"></div>
-    <h2 class="amec-section-title">Decisions needed</h2><div class="amec-card" id="amec-decisions"></div>
-    <p class="amec-method">AMEC-guided reporting: coverage and reach show visibility; shares and saves show response. Neither proves improved trust. Comments are blocked. Paid status is unverified. Social exports contain lifetime results, so newer posts have had less time to accumulate results.</p>
-  </section>
-  <details id="supporting-evidence"><summary>Supporting evidence · platform metrics, posts and coverage</summary>
-    <div class="amec-card"><h3>Article coverage log</h3><div id="article-evidence-body"></div></div>
-    <details class="amec-card" style="margin-top:16px"><summary>Historical precedent · advisor interpretation</summary><div class="editable-field exec-block-body" data-edit-key="historical-precedent" contenteditable="false">Apply historical precedents only after checking the sources and relevance to the current issue. Communications activity does not establish what caused a court outcome.</div></details>
+  <div class="dashboard-tabs" role="tablist" aria-label="Dashboard sections">
+    <button class="dashboard-tab active" type="button" onclick="switchDashboardView('overview', this)">Overview</button>
+    <button class="dashboard-tab" type="button" onclick="switchDashboardView('details', this)">Detailed Performance</button>
+    <button class="dashboard-tab" type="button" onclick="switchDashboardView('posts', this)">Top Posts</button>
+  </div>
+
   <div id="view-overview" class="dashboard-view active">
   <!-- KPI CARDS -->
   <div class="kpi-grid">
     <div class="kpi-card reach">
       <div class="kpi-icon">👁</div>
-      <div class="kpi-label">Sum of Post Reach</div>
+      <div class="kpi-label">Accounts Reached</div>
       <div class="kpi-value" id="kpi-reach">—</div>
-      <div class="kpi-sub" id="kpi-reach-sub">Not unique across posts or platforms</div>
+      <div class="kpi-sub" id="kpi-reach-sub">Unique accounts</div>
     </div>
     <div class="kpi-card views">
       <div class="kpi-icon">▶</div>
@@ -1181,18 +885,16 @@ function syncAMECLayout() {
     </div>
   </div>
 
-  <div class="strategy-signal" id="strategy-signal" style="display:none" aria-live="polite"></div>
-
   <!-- EXEC SUMMARY -->
   <div id="exec-summary" style="display:none">
     <div class="exec-summary-card">
       <div class="exec-summary-header">
         <div>
-          <div class="exec-summary-title">Executive Social &amp; Public Narrative Strategy</div>
+          <div class="exec-summary-title">Social Media Performance Review: Sampson Cay Project</div>
           <div class="exec-summary-meta" id="exec-summary-meta">90-Day Recommendation · ONWRD</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-sm btn-edit" id="btn-ai-generate" onclick="generateAISummary()" title="Generate an editable strategy from deterministic performance and monitoring evidence">✨ Generate Strategy</button>
+          <button class="btn btn-sm btn-edit" id="btn-ai-generate" onclick="generateAISummary()" title="Generate an editable narrative from the dashboard’s deterministic evidence">✨ Generate AI Summary</button>
           <button class="btn btn-sm btn-edit" id="btn-ai-settings" onclick="openAISettings(false)" title="Configure the Cloudflare Worker connection">⚙ AI</button>
           <button class="btn btn-sm btn-edit" id="btn-copy-doc" onclick="copyStrategyForDoc()">📋 Copy for Google Doc</button>
           <button class="btn btn-sm btn-edit" id="btn-edit-recs" onclick="toggleEditMode(true)">✏️ Edit</button>
@@ -1200,7 +902,7 @@ function syncAMECLayout() {
         </div>
       </div>
       <div class="edit-mode-banner" id="edit-banner">
-        ✏️ <span><strong>Private working copy</strong> — rewrite any highlighted text and coach the recommendation for the client. The client sees it only after you publish the report.</span>
+        ✏️ <span><strong>Edit mode on</strong> — click any highlighted text to rewrite it. Changes carry through to the client report.</span>
       </div>
       <div id="exec-summary-body"></div>
     </div>
@@ -1230,13 +932,13 @@ function syncAMECLayout() {
   <div class="theme-grid" id="theme-grid"></div>
   <div class="chart-card col-12" id="theme-section" style="margin-bottom:28px">
     <div class="chart-title">How Each Theme Performs</div>
-    <div class="chart-sub">Outlier exclusions stated where applied · paid status unverified · medians reduce distortion from unusually large posts</div>
+    <div class="chart-sub">Organic results only where stated · median values reduce distortion from unusually large posts</div>
     <div class="theme-analysis" id="theme-analysis"></div>
     <div class="theme-table-wrap" id="theme-table-wrap"></div>
     <div class="chart-note" id="theme-note"></div>
     <details class="methodology">
       <summary>How themes are detected</summary>
-      Community, Economy and Environment are scored against a fixed weighted-keyword dictionary. Site Activity uses a separate high-confidence rule: content must be dated June 1, 2026 or later and describe one of the validated Sampson Cay fieldwork or preparation activities; generic project, construction and location references do not qualify. Matching Facebook and Instagram captions count as one content item, while performance remains separate by platform. Closely matched content may carry more than one theme. AI is used only after classification to interpret the evidence.
+      Community, Economy and Environment are scored against a fixed weighted-keyword dictionary. Site Activity uses a separate high-confidence rule: content must be dated June 1, 2026 or later and describe one of the validated Sampson Cay fieldwork or preparation activities; generic project, construction and location references do not qualify. Matching Facebook and Instagram captions count as one content item, while their organic results remain separate platform observations. Closely matched content may carry more than one theme. AI is used only after classification to interpret the evidence.
     </details>
   </div>
   </div><!-- /view-overview -->
@@ -1267,7 +969,7 @@ function syncAMECLayout() {
   <div class="charts-grid">
     <div class="chart-card col-6">
       <div class="chart-title">Which Formats Earn the Most Engagement</div>
-      <div class="chart-sub">Posts below the reach-outlier threshold only · paid status unverified · IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
+      <div class="chart-sub">Estimated unboosted posts only · IG: (Likes + Comments + Shares + Saves) ÷ Reach &nbsp;·&nbsp; FB: (Reactions + Comments + Shares) ÷ Reach</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-eng-type"></canvas>
       </div>
@@ -1275,7 +977,7 @@ function syncAMECLayout() {
     </div>
     <div class="chart-card col-6">
       <div class="chart-title">Which Formats Reach the Most People</div>
-      <div class="chart-sub">Posts below the reach-outlier threshold only · paid status unverified · average unique accounts reached per post</div>
+      <div class="chart-sub">Estimated unboosted posts only · average unique accounts reached per post</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-reach-type"></canvas>
       </div>
@@ -1286,8 +988,8 @@ function syncAMECLayout() {
   <!-- ROW 3: Organic vs Boosted Reach -->
   <div class="charts-grid">
     <div class="chart-card col-12">
-      <div class="chart-title">Reach Outliers: Reach by Format</div>
-      <div class="chart-sub">Posts with reach &gt;4× platform median · statistical outliers, with paid status unverified</div>
+      <div class="chart-title">Likely Paid Posts: Reach by Format</div>
+      <div class="chart-sub">Posts with reach &gt;4× platform median treated as likely boosted · how content types compare when paid amplification is in play</div>
       <div class="chart-wrap" style="height:260px">
         <canvas id="chart-boost-reach"></canvas>
       </div>
@@ -1344,7 +1046,7 @@ function syncAMECLayout() {
       <div class="chart-note" id="shares-type-note"></div>
     </div>
     <div class="chart-card col-4">
-      <div class="chart-title">Comments (blocked)</div>
+      <div class="chart-title">Avg Comments by Post Type</div>
       <div class="chart-sub">Average comments per post by format</div>
       <div class="chart-wrap" style="height:240px">
         <canvas id="chart-comments-type"></canvas>
@@ -1383,7 +1085,6 @@ function syncAMECLayout() {
   </div>
 
   </div><!-- /view-posts -->
-  </details><!-- /supporting-evidence -->
 
   <!-- ANALYST NOTES — hidden from client report -->
   <div id="analyst-notes" style="display:none">
@@ -1433,8 +1134,8 @@ function syncAMECLayout() {
 <!-- ══════════════════ AI SUMMARY MODAL ══════════════════ -->
 <div class="modal-overlay" id="ai-modal">
   <div class="modal">
-    <h3>✨ Generate Executive Strategy</h3>
-    <p>Build a private, editable strategy from content performance and monitored public claims. You review the language before it appears in the client report.</p>
+    <h3>✨ Generate AI Summary</h3>
+    <p>Connect the dashboard to the protected Cloudflare Worker. The Worker URL is saved in this browser; the access token is kept only for this tab.</p>
 
     <label>Worker URL</label>
     <input type="url" id="ai-endpoint" placeholder="https://sampson-cay-dashboard-ai.your-subdomain.workers.dev" autocomplete="url">
@@ -1442,13 +1143,9 @@ function syncAMECLayout() {
     <label>Dashboard access token</label>
     <input type="password" id="ai-access-token" placeholder="Paste DASHBOARD_AI_TOKEN" autocomplete="off">
 
-    <label>Strategy context and goals</label>
-    <textarea id="ai-account-context" maxlength="6000" placeholder="Add approved project facts, business goals, priority audiences, important campaigns, constraints and what success should look like."></textarea>
-    <p class="modal-field-note">Saved only in this browser. It guides the strategy but cannot override measured results.</p>
-
-    <label>Private coaching notes</label>
-    <textarea id="ai-editor-guidance" maxlength="4000" placeholder="Coach the draft for this client: what they are ready to hear, where to be firm, what needs a softer approach, and any recommendation you do not want made yet."></textarea>
-    <p class="modal-field-note">Saved only in this browser and used to shape the draft. These notes are never shown in the client report.</p>
+    <label>Account context and priorities</label>
+    <textarea id="ai-account-context" maxlength="6000" placeholder="Add account history, business goals, priority audiences, important campaigns or events, known paid activity, constraints, and what recommendations should optimize for."></textarea>
+    <p class="modal-field-note">Saved only in this browser. It guides interpretation and recommendations but does not override the dashboard’s measured evidence.</p>
 
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closeAISettings()">Cancel</button>
@@ -1468,18 +1165,11 @@ let embeddedData = null;
 let tableSortKey = 'engRate';
 let tableSortDir = 'desc';
 let topPostsExpanded = false;
+let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely-boosted posts
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
-let strategyEvidence = null;
 let aiGenerateAfterSettings = false;
-let strategyRequestVersion = 0;
-const DASHBOARD_VERSION = '2026-10-02.amec3'; // Bump whenever report-generation code changes.
-const DEFAULT_STRATEGY_CONTEXT = `Project: Sampson Cay / Rosewood Exuma.
-Primary communications goals: build trust through verifiable proof; show environmental stewardship; demonstrate local participation and benefits; maintain a calm, consistent public presence.
-Priority audiences: Exuma residents, the wider Bahamian public, media and project stakeholders.
-Content pillars: Community, Economy, Environment and Site Activity.
-Operational constraints: feed posts only (images, carousels and reels/videos). Comments are blocked. Measure reach, shares, saves and verified link clicks, not comments. Do not call feed posts Stories.
-Response posture: do not answer every criticism. Prioritize claims that are growing across credible sources. Use approved records and visible proof. Refer court-related or legal claims to counsel before publication.`;
+const DASHBOARD_VERSION = '2026-08-11.9'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1488,8 +1178,8 @@ window.addEventListener('DOMContentLoaded', () => {
   _pageTemplate = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   if (window.__EMBEDDED_DATA__) {
     const embedded = window.__EMBEDDED_DATA__;
-    igPosts = embedded.igPosts.map(post => ({ ...post, date: postDayKey(post) ? new Date(postDayKey(post) + 'T00:00:00') : null }));
-    fbPosts = embedded.fbPosts.map(post => ({ ...post, date: postDayKey(post) ? new Date(postDayKey(post) + 'T00:00:00') : null }));
+    igPosts = embedded.igPosts.map(post => ({ ...post, date: post.date ? new Date(post.date) : null }));
+    fbPosts = embedded.fbPosts.map(post => ({ ...post, date: post.date ? new Date(post.date) : null }));
     allPosts = [...igPosts, ...fbPosts].sort((a, b) => ((a.date?.getTime() || 0) - (b.date?.getTime() || 0)));
     const validDates = allPosts.filter(post => post.date).map(post => post.date.getTime());
     if (validDates.length) {
@@ -1506,21 +1196,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const dashboard = document.getElementById('dashboard'); if (dashboard) dashboard.style.display = 'block';
     const footer = document.getElementById('footer'); if (footer) footer.style.display = 'block';
     currentFilter = 'all';
-    sharedEditableContent = migrateEditableOverrides(embedded.editableOverrides || {});
+    sharedEditableContent = embedded.editableOverrides || {};
     summaryMode = embedded.summaryMode === 'ai' ? 'ai' : 'deterministic';
-    strategyEvidence = embedded.strategyEvidence || null;
-    articleTracker = embedded.articleTracker || articleTracker;
-    articleTracker.rows=articleTracker.rows.map(row=>({...row,category:coverageCategory(row.type)}));
-    socialExportRanges = embedded.socialExportRanges || socialExportRanges;
-    reportWindow = embedded.reportWindow || reportWindow;
-    editorialReviewNeeded = embedded.editorialReviewNeeded || false;
     if (embedded.brandColors) {
       Object.assign(TYPE_COLORS, embedded.brandColors.typeColors);
       Object.assign(PLATFORM_COLORS, embedded.brandColors.platformColors);
     }
     renderAll();
-    renderStrategySignal(strategyEvidence);
-    renderAMEC(); restoreSharedEditableContent();
   }
 });
 
@@ -1700,7 +1382,7 @@ function getThemeStats(posts) {
   });
   const contentItems = uniqueThemeContent(annotated);
   const eligibleOrganic = annotated.filter(function(item) {
-    return !isLikelyBoostedPost(item.post,posts) && item.post.reach > 0 && Number.isFinite(Number(item.post.engRate));
+    return !isLikelyBoostedPost(item.post) && item.post.reach > 0 && Number.isFinite(Number(item.post.engRate));
   });
   const lowPosts = new Set();
   ['ig', 'fb'].forEach(function(platform) {
@@ -1792,12 +1474,12 @@ function renderThemes(posts) {
       + '<div class="theme-card-label">' + escapeHTML(row.label) + '</div>'
       + '<div class="theme-card-count">' + row.count + '</div>'
       + '<div class="theme-card-sub">content items · ' + Math.round(row.share * 100) + '% tagged with this theme</div>'
-      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</strong><span>Median reach below outlier threshold</span></div>'
-      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</strong><span>Median engagement below outlier threshold</span></div>'
+      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</strong><span>Median organic reach</span></div>'
+      + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</strong><span>Median organic engagement</span></div>'
       + '<div style="margin-top:10px"><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + (enough ? 'Sufficient sample' : 'Limited sample') + '</span></div></div>';
   }).join('');
 
-  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Content items</th><th>Observations below outlier threshold</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Clearest example</th></tr></thead><tbody>'
+  table.innerHTML = '<table class="theme-table"><thead><tr><th>Theme</th><th>Content items</th><th>Organic observations</th><th>Median reach</th><th>Median engagement</th><th>Bottom-quartile share</th><th>Clearest example</th></tr></thead><tbody>'
     + result.rows.map(function(row) {
       const enough = row.organicCount >= THEME_MIN_SAMPLE;
       const example = row.topPost && row.topPost.permalink ? '<a class="post-link" href="' + escapeHTML(row.topPost.permalink) + '" target="_blank">View post ↗</a>' : '—';
@@ -1808,14 +1490,14 @@ function renderThemes(posts) {
     }).join('') + '</tbody></table>';
 
   const statements = [];
-  if (strongestEngagement) statements.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median engagement rate below the outlier threshold at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
-  if (strongestReach) statements.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median reach below the outlier threshold at <strong>' + fmt(strongestReach.medianReach) + '</strong> per post.');
+  if (strongestEngagement) statements.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
+  if (strongestReach) statements.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median organic reach at <strong>' + fmt(strongestReach.medianReach) + '</strong> per post.');
   if (highestLowShare && highestLowShare.lowShare >= 0.4) statements.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> is most concentrated in the bottom engagement quartile at <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong>; treat this as a signal to review, not proof that the theme caused lower performance.');
-  if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' posts below the reach-outlier threshold, so the current data does not support a reliable theme comparison.');
+  if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' estimated organic posts, so the current data does not support a reliable theme comparison.');
 
   analysis.innerHTML = statements.join(' ');
   const coverage = result.totalContentItems ? Math.round((result.classifiedCount / result.totalContentItems) * 100) : 0;
-  note.textContent = platformLabel + ': ' + coverage + '% content-item classification coverage · ' + result.unclassifiedCount + ' unclassified content items · performance comparisons require at least ' + THEME_MIN_SAMPLE + ' platform observations below the reach-outlier threshold per theme.';
+  note.textContent = platformLabel + ': ' + coverage + '% content-item classification coverage · ' + result.unclassifiedCount + ' unclassified content items · performance comparisons require at least ' + THEME_MIN_SAMPLE + ' estimated organic platform observations per theme.';
 }
 
 function buildAlignedComparisonEvidence(posts) {
@@ -1915,24 +1597,27 @@ function htmlToPlainText(html) {
   return normalizeCopyText(holder.textContent || '');
 }
 
-function buildAISummaryEvidence(posts=selectedSocialPosts()) {
+function buildAISummaryEvidence(posts) {
   const organicPosts = posts.filter(function(post) {
-    return !isLikelyBoostedPost(post,posts) && post.reach > 0;
+    return !isLikelyBoostedPost(post) && post.reach > 0;
   });
-  const likelyBoosted = posts.filter(post=>isLikelyBoostedPost(post,posts));
+  const likelyBoosted = posts.filter(isLikelyBoostedPost);
   const sum = function(items, value) {
     return items.reduce(function(total, post) { return total + value(post); }, 0);
   };
   const themeResult = getThemeStats(posts);
-  const socialEvidence = socialAMECEvidence();
+  const dated = posts.filter(function(post) {
+    return post.date instanceof Date && !isNaN(post.date);
+  }).sort(function(a, b) { return a.date - b.date; });
 
   return {
     evidenceVersion: DASHBOARD_VERSION,
-    amecSocial: socialEvidence,
-    amecArticles: articleAMECEvidence(),
-    period: socialEvidence.available ? {start:socialEvidence.start,end:socialEvidence.end} : null,
+    period: dated.length ? {
+      start: dated[0].date.toISOString().slice(0, 10),
+      end: dated[dated.length - 1].date.toISOString().slice(0, 10)
+    } : null,
     boostHeuristic: {
-      definition: 'Legacy field names describe a statistical reach-outlier filter at four times platform median; paid status is unverified and the remaining posts are not verified organic.',
+      definition: 'A post is marked likely boosted when its reach exceeds four times the median reach for its platform.',
       likelyBoostedPosts: likelyBoosted.length,
       likelyBoostedReach: sum(likelyBoosted, function(post) { return post.reach; }),
       estimatedOrganicPosts: organicPosts.length
@@ -1963,7 +1648,7 @@ function buildAISummaryEvidence(posts=selectedSocialPosts()) {
         };
       })
     },
-    comparison: buildAlignedComparisonEvidence(allPosts)
+    comparison: buildAlignedComparisonEvidence(posts)
   };
 }
 
@@ -1971,8 +1656,7 @@ function openAISettings(generateAfterSave) {
   aiGenerateAfterSettings = Boolean(generateAfterSave);
   document.getElementById('ai-endpoint').value = localStorage.getItem('dashboard_ai_endpoint') || '';
   document.getElementById('ai-access-token').value = sessionStorage.getItem('dashboard_ai_token') || '';
-  document.getElementById('ai-account-context').value = getStrategyContext();
-  document.getElementById('ai-editor-guidance').value = localStorage.getItem('dashboard_ai_editor_guidance') || '';
+  document.getElementById('ai-account-context').value = localStorage.getItem('dashboard_ai_context') || '';
   document.getElementById('ai-modal').classList.add('open');
 }
 
@@ -1985,25 +1669,18 @@ function saveAISettingsAndGenerate() {
   const endpoint = document.getElementById('ai-endpoint').value.trim().replace(/\/+$/, '');
   const token = document.getElementById('ai-access-token').value.trim();
   const accountContext = document.getElementById('ai-account-context').value.trim();
-  const editorGuidance = document.getElementById('ai-editor-guidance').value.trim();
   if (!/^https:\/\//i.test(endpoint) || !token) {
     alert('Enter the HTTPS Worker URL and the DASHBOARD_AI_TOKEN value.');
     return;
   }
   localStorage.setItem('dashboard_ai_endpoint', endpoint);
   sessionStorage.setItem('dashboard_ai_token', token);
-  localStorage.setItem('dashboard_ai_context', accountContext);
-  if (editorGuidance) localStorage.setItem('dashboard_ai_editor_guidance', editorGuidance);
-  else localStorage.removeItem('dashboard_ai_editor_guidance');
+  if (accountContext) localStorage.setItem('dashboard_ai_context', accountContext);
+  else localStorage.removeItem('dashboard_ai_context');
   document.getElementById('ai-modal').classList.remove('open');
   const shouldGenerate = aiGenerateAfterSettings;
   aiGenerateAfterSettings = false;
-  if (shouldGenerate || hasReportEvidence()) generateAISummary();
-}
-
-function getStrategyContext(storage = localStorage) {
-  const saved = storage.getItem('dashboard_ai_context');
-  return saved === null ? DEFAULT_STRATEGY_CONTEXT : saved;
+  if (shouldGenerate || allPosts.length) generateAISummary();
 }
 
 function applyAISummary(summary) {
@@ -2012,66 +1689,23 @@ function applyAISummary(summary) {
     if (allButton) setFilter('all', allButton);
   }
   const values = {
-    'executive-read': summary.executiveRead,
-    'goal-progress': summary.goalProgress,
-    'public-narrative': summary.publicNarrative,
-    'social-direction': summary.socialDirection,
-    'historical-precedent': summary.historicalPrecedent,
-    'recommended-response': summary.recommendedResponse,
-    'social-performance': summary.socialPerformance,
-    'social-investment': summary.socialInvestment,
-    'decisions-needed': summary.decisionsNeeded
+    'performance-overview': summary.performanceOverview,
+    'whats-working': summary.whatsWorking,
+    'whats-needs-attention': summary.whatsNotWorking,
+    'recommended-direction': summary.recommendedDirection
   };
-  const refreshedKeys=new Set();
   Object.keys(values).forEach(function(key) {
-    if (typeof values[key] !== 'string' || !values[key].trim()) return;
     const element = document.querySelector('[data-edit-key="' + key + '"]');
     const value = String(values[key] || '').trim();
     if (!element || !value) return;
     element.textContent = value;
-    refreshedKeys.add(key);
   });
-  if (refreshedKeys.size===Object.keys(values).length) editorialReviewNeeded=false;
   summaryMode = 'ai';
   captureSharedEditableContent();
 }
 
-function renderStrategySignal(evidence) {
-  const container = document.getElementById('strategy-signal');
-  if (!container) return;
-  if (!evidence) {
-    container.style.display = 'none';
-    container.innerHTML = '';
-    return;
-  }
-  const current = evidence.current7Days || { items: 0, distinctSources: 0 };
-  const previous = evidence.previous7Days || { items: 0, distinctSources: 0 };
-  const leading = (evidence.leadingClaims || []).filter(function(claim) { return claim.currentItems > 0; }).slice(0, 3);
-  const leadingText = leading.length
-    ? leading.map(function(claim) { return claim.theme + ' (' + claim.currentItems + ')'; }).join(', ')
-    : 'No leading claim yet';
-  const statusClass = evidence.status === 'Rising' ? 'rising' : evidence.status === 'Falling' ? 'falling' : '';
-  container.innerHTML = `
-    <div class="signal-card">
-      <div class="signal-label">Public narrative status</div>
-      <div class="signal-value ${statusClass}">${escapeHTML(evidence.status || 'No monitoring data')}</div>
-      <div class="signal-detail">${escapeHTML(evidence.statusReason || 'Monitoring evidence is not available.')}</div>
-    </div>
-    <div class="signal-card">
-      <div class="signal-label">Monitored activity</div>
-      <div class="signal-value">${fmt(current.items)} items · ${fmt(current.distinctSources)} sources</div>
-      <div class="signal-detail">Previous 7 days: ${fmt(previous.items)} items across ${fmt(previous.distinctSources)} sources.</div>
-    </div>
-    <div class="signal-card">
-      <div class="signal-label">Leading claims</div>
-      <div class="signal-value" style="font-size:15px">${escapeHTML(leadingText)}</div>
-      <div class="signal-detail">Counts reflect only sources captured by the monitor.</div>
-    </div>`;
-  container.style.display = 'grid';
-}
-
 async function generateAISummary() {
-  if (!hasReportEvidence()) {
+  if (!allPosts.length) {
     alert('Load the dashboard first so there is evidence to summarize.');
     return;
   }
@@ -2083,7 +1717,6 @@ async function generateAISummary() {
   }
 
   const button = document.getElementById('btn-ai-generate');
-  const requestVersion = ++strategyRequestVersion;
   const original = button ? button.textContent : '';
   if (button) {
     button.disabled = true;
@@ -2098,9 +1731,8 @@ async function generateAISummary() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        evidence: buildAISummaryEvidence(),
-        accountContext: getStrategyContext(),
-        editorGuidance: localStorage.getItem('dashboard_ai_editor_guidance') || ''
+        evidence: buildAISummaryEvidence(allPosts),
+        accountContext: localStorage.getItem('dashboard_ai_context') || ''
       })
     });
     const payload = await response.json().catch(function() { return {}; });
@@ -2108,23 +1740,16 @@ async function generateAISummary() {
       const detail = payload.requestId ? ' Request ID: ' + payload.requestId : '';
       throw new Error((payload.error || 'Summary generation failed.') + detail);
     }
-    if (requestVersion !== strategyRequestVersion) return;
-    strategyEvidence = payload.narrativeEvidence || null;
-    renderStrategySignal(strategyEvidence);
     applyAISummary(payload.summary);
-    document.getElementById('amec-review-needed').hidden = !editorialReviewNeeded;
-    toggleEditMode(true);
-    if (button) button.textContent = '✓ Private Draft Ready';
+    if (button) button.textContent = '✓ AI Summary Updated';
   } catch (error) {
-    if (requestVersion !== strategyRequestVersion) return;
     if (button) button.textContent = '⚠ Generation failed';
     alert(error.message || 'AI summary generation failed.');
   } finally {
-    if (button && requestVersion === strategyRequestVersion) {
+    if (button) {
       setTimeout(function() {
-        if (requestVersion !== strategyRequestVersion) return;
         button.disabled = false;
-        button.textContent = original || '✨ Generate Strategy';
+        button.textContent = original || '✨ Generate AI Summary';
       }, 1800);
     }
   }
@@ -2148,25 +1773,6 @@ function detectPlatform(csv) {
   return null;
 }
 
-function validateSocialCSV(csv,platform) {
-  const parsed=Papa.parse(csv,{header:true,skipEmptyLines:true});
-  const required=['Post ID','Reach','Publish time',...(platform==='ig'?['Likes','Comments','Shares','Saves']:['Reactions','Comments','Shares'])];
-  const missing=required.filter(header=>!parsed.meta?.fields?.includes(header));
-  if (missing.length) throw new Error('Missing required '+platform.toUpperCase()+' columns: '+missing.join(', ')+'. Export the post data again.');
-  if (parsed.errors.length) throw new Error('The social CSV contains malformed rows. Export the post data again.');
-  for (const [index,row] of (parsed.data||[]).entries()) {
-    const bad=required.filter(header=>{
-      const value=String(row[header]??'').trim();
-      if (header==='Post ID') return !/^\d+$/.test(value);
-      if (header==='Publish time') {
-        const parts=value.split(/\s+/);
-        return parts.length!==2 || !trackerDate(parts[0]) || !/^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(parts[1]);
-      }
-      return !/^\d+(?:,\d{3})*$/.test(value) || !Number.isSafeInteger(Number(value.replace(/,/g,'')));
-    });
-    if (bad.length) throw new Error('Invalid '+bad.join(', ')+' in social CSV row '+(index+2)+'. Export the post data again; coverage has not been accepted.');
-  }
-}
 // ── File handlers ──
 function updateZoneLabel(platform) {
   const arr = platform === 'ig' ? rawIG : rawFB;
@@ -2176,7 +1782,7 @@ function updateZoneLabel(platform) {
   document.getElementById(id).textContent =
     arr.length === 1 ? `✓ 1 file loaded` : `✓ ${arr.length} files loaded`;
   document.getElementById(zid).classList.add('loaded');
-  updateLoadAvailability();
+  document.getElementById('load-btn').disabled = !(rawIG.length && rawFB.length);
 }
 
 function handleFile(hintPlatform, input) {
@@ -2190,13 +1796,6 @@ function handleFile(hintPlatform, input) {
       const csv = e.target.result;
       const detected = detectPlatform(csv);
       const platform = detected || hintPlatform;
-      try { validateSocialCSV(csv,platform); } catch(error) {
-        alert(file.name+': '+error.message);
-        pending--;
-        if (pending===0) { if(rawIG.length)updateZoneLabel('ig'); if(rawFB.length)updateZoneLabel('fb'); }
-        return;
-      }
-      rememberExportRange(platform, file.name);
 
       if (detected && detected !== hintPlatform) {
         alert(`"${file.name}" looks like a ${detected.toUpperCase()} file — assigning it there automatically.`);
@@ -2221,20 +1820,8 @@ function handleFile(hintPlatform, input) {
 
 function showUpload() {
   // Reset state for a fresh upload
-  strategyRequestVersion += 1;
-  const generateButton = document.getElementById('btn-ai-generate');
-  if (generateButton) {
-    generateButton.disabled = false;
-    generateButton.textContent = '✨ Generate Strategy';
-  }
   rawIG = []; rawFB = [];
-  socialExportRanges = { ig: [], fb: [] }; reportWindow = { start:'', end:'' };
-  articleImportVersion++; articleTracker = {rows:[],filename:'',importedAt:null,rejected:0,duplicates:0};
-  editorialReviewNeeded = false;
-  document.querySelectorAll('.article-upload-status').forEach(el => el.textContent = 'No article tracker loaded.');
   sharedEditableContent = {};
-  strategyEvidence = null;
-  renderStrategySignal(null);
   summaryMode = 'deterministic';
   ['ig','fb'].forEach(p => {
     document.getElementById(`label-${p}`).textContent = p === 'ig' ? 'Instagram CSV' : 'Facebook CSV';
@@ -2300,7 +1887,6 @@ function parseIG(csvArr) {
     const pt = r['Publish time'] || '';
     return {
       platform: 'ig',
-      id: String(r['Post ID']),
       type: (r['Post type'] || 'IG image').trim(),
       date: parseDate(pt),
       dateStr: pt.split(' ')[0],
@@ -2337,7 +1923,6 @@ function parseFB(csvArr) {
       const pt = r['Publish time'] || '';
       return {
         platform: 'fb',
-        id: String(r['Post ID']),
         type: (r['Post type'] || 'Photos').trim(),
         date: parseDate(pt),
         dateStr: pt.split(' ')[0],
@@ -2357,10 +1942,10 @@ function parseFB(csvArr) {
 }
 
 // ── Filter posts ──
-function platformHistory() { return currentFilter === 'ig' ? igPosts : currentFilter === 'fb' ? fbPosts : allPosts; }
 function filtered() {
-  const posts = platformHistory();
-  return reportWindow.start && reportWindow.end ? posts.filter(p => { const d=postDayKey(p); return d>=reportWindow.start && d<=reportWindow.end; }) : posts;
+  if (currentFilter === 'ig') return igPosts;
+  if (currentFilter === 'fb') return fbPosts;
+  return allPosts;
 }
 
 function setFilter(f, el) {
@@ -2498,6 +2083,8 @@ function renderAnalystNotes(posts) {
   const BOOST_MULT = 4; // posts with reach > 4× platform median are flagged
   const igBoostThreshold = igMedian * BOOST_MULT;
   const fbBoostThreshold = fbMedian * BOOST_MULT;
+  // Set the module-level threshold for renderTopPosts (use lower of the two for mixed views)
+  boostThreshold = Math.min(igBoostThreshold || Infinity, fbBoostThreshold || Infinity);
 
   const likelyBoosted = posts.filter(p =>
     (p.platform === 'ig' && p.reach > igBoostThreshold) ||
@@ -2509,7 +2096,7 @@ function renderAnalystNotes(posts) {
   if (caveatEl) {
     if (likelyBoosted.length > 0) {
       caveatEl.style.display = 'flex';
-      caveatEl.innerHTML = `<span style="font-size:16px;flex-shrink:0">ℹ️</span><span><strong>Context on reach figures:</strong> ${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} in this period have reach above the statistical threshold and are marked ⚡. These are reach outliers; paid status is unverified. Compare them with the remaining posts, and check paid distribution records before attributing the difference to promotion or creative performance.</span>`;
+      caveatEl.innerHTML = `<span style="font-size:16px;flex-shrink:0">ℹ️</span><span><strong>Context on reach figures:</strong> ${likelyBoosted.length} post${likelyBoosted.length>1?'s':''} in this period generated significantly above-average reach, consistent with paid promotion. Those posts are noted with ⚡ in the performance table. Reach and engagement rate figures for boosted posts reflect a paid audience — organic performance baselines are lower. Keep likely paid distribution separate from the organic baseline when interpreting results.</span>`;
     } else {
       caveatEl.style.display = 'none';
     }
@@ -2521,7 +2108,7 @@ function renderAnalystNotes(posts) {
         const mult = med > 0 ? (p.reach / med).toFixed(1) : '—';
         return `<div class="audit-item">⚡ <strong>${p.dateStr}</strong> · ${p.type} · ${fmt(p.reach)} reach
           <span class="aflag">(${mult}× ${p.platform.toUpperCase()} median)</span>
-          · ER ${fmtPct(p.engRate)} — <span style="color:var(--text-muted);font-size:11px">paid status unverified; interpret reach and engagement cautiously</span>
+          · ER ${fmtPct(p.engRate)} — <span style="color:var(--text-muted);font-size:11px">interpret ER relative to paid audience, not organic</span>
         </div>`;
       }).join('')
     : `<div class="audit-item"><span class="aok">✓ No statistical reach outliers detected.</span></div>`;
@@ -2548,10 +2135,10 @@ function renderAnalystNotes(posts) {
       <div class="audit-item awarn">→ Relabel KPI card: <strong>"Avg Post Engagement Rate"</strong><br><span style="font-size:11px;font-weight:400;color:var(--text-muted)">"Avg Engagement Rate" implies account-level weighted ER, which reads as ${fmtPct(weightedER)}</span></div>
     </div>
     <div class="audit-card" style="grid-column: 1 / -1">
-      <div class="audit-card-title">⚡ Reach Outlier Detection — Paid Status Unverified</div>
-      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:4px">Posts with reach &gt; ${BOOST_MULT}× their platform's median are flagged. The flag identifies unusually high reach; it does not establish paid distribution or organic performance. ${boostSummary ? `<strong style="color:#0d5a6c">${boostSummary}</strong>` : ''}</div>
+      <div class="audit-card-title">⚡ Reach Outlier Detection — Likely Boosted Posts</div>
+      <div class="audit-item" style="color:var(--text-muted);font-style:italic;margin-bottom:4px">Posts with reach &gt; ${BOOST_MULT}× their platform's median are flagged. Boosted posts have outsized reach by design — their engagement rate reflects a paid audience, not organic resonance. ${boostSummary ? `<strong style="color:#0d5a6c">${boostSummary}</strong>` : ''}</div>
       ${boostRows}
-      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">⚡ icon also appears in the top posts table. Check paid distribution records before using an outlier to explain performance.</div>
+      <div class="audit-item" style="color:var(--text-muted);font-size:11px;margin-top:4px">⚡ icon also appears in the top posts table. Before including a boosted post in reach-based recommendations, note it was paid distribution.</div>
     </div>
     <div class="audit-card">
       <div class="audit-card-title">🕐 Heatmap Reliability</div>
@@ -2565,15 +2152,15 @@ function renderAnalystNotes(posts) {
       <div class="audit-item"><strong>Total reach in this view:</strong> ${fmt(totalLoadedReach)}<br>
         <span style="font-size:11px;color:var(--text-muted)">If client audits raw CSV and finds higher totals, note: <em>"Totals exclude duplicate/cross-posted rows."</em></span>
       </div>
-      <div class="audit-item"><strong>Reach split:</strong> IG ${fmt(posts.filter(p=>p.platform==='ig').reduce((s,p)=>s+p.reach,0))} · FB ${fmt(posts.filter(p=>p.platform==='fb').reduce((s,p)=>s+p.reach,0))}</div>
+      <div class="audit-item"><strong>Reach split:</strong> IG ${fmt(igPosts.reduce((s,p)=>s+p.reach,0))} · FB ${fmt(fbPosts.reduce((s,p)=>s+p.reach,0))}</div>
     </div>
   `;
 }
 
-function isLikelyBoostedPost(p, baselinePosts=filtered()) {
+function isLikelyBoostedPost(p) {
   const medianReach = platform => {
-    const reaches = baselinePosts
-      .filter(post => post.platform===platform && post.reach > 0)
+    const reaches = (platform === 'ig' ? igPosts : fbPosts)
+      .filter(post => post.reach > 0)
       .map(post => post.reach)
       .sort((a, b) => a - b);
     if (!reaches.length) return 0;
@@ -2621,7 +2208,7 @@ function renderInterpretationNotes(posts, organicPosts) {
     if (!weeklyMap[key]) weeklyMap[key] = { ig: 0, fb: 0, posts: 0, boostedPosts: 0, boostedReach: 0 };
     weeklyMap[key][p.platform] += p.reach || 0;
     weeklyMap[key].posts += 1;
-    if (isLikelyBoostedPost(p,posts)) {
+    if (isLikelyBoostedPost(p)) {
       weeklyMap[key].boostedPosts += 1;
       weeklyMap[key].boostedReach += p.reach || 0;
     }
@@ -2640,13 +2227,13 @@ function renderInterpretationNotes(posts, organicPosts) {
     const peakBoostShare = peakWeek.total > 0 ? peakWeek.boostedReach / peakWeek.total : 0;
     let note = `Reach peaks in the week of ${peakLabel}, driven mainly by ${dominantPlatform}. `;
     if (peakWeek.boostedPosts > 0 && peakBoostShare >= 0.25) {
-      note += `${peakWeek.boostedPosts} post${peakWeek.boostedPosts !== 1 ? 's' : ''} that week are statistical reach outliers; paid status is unverified and the spike cannot be attributed to promotion from these exports. `;
+      note += `${peakWeek.boostedPosts} post${peakWeek.boostedPosts !== 1 ? 's' : ''} that week show reach consistent with paid amplification, so the spike sits above the usual organic baseline. `;
     } else {
       note += `That high point appears to come from stronger post performance rather than a broad sustained lift across the full period. `;
     }
     if (lowWeeks.length >= 2) {
       const lightWeeks = lowWeeks.filter(r => r.posts <= 3).length;
-      note += `Lower-reach stretches sit closer to the recorded weekly baseline`;
+      note += `Lower-reach stretches tend to coincide with a more normal organic baseline`;
       if (lightWeeks) note += ` and ${lightWeeks} week${lightWeeks !== 1 ? 's' : ''} with three or fewer posts`;
       note += `. Going forward, interpret dips alongside posting volume before reading them as a collapse in audience demand.`;
     } else {
@@ -2669,8 +2256,8 @@ function renderInterpretationNotes(posts, organicPosts) {
   if (engTypes.length) {
     const top = engTypes[0];
     const runner = engTypes[1];
-    let note = `${top.type} leads on engagement among posts below the outlier threshold at ${top.avg.toFixed(2)}% across ${top.count} post${top.count !== 1 ? 's' : ''}. `;
-    if (runner) note += `${runner.type} is the next closest performer in that subset. Use these formats as test candidates; paid status remains unverified.`;
+    let note = `${top.type} leads on organic engagement at ${top.avg.toFixed(2)}% across ${top.count} post${top.count !== 1 ? 's' : ''}. `;
+    if (runner) note += `${runner.type} is the next closest organic engagement performer, so the takeaway is to prioritise formats that reliably earn interaction without relying on paid reach.`;
     else note += `Treat this as an early signal rather than a final rule if the sample is still small.`;
     setChartNote('eng-type-note', note);
   }
@@ -2678,18 +2265,18 @@ function renderInterpretationNotes(posts, organicPosts) {
   const reachTypes = groupAveragesByType(organicPosts, p => p.reach || 0, 0);
   if (reachTypes.length) {
     const top = reachTypes[0];
-    let note = `${top.type} delivers the strongest average reach among posts below the outlier threshold at ${Math.round(top.avg).toLocaleString()} per post. `;
-    note += `This view excludes statistical reach outliers. It describes a subset of recorded performance; paid status has not been verified.`;
+    let note = `${top.type} delivers the strongest average organic reach at ${Math.round(top.avg).toLocaleString()} per post. `;
+    note += `Because this view excludes likely boosted posts, it is the best guide to which formats naturally travel farthest before paid support is added.`;
     setChartNote('reach-type-note', note);
   }
 
-  const boosted = posts.filter(p => p.reach > 0 && isLikelyBoostedPost(p,posts));
+  const boosted = posts.filter(p => p.reach > 0 && isLikelyBoostedPost(p));
   if (boosted.length) {
     const boostTypes = groupAveragesByType(boosted, p => p.reach || 0, 0);
     const top = boostTypes[0];
-    setChartNote('boost-reach-note', `${top.type} has the highest average reach among statistical outliers at ${Math.round(top.avg).toLocaleString()}. Review these exceptional results separately and verify paid status before interpreting their cause.`);
+    setChartNote('boost-reach-note', `${top.type} has the highest average reach among likely boosted posts at ${Math.round(top.avg).toLocaleString()}. Use this chart to understand what paid distribution has amplified most effectively, but keep it separate from organic format decisions.`);
   } else {
-    setChartNote('boost-reach-note', "No posts cross the statistical reach-outlier threshold. This does not establish whether any posts received paid distribution.");
+    setChartNote('boost-reach-note', "No posts in this dataset cross the dashboard's likely-boosted threshold, so paid amplification is not a major explanatory factor in this period.");
   }
 
   const igWithFollows = posts.filter(p => p.platform === 'ig' && (p.follows || 0) > 0);
@@ -2736,11 +2323,10 @@ function renderInterpretationNotes(posts, organicPosts) {
 }
 
 function renderAll() {
-  ensureReportWindow();
   const posts = filtered();
-  const organicPosts = posts.filter(p => !isLikelyBoostedPost(p,posts));
+  const organicPosts = posts.filter(p => !isLikelyBoostedPost(p));
   renderKPIs(posts);
-  renderComparison(platformHistory());
+  renderComparison(posts);
   renderInsights(posts);
   renderThemes(posts);
   renderReachOverTime(posts);
@@ -2756,25 +2342,22 @@ function renderAll() {
   renderInterpretationNotes(posts, organicPosts);
   renderTopPosts(posts);
   renderExecSummary();
-  document.querySelectorAll('#view-overview [data-edit-key], #exec-summary [data-edit-key], [data-edit-key=historical-precedent]').forEach(el=>el.dataset.defaultHtml=el.innerHTML);
   restoreSharedEditableContent();
   renderAnalystNotes(posts);
-  renderAMEC(); restoreSharedEditableContent();
 }
 
 // ── KPIs ──
 function renderKPIs(posts) {
   const totalReach = posts.reduce((s,p) => s + p.reach, 0);
   const totalViews = posts.reduce((s,p) => s + p.views, 0);
-  const postsWithReach=posts.filter(p=>p.reach>0);
-  const avgEng = postsWithReach.length
-    ? postsWithReach.reduce((s,p) => s + p.engRate, 0) / postsWithReach.length
-    : null;
+  const avgEng = posts.length > 0
+    ? posts.filter(p=>p.reach>0).reduce((s,p) => s + p.engRate, 0) / posts.filter(p=>p.reach>0).length
+    : 0;
   const totalFollowers = posts.filter(p=>p.platform==='ig').reduce((s,p) => s + p.follows, 0);
 
   document.getElementById('kpi-reach').textContent = fmt(totalReach);
   document.getElementById('kpi-views').textContent = fmt(totalViews);
-  document.getElementById('kpi-eng').textContent = avgEng===null ? 'N/A' : fmtPct(avgEng);
+  document.getElementById('kpi-eng').textContent = fmtPct(avgEng);
   document.getElementById('kpi-posts').textContent = posts.length;
   document.getElementById('kpi-followers').textContent = fmt(totalFollowers);
 
@@ -2801,7 +2384,7 @@ function renderKPIs(posts) {
   else sub = `${fb.length} posts`;
   document.getElementById('kpi-reach-sub').textContent = sub;
   document.getElementById('kpi-posts-sub').textContent =
-    currentFilter === 'all' ? `IG: ${ig.length} · FB: ${fb.length}` : `Posts recorded`;
+    currentFilter === 'all' ? `IG: ${ig.length} · FB: ${fb.length}` : `Posts published`;
 }
 
 // ── 90-day period-over-period comparison ──
@@ -2946,7 +2529,7 @@ function renderComparison(posts) {
 function renderInsights(posts) {
   const el = document.getElementById('insight-grid');
   if (posts.length === 0) { el.innerHTML = ''; return; }
-  const organicPosts = posts.filter(function(post) { return !isLikelyBoostedPost(post,posts) && post.reach > 0; });
+  const organicPosts = posts.filter(function(post) { return !isLikelyBoostedPost(post) && post.reach > 0; });
   const byType = {};
   organicPosts.forEach(function(post) {
     if (!byType[post.type]) byType[post.type] = { count: 0, engagement: [], reach: [], follows: [] };
@@ -2967,10 +2550,10 @@ function renderInsights(posts) {
   const bestFollows = rows.filter(function(row){return row.avgFollows>0;}).sort(function(a,b){return b.avgFollows-a.avgFollows;})[0];
   const bestPost = organicPosts.slice().sort(function(a,b){return b.engRate-a.engRate;})[0];
   const cards = [];
-  if (bestEngagement) cards.push('<div class="insight-box green"><div class="insight-label">Strongest Engagement Format</div><div class="insight-value">' + escapeHTML(bestEngagement.type) + '</div><div class="insight-desc">' + fmtPct(bestEngagement.avgEngagement) + ' average engagement below outlier threshold · ' + bestEngagement.count + ' posts</div></div>');
-  if (bestReach) cards.push('<div class="insight-box"><div class="insight-label">Strongest Reach Format Below Outlier Threshold</div><div class="insight-value">' + escapeHTML(bestReach.type) + '</div><div class="insight-desc">' + fmt(Math.round(bestReach.avgReach)) + ' average reach · ' + bestReach.count + ' posts</div></div>');
+  if (bestEngagement) cards.push('<div class="insight-box green"><div class="insight-label">Strongest Engagement Format</div><div class="insight-value">' + escapeHTML(bestEngagement.type) + '</div><div class="insight-desc">' + fmtPct(bestEngagement.avgEngagement) + ' average organic engagement · ' + bestEngagement.count + ' posts</div></div>');
+  if (bestReach) cards.push('<div class="insight-box"><div class="insight-label">Strongest Organic Reach Format</div><div class="insight-value">' + escapeHTML(bestReach.type) + '</div><div class="insight-desc">' + fmt(Math.round(bestReach.avgReach)) + ' average reach · ' + bestReach.count + ' posts</div></div>');
   if (bestFollows) cards.push('<div class="insight-box orange"><div class="insight-label">Strongest Follower Format</div><div class="insight-value">' + escapeHTML(bestFollows.type) + '</div><div class="insight-desc">' + bestFollows.avgFollows.toFixed(1) + ' Instagram follows per post</div></div>');
-  if (bestPost) cards.push('<div class="insight-box purple"><div class="insight-label">Best Engagement Below Outlier Threshold</div><div class="insight-value">' + fmtPct(bestPost.engRate) + '</div><div class="insight-desc">' + escapeHTML(bestPost.type) + ' · ' + escapeHTML(bestPost.dateStr) + ' · ' + fmt(bestPost.reach) + ' reach</div>' + (bestPost.permalink ? '<a href="' + escapeHTML(bestPost.permalink) + '" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>' : '') + '</div>');
+  if (bestPost) cards.push('<div class="insight-box purple"><div class="insight-label">Best Organic Post</div><div class="insight-value">' + fmtPct(bestPost.engRate) + '</div><div class="insight-desc">' + escapeHTML(bestPost.type) + ' · ' + escapeHTML(bestPost.dateStr) + ' · ' + fmt(bestPost.reach) + ' reach</div>' + (bestPost.permalink ? '<a href="' + escapeHTML(bestPost.permalink) + '" target="_blank" style="font-size:11px;color:var(--reel);font-weight:600;text-decoration:none;margin-top:4px;display:inline-block;">View post ↗</a>' : '') + '</div>');
   el.innerHTML = cards.join('');
 }
 
@@ -3112,7 +2695,7 @@ function renderEngByType(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg Engagement Rate Below Outlier Threshold (%)',
+        label: 'Avg Organic Engagement Rate (%)',
         data: avgs,
         backgroundColor: colors,
         borderRadius: 6,
@@ -3126,7 +2709,7 @@ function renderEngByType(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmtPct(ctx.raw)} avg engagement rate below outlier threshold`
+            label: ctx => ` ${fmtPct(ctx.raw)} avg organic engagement rate`
           }
         }
       },
@@ -3162,7 +2745,7 @@ function renderReachByType(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg Reach Below Outlier Threshold',
+        label: 'Avg Organic Reach',
         data: avgs,
         backgroundColor: colors.map(c => c + 'cc'),
         borderColor: colors,
@@ -3178,7 +2761,7 @@ function renderReachByType(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmt(ctx.raw)} avg reach below outlier threshold per post`
+            label: ctx => ` ${fmt(ctx.raw)} avg organic reach per post`
           }
         }
       },
@@ -3197,7 +2780,15 @@ function renderReachByType(posts) {
 function renderBoostReach(posts) {
   const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
 
-  const isBoosted = p => isLikelyBoostedPost(p,posts);
+  const medianReach = platform => {
+    const r = (platform === 'ig' ? igPosts : fbPosts)
+      .filter(p => p.reach > 0).map(p => p.reach).sort((a,b) => a-b);
+    if (!r.length) return 0;
+    const m = Math.floor(r.length / 2);
+    return r.length % 2 ? r[m] : (r[m-1]+r[m])/2;
+  };
+  const igMed = medianReach('ig'), fbMed = medianReach('fb');
+  const isBoosted = p => p.reach > (p.platform === 'ig' ? igMed : fbMed) * 4;
 
   // Boosted posts only, grouped by type
   const boostByType = {};
@@ -3216,7 +2807,7 @@ function renderBoostReach(posts) {
   if (!ctx) return;
 
   if (!types.length) {
-    ctx.canvas.parentElement.innerHTML = '<div style="padding:24px;font-size:13px;color:#94a3b8;text-align:center">No statistical reach outliers in this dataset. Paid status is unverified.</div>';
+    ctx.canvas.parentElement.innerHTML = '<div style="padding:24px;font-size:13px;color:#94a3b8;text-align:center">No estimated boosted posts detected in this dataset.</div>';
     return;
   }
 
@@ -3225,7 +2816,7 @@ function renderBoostReach(posts) {
     data: {
       labels: types,
       datasets: [{
-        label: 'Avg reach among statistical outliers',
+        label: 'Avg reach when boosted',
         data: avgs,
         backgroundColor: colors.map(c => c + 'cc'),
         borderColor: colors,
@@ -3241,7 +2832,7 @@ function renderBoostReach(posts) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${fmt(ctx.raw)} avg reach · ${counts[ctx.dataIndex]} outlier post${counts[ctx.dataIndex] !== 1 ? 's' : ''}`
+            label: ctx => ` ${fmt(ctx.raw)} avg reach · ${counts[ctx.dataIndex]} boosted post${counts[ctx.dataIndex] !== 1 ? 's' : ''}`
           }
         }
       },
@@ -3250,7 +2841,7 @@ function renderBoostReach(posts) {
         y: {
           grid: { color: '#f1f5f9' },
           ticks: { font: { size: 11 }, color: '#94a3b8', callback: v => fmt(v) },
-          title: { display: true, text: 'Avg reach per outlier post', font: { size: 11 }, color: '#94a3b8' }
+          title: { display: true, text: 'Avg reach per boosted post', font: { size: 11 }, color: '#94a3b8' }
         }
       }
     }
@@ -3579,7 +3170,7 @@ function renderTopPosts(posts) {
       <td><span class="type-tag ${typeClass(p.type)}">${p.type}</span></td>
       <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">${p.dateStr}</td>
       <td><div class="post-caption" title="${p.caption.replace(/"/g,"'")}">${p.caption || '—'}</div></td>
-      <td style="font-weight:600">${fmt(p.reach)}${isLikelyBoostedPost(p,posts) ? ' <span title="Reach exceeds the statistical outlier threshold — paid status unverified" style="cursor:help;font-size:11px">⚡</span>' : ''}</td>
+      <td style="font-weight:600">${fmt(p.reach)}${p.reach > boostThreshold ? ' <span title="Reach is 4× above median — likely boosted" style="cursor:help;font-size:11px">⚡</span>' : ''}</td>
       <td style="color:var(--text-muted)">${p.views > 0 ? fmt(p.views) : '—'}</td>
       <td style="color:var(--text-muted)">${fmt(p.interactions)}</td>
       <td>
@@ -3607,7 +3198,7 @@ function buildLowPerformanceFinding(organicPosts) {
   });
 
   if (lowPosts.length < 3) {
-    return 'There are not enough comparable posts below the outlier threshold to identify a reliable low-performance pattern yet.';
+    return 'There are not enough comparable organic posts to identify a reliable low-performance pattern yet.';
   }
 
   const timeBucket = hour => {
@@ -3678,13 +3269,13 @@ function buildLowPerformanceFinding(organicPosts) {
     b.count - a.count
   );
 
-  const definition = `The low-performing group is the bottom engagement-rate quartile within each platform, excluding statistical reach outliers; paid status unverified.`;
+  const definition = `The low-performing group is the bottom engagement-rate quartile within each platform, excluding posts flagged as likely boosted.`;
   if (!findings.length) {
     return `${definition} No format, publishing-time, or caption-length trait is materially overrepresented in that group, so the data does not support a single common weakness.`;
   }
 
   const detail = findings.slice(0, 2).map(finding =>
-    `<strong>${Math.round(finding.lowShare * 100)}%</strong> of low-performing posts ${finding.describe(finding.value)}, compared with <strong>${Math.round(finding.allShare * 100)}%</strong> of eligible posts below the outlier threshold overall`
+    `<strong>${Math.round(finding.lowShare * 100)}%</strong> of low-performing posts ${finding.describe(finding.value)}, compared with <strong>${Math.round(finding.allShare * 100)}%</strong> of eligible organic posts overall`
   ).join('; ');
 
   return `${definition} Across ${lowPosts.length} low-performing posts, ${detail}. These are measurable associations, not proof that the trait caused lower performance.`;
@@ -3692,13 +3283,113 @@ function buildLowPerformanceFinding(organicPosts) {
 
 function renderExecSummary() {
   const el = document.getElementById('exec-summary-body');
-  if (!el || !hasReportEvidence()) return;
+  if (!el || allPosts.length === 0) return;
   document.getElementById('exec-summary').style.display = 'block';
-  const social = socialAMECEvidence(), articles = articleAMECEvidence();
-  document.getElementById('exec-summary-meta').textContent = `${social.start || articles.start || ''} – ${social.end || articles.end || ''} · ONWRD`;
-  el.innerHTML = `<div class="exec-block"><div class="exec-block-label">Executive read</div>${amecEditable('executive-read', `Review social performance and public coverage together, then agree on the next week’s priorities. ${social.available ? social.contentItems + ' caption-based feed content items are recorded in the selected social period.'+(social.coverageComplete?'':' Period coverage is incomplete or unknown; cadence is unavailable.') : ''} ${articles.available ? articles.currentItems + ' coverage items are recorded in the latest article fortnight.' : 'Upload the article tracker to add the media context.'} Reach and coverage indicate visibility; audience trust has not been measured.`)}</div>`;
-  el.querySelectorAll('[data-edit-key]').forEach(field=>field.dataset.defaultHtml=field.innerHTML);
-  document.getElementById('executive-slot').appendChild(document.getElementById('exec-summary'));
+  const avg = values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+  const totalReach = allPosts.reduce((sum, post) => sum + post.reach, 0);
+  const totalPosts = allPosts.length;
+  const totalFollows = igPosts.reduce((sum, post) => sum + (post.follows || 0), 0);
+  const totalLinkClicks = allPosts.reduce((sum, post) => sum + (post.linkClicks || 0), 0);
+  const medianReach = platform => {
+    const reaches = (platform === 'ig' ? igPosts : fbPosts).filter(post => post.reach > 0).map(post => post.reach).sort((a, b) => a - b);
+    if (!reaches.length) return 0;
+    const middle = Math.floor(reaches.length / 2);
+    return reaches.length % 2 ? reaches[middle] : (reaches[middle - 1] + reaches[middle]) / 2;
+  };
+  const medians = { ig: medianReach('ig'), fb: medianReach('fb') };
+  const isBoosted = post => post.reach > medians[post.platform] * 4;
+  const boostedPosts = allPosts.filter(isBoosted);
+  const organicPosts = allPosts.filter(post => !isBoosted(post));
+  const avgOrganicReach = Math.round(avg(organicPosts.map(post => post.reach)));
+  const avgBoostedReach = boostedPosts.length ? Math.round(avg(boostedPosts.map(post => post.reach))) : 0;
+  const igOrganic = organicPosts.filter(post => post.platform === 'ig' && post.reach > 0);
+  const fbOrganic = organicPosts.filter(post => post.platform === 'fb' && post.reach > 0);
+  const igOrganicER = avg(igOrganic.map(post => post.engRate));
+  const fbOrganicER = avg(fbOrganic.map(post => post.engRate));
+  const themeResult = getThemeStats(allPosts);
+  const eligibleThemes = themeResult.rows.filter(function(row) {
+    return row.organicCount >= THEME_MIN_SAMPLE;
+  });
+  const strongestEngagement = eligibleThemes.slice().sort(function(a, b) {
+    return b.medianEngagement - a.medianEngagement;
+  })[0];
+  const strongestReach = eligibleThemes.slice().sort(function(a, b) {
+    return b.medianReach - a.medianReach;
+  })[0];
+  const weakestEngagement = eligibleThemes.slice().sort(function(a, b) {
+    return a.medianEngagement - b.medianEngagement;
+  })[0];
+  const highestLowShare = eligibleThemes.slice().sort(function(a, b) {
+    return b.lowShare - a.lowShare;
+  })[0];
+  const workingParts = [];
+  if (strongestEngagement) {
+    workingParts.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median estimated organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
+  }
+  if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
+    workingParts.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median estimated organic reach at <strong>' + fmt(Math.round(strongestReach.medianReach)) + '</strong> per post.');
+  }
+  const whatsWorkingFallback = workingParts.length
+    ? workingParts.join(' ')
+    : 'No theme has enough estimated organic posts for a reliable comparison.';
+  const attentionParts = [];
+  if (weakestEngagement) {
+    attentionParts.push('<strong>' + escapeHTML(weakestEngagement.label) + '</strong> has the lowest eligible median estimated organic engagement rate at <strong>' + fmtPct(weakestEngagement.medianEngagement) + '</strong>.');
+  }
+  if (highestLowShare && highestLowShare.lowShare >= 0.25) {
+    attentionParts.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> appears in the bottom engagement quartile for <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong> of its estimated organic posts; treat this as a review signal, not proof of cause.');
+  }
+  const whatsNeedsAttentionFallback = attentionParts.length
+    ? attentionParts.join(' ')
+    : 'No eligible theme is consistently concentrated among the lowest-engagement posts.';
+  const directionParts = [];
+  if (strongestEngagement) {
+    directionParts.push('Use <strong>' + escapeHTML(strongestEngagement.label) + '</strong> as the primary engagement pillar.');
+  }
+  if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
+    directionParts.push('Retain <strong>' + escapeHTML(strongestReach.label) + '</strong> for awareness, supported by specific proof and audience relevance.');
+  }
+  if (weakestEngagement) {
+    directionParts.push('Refine <strong>' + escapeHTML(weakestEngagement.label) + '</strong> before increasing its share of the content plan.');
+  }
+  const recommendedDirectionFallback = directionParts.length
+    ? directionParts.join(' ')
+    : 'Use the next reporting period to establish reliable theme samples before changing the content mix.';
+
+  const dated = allPosts.filter(post => post.date).sort((a, b) => a.date - b.date);
+  const dateRange = dated.length
+    ? `${dated[0].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} – ${dated[dated.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
+    : 'Period on file';
+  document.getElementById('exec-summary-meta').textContent = `${dateRange} · ${totalPosts} posts · ONWRD`;
+  const boostNote = boostedPosts.length
+    ? ` ${boostedPosts.length} of ${totalPosts} posts show reach consistent with paid promotion; organic figures are separated where stated.`
+    : '';
+  el.innerHTML = `
+    <div class="exec-block">
+      <div class="exec-block-label">Overview</div>
+      <div class="exec-block-body editable-field" data-edit-key="performance-overview" contenteditable="false">
+        The account recorded <strong>${fmt(totalReach)} total post reach</strong> across <strong>${totalPosts} posts</strong>, with <strong>${fmt(totalFollows)} Instagram follows attributed to posts</strong> and <strong>${totalLinkClicks > 0 ? fmt(totalLinkClicks) + ' Facebook link clicks' : 'no Facebook link-click data recorded'}</strong>.${boostNote}
+        Estimated organic posts averaged <strong>${fmt(avgOrganicReach)} reach</strong>${avgBoostedReach ? `, while posts flagged as likely boosted averaged <strong>${fmt(avgBoostedReach)} reach</strong>` : ''}.
+        ${igOrganicER > 0 ? `Instagram estimated organic engagement rate averaged <strong>${fmtPct(igOrganicER)}</strong>.` : ''}
+        ${fbOrganicER > 0 ? `Facebook estimated organic engagement rate averaged <strong>${fmtPct(fbOrganicER)}</strong>.` : ''}
+      </div>
+    </div>
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">What’s Working</div>
+      <div class="exec-block-body editable-field" data-edit-key="whats-working" contenteditable="false">${whatsWorkingFallback}</div>
+    </div>
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">Needs Attention</div>
+      <div class="exec-block-body editable-field" data-edit-key="whats-needs-attention" contenteditable="false">${whatsNeedsAttentionFallback}</div>
+    </div>
+    <div class="exec-divider"></div>
+    <div class="exec-block">
+      <div class="exec-block-label">Recommended Direction</div>
+      <div class="exec-block-body editable-field" data-edit-key="recommended-direction" contenteditable="false">${recommendedDirectionFallback}</div>
+    </div>
+  `;
 }
 
 // ── Editable narrative persistence ──
@@ -3706,7 +3397,7 @@ function collectEditableOverrides() {
   const overrides = {};
   document.querySelectorAll('[data-edit-key]').forEach(element => {
     const key = element.getAttribute('data-edit-key');
-    if (key && (Object.hasOwn(sharedEditableContent, key) || (element.dataset.defaultHtml !== undefined && element.innerHTML !== element.dataset.defaultHtml))) overrides[key] = element.innerHTML;
+    if (key) overrides[key] = element.innerHTML;
   });
   return overrides;
 }
@@ -3716,26 +3407,6 @@ function applyEditableOverrides(overrides = {}) {
     const element = document.querySelector(`[data-edit-key="${key}"]`);
     if (element && typeof html === 'string') element.innerHTML = html;
   });
-}
-
-function migrateEditableOverrides(overrides = {}) {
-  const migrated = { ...overrides };
-  const copyIfMissing = (nextKey, legacyKey) => {
-    if (!migrated[nextKey] && typeof migrated[legacyKey] === 'string' && migrated[legacyKey].trim()) {
-      migrated[nextKey] = migrated[legacyKey];
-    }
-  };
-  copyIfMissing('executive-read', 'performance-overview');
-  if (!migrated['goal-progress']) {
-    const legacyProgress = [migrated['whats-working'], migrated['whats-needs-attention']]
-      .filter(value => typeof value === 'string' && value.trim());
-    if (legacyProgress.length) migrated['goal-progress'] = legacyProgress.join(' ');
-  }
-  if (!migrated['public-narrative'] && (migrated['performance-overview'] || migrated['whats-working'] || migrated['whats-needs-attention'])) {
-    migrated['public-narrative'] = 'No monitored public-claims evidence is embedded in this report. Review the live monitor before deciding whether to watch, clarify, show proof or refer an issue to counsel.';
-  }
-  copyIfMissing('social-direction', 'recommended-direction');
-  return migrated;
 }
 
 function captureSharedEditableContent() {
@@ -3748,7 +3419,6 @@ function restoreSharedEditableContent() {
 
 // ── Edit mode for strategy recommendations ──
 function toggleEditMode(on) {
-  editorEditMode = Boolean(on);
   document.querySelectorAll('.editable-field').forEach(el => {
     el.contentEditable = on ? 'true' : 'false';
   });
@@ -3797,7 +3467,7 @@ function cleanDocHTML(html) {
 
 function buildStrategyDocExport() {
   const execSummary = document.getElementById('exec-summary-body');
-  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Executive Social & Public Narrative Strategy'));
+  const title = stripDocEmoji(normalizeCopyText(document.querySelector('.exec-summary-title')?.innerText || 'Social Media Performance Review: Sampson Cay Project'));
   const meta = stripDocEmoji(normalizeCopyText(document.getElementById('exec-summary-meta')?.innerText || ''));
   const summaryHTML = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => {
     const label = stripDocEmoji(block.querySelector('.exec-block-label')?.innerText?.trim() || '');
@@ -3808,14 +3478,11 @@ function buildStrategyDocExport() {
       + '</section>';
   }).join('');
   const plainSummary = Array.from(execSummary?.querySelectorAll('.exec-block') || []).map(block => stripDocEmoji(normalizeCopyText(block.innerText))).filter(Boolean);
-  const additional = Array.from(document.querySelectorAll('#amec-overall [data-edit-key], [data-edit-key=historical-precedent]')).filter(el => !execSummary.contains(el));
-  const sectionLabels = {'public-narrative':'What needs attention','goal-progress':'Which messages are landing','recommended-response':'Recommended response','social-performance':'Are we improving?','social-investment':'What deserves more investment?','social-direction':'This week’s plan','decisions-needed':'Decisions needed','historical-precedent':'Historical precedent'};
-  const extraText = additional.map(el => sectionLabels[el.dataset.editKey] + '\n' + normalizeCopyText(el.innerText));
-  const plainText = [title, meta, '', ...plainSummary, ...extraText].join('\n\n');
+  const plainText = [title, meta, '', ...plainSummary].join('\n\n');
   const richHTML = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111111;">'
     + '<h1 style="font-size:20px;margin:0 0 8px 0;font-weight:700;color:#111111;">' + escapeHTML(title) + '</h1>'
     + (meta ? '<p style="margin:0 0 20px 0;font-size:11px;color:#111111;">' + escapeHTML(meta) + '</p>' : '')
-    + summaryHTML + additional.map(el => '<h2 style="font-size:15px">' + escapeHTML(sectionLabels[el.dataset.editKey] || '') + '</h2><p>' + cleanDocHTML(el.innerHTML) + '</p>').join('') + '</div>';
+    + summaryHTML + '</div>';
   return { html: richHTML, text: plainText };
 }
 
@@ -3941,33 +3608,23 @@ function setPushStatus(type, msg) {
   }
 }
 
-function serializeForInlineScript(value) {
-  return JSON.stringify(value)
-    .replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
-}
-
 function buildClientHTML() {
   captureSharedEditableContent();
   const data = {
-    igPosts: igPosts.map(post => ({ ...post, date: postDayKey(post) ? postDayKey(post) + 'T00:00:00' : null })),
-    fbPosts: fbPosts.map(post => ({ ...post, date: postDayKey(post) ? postDayKey(post) + 'T00:00:00' : null })),
+    igPosts: igPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
+    fbPosts: fbPosts.map(post => ({ ...post, date: post.date ? post.date.toISOString() : null })),
     editableOverrides: { ...sharedEditableContent },
     summaryMode: summaryMode,
-    strategyEvidence: strategyEvidence,
-    articleTracker: articleTracker, socialExportRanges: socialExportRanges, reportWindow: reportWindow,
-    editorialReviewNeeded: editorialReviewNeeded,
     brandColors: {
       typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
     },
   };
-  const dataJSON = serializeForInlineScript(data);
-  const currentHTML = (_pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML)).replace('<script src="vendor/xlsx.full.min.js"><\/script>', '');
+  const dataJSON = JSON.stringify(data);
+  const currentHTML = _pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
   const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
-    .admin-only, #amec-review-needed, #upload-screen, #github-modal, #ai-modal, #analyst-notes,
+    #upload-screen, #github-modal, #ai-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
     #btn-github, .toolbar-right { display: none !important; }
     .editable-field { cursor: default !important; }
@@ -3980,15 +3637,13 @@ function buildClientHTML() {
 }
 
 async function pushToGitHub() {
-  if (editorialReviewNeeded && !confirm('Evidence changed. Have you reviewed and updated the saved analysis before publishing?')) return;
-  editorialReviewNeeded = false;
   const token = document.getElementById('gh-token').value.trim();
   const repoFull = document.getElementById('gh-repo').value.trim();
   if (!token || !repoFull || !repoFull.includes('/')) {
     setPushStatus('error', 'Please fill in both the token and repo fields (owner/repo).');
     return;
   }
-  if (!hasReportEvidence()) {
+  if (igPosts.length === 0 && fbPosts.length === 0) {
     setPushStatus('error', 'No data loaded yet — upload your CSVs first.');
     return;
   }
@@ -4100,9 +3755,7 @@ function destroyChart(key) {
 
 // ── Download Client Version (uses shared buildClientHTML) ──
 async function downloadShareable() {
-  if (editorialReviewNeeded && !confirm('Evidence changed. Have you reviewed and updated the saved analysis before exporting?')) return;
-  editorialReviewNeeded = false;
-  if (!hasReportEvidence()) {
+  if (igPosts.length === 0 && fbPosts.length === 0) {
     alert('No data loaded yet — upload your CSVs first.');
     return;
   }
