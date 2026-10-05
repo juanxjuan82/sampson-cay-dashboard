@@ -57,6 +57,11 @@
     const d = Object.assign(emptyData(), raw || {});
     d.posts = Array.isArray(d.posts) ? d.posts : [];
     d.media = Array.isArray(d.media) ? d.media : [];
+    // Written summaries are kept per date range, so saving one never replaces another.
+    // Older data stored a single summary; move it into the map.
+    d.summaries = d.summaries && typeof d.summaries === 'object' && !Array.isArray(d.summaries) ? d.summaries : {};
+    if (d.summary && d.summary.key && !d.summaries[d.summary.key]) d.summaries[d.summary.key] = d.summary;
+    delete d.summary;
     return d;
   }
 
@@ -85,9 +90,11 @@
       writeStore(LOCAL_KEY, data);
     }
     // The client report opens on the period the saved summary was written for.
-    if (MODE === 'client' && data.summary && SC.PERIODS[String(data.summary.key || '').split('|')[0]]) {
-      period = data.summary.key.split('|')[0];
-    }
+    // The client report opens on the period of the most recently written summary.
+    const latestWritten = Object.values(data.summaries)
+      .filter(item => item && SC.PERIODS[String(item.key || '').split('|')[0]])
+      .sort((a, b) => String(b.writtenAt || '').localeCompare(String(a.writtenAt || '')))[0];
+    if (MODE === 'client' && latestWritten) period = latestWritten.key.split('|')[0];
     renderShell();
     render();
     if (setAside) {
@@ -289,6 +296,22 @@
     return btoa(binary);
   }
 
+  async function readSavedAt(file, api, headers) {
+    try {
+      let text;
+      if (file.content && file.encoding === 'base64') {
+        const binary = atob(file.content.replace(/\s/g, ''));
+        text = new TextDecoder().decode(Uint8Array.from(binary, ch => ch.charCodeAt(0)));
+      } else {
+        const raw = await fetch(api + '?t=' + Date.now(), { headers: Object.assign({}, headers, { Accept: 'application/vnd.github.raw+json' }), cache: 'no-store' });
+        text = await raw.text();
+      }
+      return JSON.parse(text).savedAt || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function saveToWebsite() {
     const { token, repo } = ghSettings();
     if (!token) {
@@ -306,7 +329,13 @@
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const current = await fetch(api + '?t=' + Date.now(), { headers, cache: 'no-store' });
         if (current.status === 401 || current.status === 403) throw new Error('GitHub rejected the token. Check it in Settings.');
-        const sha = current.ok ? (await current.json()).sha : undefined;
+        const file = current.ok ? await current.json() : null;
+        const sha = file ? file.sha : undefined;
+        // Never overwrite a newer version saved from elsewhere (another computer, or a direct update).
+        const websiteSavedAt = file ? await readSavedAt(file, api, headers) : null;
+        if (websiteSavedAt && (!data.savedAt || websiteSavedAt > data.savedAt)) {
+          throw new Error('the website has a newer version than the one this page loaded. Reload the page to get it, then make your changes again. Nothing was overwritten.');
+        }
         const response = await fetch(api, {
           method: 'PUT',
           headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
@@ -461,8 +490,8 @@
   // The period part of the summary (overview, what's resonating, what to focus on next) follows the
   // selected time period. Strategic recommendations are saved once and stay the same for every period.
   function currentSummary() {
-    const saved = data.summary;
-    if (saved && saved.key === summaryKey()) return { summary: saved, source: saved.source };
+    const saved = data.summaries[summaryKey()];
+    if (saved) return { summary: saved, source: saved.source };
     return { summary: SC.buildSummary(stats), source: 'auto' };
   }
 
@@ -623,8 +652,9 @@
   }
 
   function storeSummary(summary, source) {
-    data.summary = {
+    data.summaries[summaryKey()] = {
       key: summaryKey(),
+      writtenAt: new Date().toISOString(),
       overview: summary.overview,
       working: summary.working,
       attention: summary.attention,
@@ -660,7 +690,7 @@
     });
     on('btn-reset-summary', () => {
       if (!confirm('Discard the written summary for this period and go back to the automatic one?')) return;
-      data.summary = null;
+      delete data.summaries[summaryKey()];
       markChanged();
     });
     on('btn-ai', generateAISummary);
