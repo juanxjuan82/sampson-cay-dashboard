@@ -189,6 +189,11 @@
   .kpi-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
   .kpi-value { font-size: 32px; font-weight: 800; letter-spacing: -1px; margin: 6px 0 4px; color: var(--text); }
   .kpi-sub { font-size: 12px; color: var(--text-muted); }
+  .kpi-sector-reference { margin-top: 8px; font-size: 10px; line-height: 1.45; color: var(--text-muted); }
+  .kpi-sector-reference strong { color: var(--accent); }
+  .kpi-sector-current { display: block; margin-top: 4px; color: var(--text); }
+  .sector-benchmark-source { margin: -16px 0 24px; color: var(--text-muted); font-size: 10px; line-height: 1.5; }
+  .sector-benchmark-source a { color: var(--accent); font-weight: 650; }
   .kpi-icon { position: absolute; top: 20px; right: 20px; font-size: 22px; opacity: .15; }
 
   /* ── PERIOD-OVER-PERIOD (90d vs prior 90d) ── */
@@ -940,33 +945,44 @@
       <div class="kpi-label">Accounts Reached</div>
       <div class="kpi-value" id="kpi-reach">—</div>
       <div class="kpi-sub" id="kpi-reach-sub">Unique accounts</div>
+      <div class="kpi-sector-reference"><strong>Instagram sector reference:</strong> No reliable reach-per-post benchmark was available in the sector report.</div>
     </div>
     <div class="kpi-card views">
       <div class="kpi-icon">▶</div>
       <div class="kpi-label">Content Views</div>
       <div class="kpi-value" id="kpi-views">—</div>
       <div class="kpi-sub" id="kpi-views-sub">Across all posts</div>
+      <div class="kpi-sector-reference"><strong>Instagram sector reference:</strong> Video views per post were marked as limited data.</div>
     </div>
     <div class="kpi-card engagement">
       <div class="kpi-icon">💬</div>
       <div class="kpi-label">Avg Post Engagement</div>
       <div class="kpi-value" id="kpi-eng">—</div>
       <div class="kpi-sub" id="kpi-eng-sub">Interactions ÷ Reach</div>
+      <div class="kpi-sector-reference"><strong>Sector average: 0.3%</strong> by followers. This dashboard uses reach, so the rates are not directly comparable.</div>
     </div>
     <div class="kpi-card posts">
       <div class="kpi-icon">📄</div>
       <div class="kpi-label">Posts Published</div>
       <div class="kpi-value" id="kpi-posts">—</div>
       <div class="kpi-sub" id="kpi-posts-sub">Across all post types</div>
+      <div class="kpi-sector-reference">
+        <strong>Real-estate Instagram pace:</strong> 3 Reels + 4 image/carousel posts per week.
+        <span class="kpi-sector-current" id="kpi-posts-sector-current"></span>
+      </div>
     </div>
     <div class="kpi-card followers">
       <div class="kpi-icon">➕</div>
       <div class="kpi-label" id="kpi-followers-label">New Followers</div>
       <div class="kpi-value" id="kpi-followers">—</div>
       <div class="kpi-sub" id="kpi-followers-sub">Gained from posts</div>
+      <div class="kpi-sector-reference"><strong>Sector average: 1.0% monthly growth.</strong> This dashboard counts follows attributed to posts, not account growth.</div>
     </div>
   </div>
 
+  <p class="sector-benchmark-source">
+    Source: <a href="https://pages.dashsocial.com/hubfs/social-media-benchmark/2025/1H/real-estate-industry.pdf" target="_blank" rel="noopener noreferrer">Dash Social, 2025 Real Estate benchmark report</a> (data from Jul–Dec 2024; global real-estate accounts with 1K+ followers). The engagement figure uses likes and comments divided by followers; the dashboard rate uses interactions divided by reach. Instagram reach-per-post and video-view benchmarks were marked as limited in the report.
+  </p>
   <!-- EXEC SUMMARY -->
   <div id="exec-summary" style="display:none">
     <div class="exec-summary-card">
@@ -1355,7 +1371,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-10-04.5'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-10-05.2'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -2646,6 +2662,37 @@ function renderAll() {
   renderAnalystNotes(posts);
 }
 
+function getInstagramWeeklyContentPace(posts) {
+  const datedPosts = posts
+    .filter(post => post.platform === 'ig' && post.date)
+    .map(post => {
+      const date = new Date(post.date);
+      if (!Number.isFinite(date.getTime())) return null;
+      return {
+        day: Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+        type: String(post.type || '').toLowerCase(),
+      };
+    })
+    .filter(Boolean);
+
+  if (!datedPosts.length) {
+    return { days: 0, comparable: false, reelsPerWeek: 0, staticPerWeek: 0 };
+  }
+
+  const timestamps = datedPosts.map(post => post.day);
+  const days = Math.floor((Math.max(...timestamps) - Math.min(...timestamps)) / 86400000) + 1;
+  const weeks = days / 7;
+  const reels = datedPosts.filter(post => post.type.includes('reel')).length;
+  const staticPosts = datedPosts.filter(post => /image|carousel/.test(post.type)).length;
+
+  return {
+    days,
+    comparable: days >= 28,
+    reelsPerWeek: reels / weeks,
+    staticPerWeek: staticPosts / weeks,
+  };
+}
+
 // ── KPIs ──
 function renderKPIs(posts) {
   const totalReach = posts.reduce((s,p) => s + p.reach, 0);
@@ -2685,6 +2732,19 @@ function renderKPIs(posts) {
   document.getElementById('kpi-reach-sub').textContent = sub;
   document.getElementById('kpi-posts-sub').textContent =
     currentFilter === 'all' ? `IG: ${ig.length} · FB: ${fb.length}` : `Posts published`;
+
+  const sectorPaceEl = document.getElementById('kpi-posts-sector-current');
+  if (sectorPaceEl) {
+    const pace = getInstagramWeeklyContentPace(igPosts);
+    if (!pace.days) {
+      sectorPaceEl.textContent = 'Current Instagram pace unavailable: post dates are missing.';
+    } else if (!pace.comparable) {
+      sectorPaceEl.textContent = 'Add at least four weeks of dated Instagram posts to compare weekly pace.';
+    } else {
+      const formatPace = value => value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+      sectorPaceEl.textContent = 'Current pace over ' + pace.days + ' days: ' + formatPace(pace.reelsPerWeek) + ' Reels + ' + formatPace(pace.staticPerWeek) + ' image/carousel posts per week.';
+    }
+  }
 }
 
 // ── 90-day period-over-period comparison ──
