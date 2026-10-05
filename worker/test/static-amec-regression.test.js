@@ -12,7 +12,7 @@ test('admin index exposes the PR tracker import and recovery cards', async () =>
   assert.match(html, /id="amec-tracker-input"[^>]+accept="\.xlsx,\.xls,\.csv"/);
   assert.match(html, />Media Narrative</);
   assert.match(html, />Key Moments</);
-  assert.match(html, /articleTracker:\s*\{/);
+  assert.match(html, /articleTracker: buildClientTrackerSnapshot\(articleTracker\)/);
 });
 
 test('saved client report contains narrative cards without an exposed upload control', async () => {
@@ -48,4 +48,10 @@ test('client export compacts tracker rows and validates numeric Excel dates', as
   assert.match(html, /articleTracker: buildClientTrackerSnapshot\(articleTracker\)/);
   assert.match(html, /rows: rows\.slice\(0, 10\)/);
   assert.match(html, /parsed\.d > 0[\s\S]*date\.toISOString\(\)\.slice\(0, 10\) === key/);
+});
+
+test('client export strips the admin-only spreadsheet parser', async () => {
+  const html = await readFile(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /src=\["'\]vendor\\\/xlsx\\\.full\\\.min\\\.js/);
+  assert.match(html, /replace\(\/<script\\b\(\?=\[\^>\]\*\\bsrc=/);
 });

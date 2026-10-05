@@ -4454,6 +4454,7 @@ async function buildClientHTML(preloadedAmecReport) {
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
   const currentHTML = (_pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML))
+    .replace(/<script\b(?=[^>]*\bsrc=["']vendor\/xlsx\.full\.min\.js["'])[^>]*>\s*<\/script>/gi, '')
     .replace(/<script\b(?=[^>]*\btype=["']module["'])[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>/gi, '')
     .replace(/<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["'][^"']*assets\/[^"']+\.css[^"']*["'][^>]*>/gi, '')
