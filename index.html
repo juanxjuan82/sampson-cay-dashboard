@@ -1364,7 +1364,10 @@ function normalizeAmecTrackerDate(value, date1904 = false) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
   if (typeof value === 'number' && window.XLSX?.SSF) {
     const parsed = XLSX.SSF.parse_date_code(value, { date1904 });
-    if (parsed) return [parsed.y, String(parsed.m).padStart(2, '0'), String(parsed.d).padStart(2, '0')].join('-');
+    if (!parsed) return '';
+    const key = [parsed.y, String(parsed.m).padStart(2, '0'), String(parsed.d).padStart(2, '0')].join('-');
+    const date = new Date(`${key}T00:00:00Z`);
+    return parsed.d > 0 && !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === key ? key : '';
   }
   const text = String(value || '').trim();
   let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[ T])/);
@@ -1413,16 +1416,22 @@ function buildTrackerCardsHTML(tracker = articleTracker) {
       <section class="amec-client-panel"><h3>Key Moments</h3><p class="amec-client-unmeasured">No dated key moments are available without the PR activity workbook.</p></section>
     </div>`;
   }
-  const outlets = new Set(rows.map(row => row.outlet.trim().toLowerCase().replace(/^the\s+/, ''))).size;
+  const outlets = Number.isFinite(tracker.outletCount)
+    ? tracker.outletCount
+    : new Set(rows.map(row => row.outlet.trim().toLowerCase().replace(/^the\s+/, ''))).size;
   const themeCounts = new Map();
   rows.forEach(row => {
     const label = row.theme || 'Unclassified';
     themeCounts.set(label, (themeCounts.get(label) || 0) + 1);
   });
-  const leadingTheme = [...themeCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const computedLeadingTheme = [...themeCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const leadingTheme = tracker.leadingTheme
+    ? [tracker.leadingTheme.label, tracker.leadingTheme.count]
+    : computedLeadingTheme;
   const latestDate = rows[0].date;
   const latestRows = rows.filter(row => row.date === latestDate).slice(0, 3);
-  const narrative = `${rows.length.toLocaleString()} tracked items across ${outlets.toLocaleString()} outlets. ${leadingTheme ? `The most frequently recorded theme is ${escapeAmecSnapshotText(leadingTheme[0])} (${leadingTheme[1].toLocaleString()} items).` : ''} These are publication records, not evidence of public belief or trust.`;
+  const totalRecords = Number.isFinite(tracker.totalRecords) ? tracker.totalRecords : rows.length;
+  const narrative = `${totalRecords.toLocaleString()} tracked items across ${outlets.toLocaleString()} outlets. ${leadingTheme ? `The most frequently recorded theme is ${escapeAmecSnapshotText(leadingTheme[0])} (${leadingTheme[1].toLocaleString()} items).` : ''} These are publication records, not evidence of public belief or trust.`;
   const moments = latestRows.map(row => {
     const linkedTitle = /^https?:\/\//i.test(row.url)
       ? `<a href="${escapeAmecSnapshotText(row.url)}" target="_blank" rel="noopener noreferrer">${escapeAmecSnapshotText(row.title)}</a>`
@@ -1438,6 +1447,27 @@ function buildTrackerCardsHTML(tracker = articleTracker) {
 function renderTrackerCards() {
   const mount = document.getElementById('amec-tracker-cards');
   if (mount) mount.innerHTML = buildTrackerCardsHTML(articleTracker);
+}
+
+function buildClientTrackerSnapshot(tracker = articleTracker) {
+  const rows = Array.isArray(tracker?.rows) ? tracker.rows : [];
+  const outletCount = new Set(rows.map(row => row.outlet.trim().toLowerCase().replace(/^the\s+/, ''))).size;
+  const themeCounts = new Map();
+  rows.forEach(row => {
+    const label = row.theme || 'Unclassified';
+    themeCounts.set(label, (themeCounts.get(label) || 0) + 1);
+  });
+  const leading = [...themeCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+  return {
+    filename: tracker.filename || '',
+    importedAt: tracker.importedAt || null,
+    rejected: Number(tracker.rejected || 0),
+    duplicates: Number(tracker.duplicates || 0),
+    totalRecords: rows.length,
+    outletCount,
+    leadingTheme: leading ? { label: leading[0], count: leading[1] } : null,
+    rows: rows.slice(0, 10).map(row => ({ ...row })),
+  };
 }
 
 async function uploadAmecTracker(input) {
@@ -4413,7 +4443,7 @@ async function buildClientHTML(preloadedAmecReport) {
     }),
     editableOverrides: { ...sharedEditableContent },
     summaryMode: summaryMode,
-    articleTracker: { ...articleTracker, rows: articleTracker.rows.map(row => ({ ...row })) },
+    articleTracker: buildClientTrackerSnapshot(articleTracker),
     brandColors: {
       typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },

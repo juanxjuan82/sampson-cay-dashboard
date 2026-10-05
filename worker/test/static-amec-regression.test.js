@@ -42,3 +42,10 @@ test('fallback reporting preserves AMEC boundaries and latest-import wins', asyn
   assert.match(html, /if \(importVersion !== amecTrackerImportVersion\) return/);
   assert.match(html, /outlet\.trim\(\)\.toLowerCase\(\)\.replace\(\/\^the\\s\+\//);
 });
+
+test('client export compacts tracker rows and validates numeric Excel dates', async () => {
+  const html = await readFile(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /articleTracker: buildClientTrackerSnapshot\(articleTracker\)/);
+  assert.match(html, /rows: rows\.slice\(0, 10\)/);
+  assert.match(html, /parsed\.d > 0[\s\S]*date\.toISOString\(\)\.slice\(0, 10\) === key/);
+});
