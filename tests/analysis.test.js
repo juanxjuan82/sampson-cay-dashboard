@@ -173,7 +173,9 @@ test('summaries stay forward-looking and never read as blame', () => {
     assert.doesNotMatch(text, blame, `period ${period}`);
   }
   const tactics = (data.tactics ? data.tactics.items.flatMap(t => [t.what, t.angle, t.why]).concat(data.tactics.exploring || []) : []);
-  const saved = [data.summary.overview, data.summary.working, data.summary.attention, ...data.strategy.recommendations, ...tactics].join(' ');
+  // Text written by people on the admin page is theirs to word; this checks analyst-written text.
+  const written = Object.values(data.summaries || {}).filter(item => item.source !== 'edited');
+  const saved = [...written.flatMap(item => [item.overview, item.working, item.attention]), ...data.strategy.recommendations, ...tactics].join(' ');
   assert.doesNotMatch(saved, blame, 'saved analyst summary');
 });
 
