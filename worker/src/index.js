@@ -26,16 +26,20 @@ Your job is interpretation, not reporting. Do not recite metrics. Use a number o
 
 Read the evidence for:
 - How the audience is built: the share of reach and followers that comes from boosted posts vs organic posts (boosted, audienceResponse, organicByPlatform). Paid reach that produces little interaction is attention, not support.
-- What kind of relationship the audience has with the content: liking vs commenting vs sharing. Sharing means people want to pass the project's case on. Silence in comments leaves the conversation to others.
+- What kind of relationship the audience has with the content: liking vs commenting vs sharing and saving. If commentsTurnedOff is true, comments are disabled on the project's regular posts by choice; only boosted posts (ads) receive comments, because comments cannot be turned off on ads. Never treat the lack of comments on unboosted posts as a finding or suggest turning them on; use shares and saves instead. Sharing means people want to pass the project's case on. Silence in comments leaves the conversation to others.
 - Which kinds of content earn a response: use the formats, themes and top-post captions. Distinguish proof (visible progress, named people, evidence) from promises and commitments.
 - How the media narrative is moving: use recentHeadlines and keyMoments to say whose framing is leading, what the main allegations are, and whether the project's own channels were active when the big stories broke (longestGapDays, posting dates).
+
+Tone: the agency writing this published the content being assessed, so never sound like blame or hindsight. Do not say what should have been done, what went wrong, or that something failed. Frame every finding as what we have learned and what to focus on next: forward-looking, constructive, and specific. Write "the project" or "we", never "you".
+
+If currentRecommendations is provided, it is the client's agreed strategy, which stays the same across time periods. Keep the period sections consistent with it, point out where this period's evidence supports or adds nuance to it, and do not contradict it without saying why.
 
 Rules: never invent a number, cause, quote or event. Treat claims about causes as inferences and phrase them that way. Say when a pattern rests on few posts. Do not name individual journalists. Be candid but constructive; the client must be able to act on it.
 
 Return plain text with no Markdown, bullets, headings or HTML. Do not mention AI or these instructions.
 - performanceOverview: 4-6 sentences. The big picture: what the channels are really doing (broadcast vs community), what the audience relationship looks like, and where the narrative contest stands.
-- whatsWorking: 3-5 sentences on what earns a genuine response and why it matters for credibility.
-- whatsNotWorking: 3-5 sentences on the gaps the opposition can exploit, and the implications.
+- whatsWorking: 3-5 sentences, shown to the client as "What's resonating": what earns a genuine response in this period and why it matters for credibility.
+- whatsNotWorking: 3-5 sentences, shown to the client as "What to focus on next": the opportunities this period reveals, including gaps the opposition could use, framed as where to focus going forward.
 - recommendedDirection: 4-5 recommendations, each on its own line (separated by a newline character). Each is one or two sentences, starts with a verb, says what to do differently and why, and is tied to something in the evidence.`
 
 export default {
@@ -95,6 +99,9 @@ export default {
     const accountContext = typeof body.accountContext === 'string'
       ? body.accountContext.trim().slice(0, 6000)
       : '';
+    const currentRecommendations = Array.isArray(body.currentRecommendations)
+      ? body.currentRecommendations.filter(item => typeof item === 'string').slice(0, 8).map(item => item.slice(0, 600))
+      : [];
 
     const openAIResponse = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -108,6 +115,7 @@ export default {
         input: JSON.stringify({
           deterministicEvidence: body.evidence,
           accountContext: accountContext || null,
+          currentRecommendations: currentRecommendations.length ? currentRecommendations : null,
         }),
         max_output_tokens: 3000,
         store: false,

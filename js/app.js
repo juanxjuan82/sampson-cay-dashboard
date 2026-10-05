@@ -15,6 +15,7 @@
   let period = '90';
   let stats = null;
   let editing = false;
+  let tacticsDraft = null; // unsaved edits to the tactical plan while its editor is open
   let showAllMedia = false;
   let mediaSearch = '';
   const charts = {};
@@ -112,6 +113,7 @@
           </div>
         </div>
         <ul class="log" id="upload-log"></ul>
+        <label class="check"><input type="checkbox" id="chk-comments-off"> Comments are turned off on our posts <span class="muted">(ads can't have comments turned off, so only boosted posts receive them; the summary then uses shares and saves on unboosted posts as signs of support)</span></label>
         <div class="save-bar">
           <span class="status" id="save-status"></span>
           <div class="btn-row">
@@ -137,6 +139,7 @@
       period = button.dataset.period;
       writeStore('sampson_dashboard_period', period);
       editing = false;
+      tacticsDraft = null;
       render();
     });
 
@@ -149,6 +152,11 @@
         if (!data.media.length || !confirm(`Remove all ${data.media.length} media mentions from the history? (Nothing changes on the website until you click Save.)`)) return;
         data.media = [];
         logUpload('Media history cleared.');
+        markChanged();
+      });
+      $('chk-comments-off').checked = Boolean(data.settings && data.settings.commentsOff);
+      $('chk-comments-off').addEventListener('change', event => {
+        data.settings = Object.assign({}, data.settings, { commentsOff: event.target.checked });
         markChanged();
       });
       $('btn-clear-social').addEventListener('click', () => {
@@ -436,42 +444,168 @@
     return `${stats.range.id}|${stats.range.start}|${stats.range.end}`;
   }
 
+  // The period part of the summary (overview, what's resonating, what to focus on next) follows the
+  // selected time period. Strategic recommendations are saved once and stay the same for every period.
   function currentSummary() {
     const saved = data.summary;
     if (saved && saved.key === summaryKey()) return { summary: saved, source: saved.source };
     return { summary: SC.buildSummary(stats), source: 'auto' };
   }
 
+  function currentRecommendations() {
+    const strategy = data.strategy;
+    if (strategy && Array.isArray(strategy.recommendations) && strategy.recommendations.length) {
+      return { list: strategy.recommendations, saved: true, reviewedAt: strategy.reviewedAt || null };
+    }
+    return { list: SC.buildSummary(stats).recommendations, saved: false, reviewedAt: null };
+  }
+
   function summaryHTML() {
     const { summary, source } = currentSummary();
+    const recs = currentRecommendations();
     const label = source === 'ai' ? 'AI-written, reviewed' : source === 'analyst' ? 'Analyst summary' : source === 'edited' ? 'Edited' : 'Automatic';
     const admin = MODE === 'admin';
     const aiReady = Boolean(readStore('dashboard_ai_endpoint_v2', '') && readStore('dashboard_ai_token_v2', ''));
-    const block = (title, field) => editing
-      ? `<div><h3>${title}</h3><textarea data-field="${field}">${esc(field === 'recommendations' ? summary.recommendations.join('\n') : summary[field])}</textarea>${field === 'recommendations' ? '<p class="muted">One recommendation per line.</p>' : ''}</div>`
-      : field === 'recommendations'
-        ? `<div><h3>${title}</h3><ol>${summary.recommendations.map(r => `<li>${esc(r)}</li>`).join('')}</ol></div>`
-        : `<div><h3>${title}</h3><p>${esc(summary[field])}</p></div>`;
+    const editingSummary = editing === 'summary';
+    const editingRecs = editing === 'recs';
+    const block = (title, field, wide) => `<div${wide ? ' class="wide"' : ''}><h3>${title}</h3>${editingSummary
+      ? `<textarea data-field="${field}">${esc(summary[field])}</textarea>`
+      : `<p>${esc(summary[field])}</p>`}</div>`;
+    const reviewed = recs.reviewedAt ? `Last reviewed ${SC.formatDate(recs.reviewedAt)}` : 'Suggested automatically — edit and save to set them';
     return `
       <section class="block card" id="summary">
         <div class="section-head">
-          <div><h2>Executive summary</h2><span class="badge">${label}</span></div>
+          <div><h2>Executive summary</h2><span class="badge">${label}</span>
+            <span class="muted">&nbsp;${esc(stats.range.label)} · ${SC.formatDate(stats.range.start)} – ${SC.formatDate(stats.range.end)}</span></div>
           <div class="btn-row no-print">
-            ${admin && !editing ? `<button class="btn" type="button" id="btn-edit">✏️ Edit</button>` : ''}
-            ${admin && editing ? `<button class="btn" type="button" id="btn-cancel-edit">Cancel</button><button class="btn btn-primary" type="button" id="btn-save-edit">✓ Done</button>` : ''}
+            ${admin && !editing ? `<button class="btn" type="button" id="btn-edit">✏️ Edit summary</button>` : ''}
+            ${editingSummary ? `<button class="btn" type="button" id="btn-cancel-edit">Cancel</button><button class="btn btn-primary" type="button" id="btn-save-edit">✓ Done</button>` : ''}
             ${admin && !editing && source !== 'auto' ? `<button class="btn" type="button" id="btn-reset-summary">↺ Back to automatic</button>` : ''}
             ${admin && !editing && aiReady ? `<button class="btn" type="button" id="btn-ai">✨ Rewrite with AI</button>` : ''}
             ${!editing ? `<button class="btn" type="button" id="btn-copy">📋 Copy</button>` : ''}
           </div>
         </div>
         <div class="summary-grid">
-          ${block('Overview', 'overview')}
-          ${block('What’s working', 'working')}
-          ${block('What needs attention', 'attention')}
-          ${block('Recommendations', 'recommendations')}
+          ${block('Overview', 'overview', true)}
+          ${block('What’s resonating', 'working')}
+          ${block('What to focus on next', 'attention')}
         </div>
-        ${admin && !editing && source !== 'auto' ? '<p class="muted" style="margin:12px 0 0">This edited summary is tied to this date range. Uploading newer data creates a new date range and a fresh automatic summary.</p>' : ''}
+        ${admin && !editing && source !== 'auto' ? '<p class="muted" style="margin:12px 0 0">This written summary belongs to this date range. Other periods, and newer data, show the automatic summary.</p>' : ''}
+        <div class="strategy">
+          <div class="section-head">
+            <div><h3>Strategic recommendations</h3><p class="muted" style="margin:0">${reviewed} · the same for every time period</p></div>
+            <div class="btn-row no-print">
+              ${admin && !editing ? `<button class="btn" type="button" id="btn-edit-recs">✏️ Edit recommendations</button>` : ''}
+              ${editingRecs ? `<button class="btn" type="button" id="btn-cancel-edit">Cancel</button><button class="btn btn-primary" type="button" id="btn-save-recs">✓ Save</button>` : ''}
+            </div>
+          </div>
+          ${editingRecs
+            ? `<textarea data-field="recommendations">${esc(recs.list.join('\n'))}</textarea><p class="muted">One recommendation per line. Leave empty to go back to the automatic suggestions.</p>`
+            : `<ol>${recs.list.map(r => `<li>${esc(r)}</li>`).join('')}</ol>`}
+        </div>
+        ${tacticsHTML(recs.list)}
       </section>`;
+  }
+
+  // ── Tactical plan: how we deliver the strategy, saved per reporting cycle ──
+  const EVIDENCE_TAGS = {
+    data: { label: 'Our data', cls: 'data' },
+    research: { label: 'Research', cls: 'research' },
+    precedent: { label: 'Precedent', cls: 'precedent' },
+    test: { label: 'To test', cls: 'test' },
+  };
+
+  function tacticsHTML(strategyList) {
+    const plan = data.tactics || null;
+    const admin = MODE === 'admin';
+    if (editing === 'tactics') return tacticsEditorHTML(strategyList, tacticsDraft || plan);
+    if (!plan || !Array.isArray(plan.items) || !plan.items.length) {
+      return admin ? `<div class="tactics"><div class="section-head"><div><h3>Tactical plan</h3><p class="muted" style="margin:0">No tactical plan saved yet.</p></div>
+        <div class="btn-row no-print"><button class="btn" type="button" id="btn-edit-tactics">＋ Add tactical plan</button></div></div></div>` : '';
+    }
+    const groups = strategyList.map((rec, i) => ({ rec, index: i, items: plan.items.filter(t => Number(t.strategy) === i + 1) }));
+    const loose = plan.items.filter(t => !(Number(t.strategy) >= 1 && Number(t.strategy) <= strategyList.length));
+    const card = t => `<div class="tactic">
+        <div class="tactic-what">${esc(t.what)}</div>
+        ${t.angle ? `<div class="tactic-angle">${esc(t.angle)}</div>` : ''}
+        ${t.why ? `<div class="tactic-why"><b>Why:</b> ${esc(t.why)}</div>` : ''}
+        ${(t.tags || []).length ? `<div class="tags">${t.tags.filter(tag => EVIDENCE_TAGS[tag]).map(tag => `<span class="tag-chip ${EVIDENCE_TAGS[tag].cls}">${EVIDENCE_TAGS[tag].label}</span>`).join('')}</div>` : ''}
+      </div>`;
+    const shortRec = rec => rec.split(/(?<=[.:])\s/)[0];
+    return `<div class="tactics">
+      <div class="section-head">
+        <div><h3>Tactical plan${plan.cycle ? ` — ${esc(plan.cycle)}` : ''}</h3>
+          <p class="muted" style="margin:0">How we will deliver each recommendation${plan.reviewedAt ? ` · last reviewed ${SC.formatDate(plan.reviewedAt)}` : ''}</p></div>
+        <div class="btn-row no-print">${admin && !editing ? `<button class="btn" type="button" id="btn-edit-tactics">✏️ Edit tactical plan</button>` : ''}</div>
+      </div>
+      ${groups.filter(g => g.items.length).map(g => `<div class="tactic-group"><div class="tactic-group-head"><span class="num">${g.index + 1}</span>${esc(shortRec(g.rec))}</div><div class="tactic-grid">${g.items.map(card).join('')}</div></div>`).join('')}
+      ${loose.length ? `<div class="tactic-group"><div class="tactic-group-head">Other tactics</div><div class="tactic-grid">${loose.map(card).join('')}</div></div>` : ''}
+      ${(plan.exploring || []).length ? `<div class="tactic-group"><div class="tactic-group-head">Exploring</div><ul class="exploring">${plan.exploring.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      <p class="muted" style="margin:10px 0 0">Evidence: <span class="tag-chip data">Our data</span> from this dashboard · <span class="tag-chip research">Research</span> outside studies · <span class="tag-chip precedent">Precedent</span> comparable disputes · <span class="tag-chip test">To test</span> not yet proven here; we will measure it.</p>
+    </div>`;
+  }
+
+  function tacticsEditorHTML(strategyList, plan) {
+    const items = plan && Array.isArray(plan.items) && plan.items.length ? plan.items : [{ strategy: 1, what: '', angle: '', why: '', tags: [] }];
+    const options = n => strategyList.map((rec, i) => `<option value="${i + 1}"${Number(n) === i + 1 ? ' selected' : ''}>${i + 1}. ${esc(rec.slice(0, 60))}${rec.length > 60 ? '…' : ''}</option>`).join('');
+    const row = (t, i) => `<div class="tactic-edit" data-row="${i}">
+        <div class="btn-row" style="justify-content:space-between"><label>Serves recommendation <select data-k="strategy">${options(t.strategy)}</select></label>
+          <button class="btn btn-link" type="button" data-remove="${i}">Remove</button></div>
+        <label>What to make<input data-k="what" value="${esc(t.what)}" placeholder="e.g. High-res photos of local business owners with a quote callout"></label>
+        <label>Message angle<textarea data-k="angle" rows="2">${esc(t.angle)}</textarea></label>
+        <label>Why<textarea data-k="why" rows="2">${esc(t.why)}</textarea></label>
+        <div class="btn-row">${Object.entries(EVIDENCE_TAGS).map(([key, tag]) => `<label class="check"><input type="checkbox" data-tag="${key}"${(t.tags || []).includes(key) ? ' checked' : ''}> ${tag.label}</label>`).join('')}</div>
+      </div>`;
+    return `<div class="tactics editing" id="tactics-editor">
+      <div class="section-head"><h3>Edit tactical plan</h3>
+        <div class="btn-row"><button class="btn" type="button" id="btn-cancel-edit">Cancel</button><button class="btn btn-primary" type="button" id="btn-save-tactics">✓ Save</button></div></div>
+      <label>Reporting cycle<input id="tac-cycle" value="${esc((plan && plan.cycle) || '')}" placeholder="e.g. October 2026 report"></label>
+      <div id="tac-rows">${items.map(row).join('')}</div>
+      <button class="btn" type="button" id="btn-add-tactic">＋ Add tactic</button>
+      <label>Exploring (one per line)<textarea id="tac-exploring" rows="4">${esc(((plan && plan.exploring) || []).join('\n'))}</textarea></label>
+    </div>`;
+  }
+
+  function readTacticsEditor() {
+    return [...document.querySelectorAll('#tactics-editor .tactic-edit')].map(rowEl => ({
+      strategy: Number(rowEl.querySelector('[data-k="strategy"]').value),
+      what: rowEl.querySelector('[data-k="what"]').value.trim(),
+      angle: rowEl.querySelector('[data-k="angle"]').value.trim(),
+      why: rowEl.querySelector('[data-k="why"]').value.trim(),
+      tags: [...rowEl.querySelectorAll('[data-tag]:checked')].map(el => el.dataset.tag),
+    }));
+  }
+
+  function bindTactics() {
+    const editBtn = $('btn-edit-tactics');
+    if (editBtn) editBtn.addEventListener('click', () => { editing = 'tactics'; render(); });
+    const editor = $('tactics-editor');
+    if (!editor) return;
+    const draft = () => ({ cycle: $('tac-cycle').value.trim(), items: readTacticsEditor(), exploring: cleanLines($('tac-exploring').value) });
+    $('btn-add-tactic').addEventListener('click', () => {
+      const plan = draft();
+      plan.items.push({ strategy: 1, what: '', angle: '', why: '', tags: [] });
+      tacticsDraft = plan;
+      render();
+    });
+    editor.addEventListener('click', event => {
+      const remove = event.target.closest('[data-remove]');
+      if (!remove) return;
+      const plan = draft();
+      plan.items.splice(Number(remove.dataset.remove), 1);
+      tacticsDraft = plan;
+      render();
+    });
+    $('btn-save-tactics').addEventListener('click', () => {
+      const plan = draft();
+      plan.items = plan.items.filter(t => t.what);
+      editing = false;
+      tacticsDraft = null;
+      data.tactics = plan.items.length || plan.exploring.length
+        ? Object.assign(plan, { reviewedAt: new Date().toISOString().slice(0, 10) })
+        : null;
+      markChanged();
+    });
   }
 
   function storeSummary(summary, source) {
@@ -480,40 +614,55 @@
       overview: summary.overview,
       working: summary.working,
       attention: summary.attention,
-      recommendations: summary.recommendations.filter(Boolean),
       source,
     };
     markChanged();
   }
 
+  function storeRecommendations(list, source) {
+    data.strategy = list.length ? { recommendations: list, reviewedAt: new Date().toISOString().slice(0, 10), source } : null;
+    markChanged();
+  }
+
+  function cleanLines(text) {
+    return String(text || '').split(/\n+/).map(r => r.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean);
+  }
+
   function bindSummary() {
     const on = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
-    on('btn-edit', () => { editing = true; render(); });
-    on('btn-cancel-edit', () => { editing = false; render(); });
+    const value = field => document.querySelector(`#summary textarea[data-field="${field}"]`).value.trim();
+    on('btn-edit', () => { editing = 'summary'; render(); });
+    on('btn-edit-recs', () => { editing = 'recs'; render(); });
+    on('btn-cancel-edit', () => { editing = false; tacticsDraft = null; render(); });
     on('btn-save-edit', () => {
-      const value = field => document.querySelector(`#summary textarea[data-field="${field}"]`).value.trim();
+      const summary = { overview: value('overview'), working: value('working'), attention: value('attention') };
       editing = false;
-      storeSummary({
-        overview: value('overview'),
-        working: value('working'),
-        attention: value('attention'),
-        recommendations: value('recommendations').split('\n').map(s => s.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean),
-      }, 'edited');
+      storeSummary(summary, 'edited');
+    });
+    on('btn-save-recs', () => {
+      const list = cleanLines(value('recommendations'));
+      editing = false;
+      storeRecommendations(list, 'edited');
     });
     on('btn-reset-summary', () => {
-      if (!confirm('Discard the edited summary and go back to the automatic one?')) return;
+      if (!confirm('Discard the written summary for this period and go back to the automatic one?')) return;
       data.summary = null;
       markChanged();
     });
     on('btn-ai', generateAISummary);
+    bindTactics();
     on('btn-copy', async () => {
       const { summary } = currentSummary();
+      const recs = currentRecommendations();
       const text = [
         `Executive summary — ${stats.range.label} (${SC.formatDate(stats.range.start)} – ${SC.formatDate(stats.range.end)})`,
         '', 'Overview', summary.overview,
-        '', 'What’s working', summary.working,
-        '', 'What needs attention', summary.attention,
-        '', 'Recommendations', ...summary.recommendations.map((r, i) => `${i + 1}. ${r}`),
+        '', 'What’s resonating', summary.working,
+        '', 'What to focus on next', summary.attention,
+        '', 'Strategic recommendations', ...recs.list.map((r, i) => `${i + 1}. ${r}`),
+        ...(data.tactics && data.tactics.items && data.tactics.items.length ? ['', `Tactical plan${data.tactics.cycle ? ' — ' + data.tactics.cycle : ''}`,
+          ...data.tactics.items.map(t => `• [${t.strategy}] ${t.what}${t.angle ? ` — ${t.angle}` : ''}${t.why ? ` (Why: ${t.why})` : ''}`),
+          ...((data.tactics.exploring || []).length ? ['', 'Exploring', ...data.tactics.exploring.map(x => `• ${x}`)] : [])] : []),
         ...(stats.hasMedia ? ['', 'Media narrative', SC.mediaNarrative(stats)] : []),
       ].join('\n');
       try {
@@ -532,19 +681,26 @@
     button.disabled = true;
     button.textContent = 'Writing…';
     try {
+      const recs = currentRecommendations();
       const response = await fetch(endpoint.endsWith('/summary') ? endpoint : endpoint + '/summary', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evidence: SC.buildAIEvidence(stats), accountContext: readStore('dashboard_ai_context_v2', '') || '' }),
+        body: JSON.stringify({
+          evidence: SC.buildAIEvidence(stats),
+          accountContext: readStore('dashboard_ai_context_v2', '') || '',
+          currentRecommendations: recs.saved ? recs.list : [],
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.summary) throw new Error(payload.error || `the AI writer returned ${response.status}`);
       const s = payload.summary;
-      const text = String(s.recommendedDirection || '');
-      // One recommendation per line; older worker versions return a paragraph, so fall back to sentences.
-      const recs = (text.includes('\n') ? text.split(/\n+/) : text.split(/(?<=[.!?])\s+(?=[A-Z])/))
-        .map(r => r.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean);
-      storeSummary({ overview: s.performanceOverview, working: s.whatsWorking, attention: s.whatsNotWorking, recommendations: recs }, 'ai');
+      // Saved recommendations are only replaced by editing them; the AI only fills them in when none are saved.
+      if (!recs.saved) {
+        const text = String(s.recommendedDirection || '');
+        const list = text.includes('\n') ? cleanLines(text) : text.split(/(?<=[.!?])\s+(?=[A-Z])/).map(r => r.trim()).filter(Boolean);
+        if (list.length) data.strategy = { recommendations: list, reviewedAt: new Date().toISOString().slice(0, 10), source: 'ai' };
+      }
+      storeSummary({ overview: s.performanceOverview, working: s.whatsWorking, attention: s.whatsNotWorking }, 'ai');
     } catch (error) {
       alert('AI rewrite failed: ' + error.message);
       button.disabled = false;
