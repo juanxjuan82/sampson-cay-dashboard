@@ -268,21 +268,82 @@
   }
 
   // ── Content themes (keyword tagging of captions) ───────────────
+  // Same keyword weights as the original dashboard. A post gets the theme with the
+  // strongest score (minimum 4); "Site Activity" uses specific phrases from June 2026 on.
   const THEMES = [
-    { id: 'community', label: 'Community', terms: [['community', 4], ['communities', 4], ['resident', 3], ['residents', 3], ['family', 2], ['families', 2], ['youth', 3], ['student', 2], ['students', 2], ['school', 2], ['neighbourhood', 3], ['neighborhood', 3], ['volunteer', 3], ['donation', 3], ['local people', 3], ['partnership', 1]] },
-    { id: 'economy', label: 'Economy', terms: [['economy', 4], ['economic', 4], ['job', 4], ['jobs', 4], ['employment', 4], ['workforce', 3], ['career', 3], ['careers', 3], ['hiring', 4], ['training', 2], ['business', 2], ['businesses', 2], ['vendor', 3], ['vendors', 3], ['supplier', 3], ['contractor', 2], ['contractors', 2], ['investment', 3], ['tourism', 3], ['opportunity', 2], ['opportunities', 2]] },
-    { id: 'environment', label: 'Environment', terms: [['environment', 4], ['environmental', 4], ['sustainability', 4], ['sustainable', 4], ['conservation', 4], ['marine', 3], ['ocean', 3], ['coastal', 3], ['wildlife', 3], ['habitat', 3], ['ecosystem', 3], ['biodiversity', 4], ['coral', 3], ['mangrove', 3], ['mangroves', 3], ['turtle', 3], ['turtles', 3], ['seagrass', 4], ['climate', 3], ['nature', 2], ['bird', 2], ['birds', 2]] },
-    { id: 'site', label: 'Site Activity', terms: [['site preparation', 5], ['preparatory work', 5], ['construction', 4], ['groundbreaking', 5], ['land and habitat surveys', 5], ['soundscape', 5], ['progress on site', 5], ['on site', 2]] },
+    { id: 'community', label: 'Community', color: '#0d5a6c', terms: [
+      ['community', 4], ['communities', 4], ['local residents', 4], ['resident', 3], ['residents', 3],
+      ['family', 2], ['families', 2], ['youth', 3], ['student', 2], ['students', 2],
+      ['neighbourhood', 3], ['neighborhood', 3], ['volunteer', 3], ['donation', 3],
+      ['community centre', 4], ['community center', 4], ['local people', 3], ['bahamian community', 4],
+      ['partnership', 1], ['support', 1], ['people', 1]] },
+    { id: 'economy', label: 'Economy', color: '#b7791f', terms: [
+      ['economy', 4], ['economic', 4], ['job', 4], ['jobs', 4], ['employment', 4], ['employed', 3],
+      ['workforce', 3], ['career', 3], ['careers', 3], ['hiring', 4], ['business', 2], ['businesses', 2],
+      ['local business', 4], ['vendor', 3], ['vendors', 3], ['supplier', 3], ['suppliers', 3],
+      ['contractor', 2], ['contractors', 2], ['investment', 3], ['tourism', 3],
+      ['opportunity', 2], ['opportunities', 2], ['livelihood', 3], ['commerce', 3]] },
+    { id: 'environment', label: 'Environment', color: '#2f855a', terms: [
+      ['environment', 4], ['environmental', 4], ['sustainability', 4], ['sustainable', 4],
+      ['conservation', 4], ['marine', 3], ['ocean', 3], ['sea', 2], ['coast', 2], ['coastal', 3],
+      ['wildlife', 3], ['habitat', 3], ['ecosystem', 3], ['biodiversity', 4], ['coral', 3],
+      ['mangrove', 3], ['mangroves', 3], ['turtle', 3], ['turtles', 3], ['turtlegrass', 4],
+      ['seagrass', 4], ['climate', 3], ['water quality', 4], ['waste', 2], ['renewable', 3],
+      ['solar', 3], ['nature', 2], ['ecological', 4]] },
+    { id: 'site', label: 'Site Activity', color: '#4c51bf', terms: [] },
+  ];
+  const OTHER_THEME = { id: 'other', label: 'Other', color: '#94a3b8' };
+  const SITE_ACTIVITY_FROM = '2026-06-01';
+  const SITE_ACTIVITY_PHRASES = [
+    'detailed land and habitat surveys', 'mapping critical habitats', 'tracking bird life',
+    'recording the natural soundscape', 'sound readings', 'collecting sound data',
+    'preparatory work has begun', 'early site preparation', 'advancing our site preparation',
   ];
 
-  function tagTheme(caption) {
-    const text = ' ' + String(caption || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+  function themeText(value) {
+    return ' ' + String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  }
+
+  function tagTheme(caption, date) {
+    const text = themeText(caption);
+    if (date && date >= SITE_ACTIVITY_FROM && !/ black point community cent(er|re) /.test(text) &&
+        SITE_ACTIVITY_PHRASES.some(phrase => text.includes(themeText(phrase)))) {
+      return 'Site Activity';
+    }
     let best = null;
     THEMES.forEach(theme => {
-      const score = theme.terms.reduce((total, [term, weight]) => total + (text.includes(' ' + term + ' ') ? weight : 0), 0);
+      const score = theme.terms.reduce((total, [term, weight]) => total + (text.includes(themeText(term)) ? weight : 0), 0);
       if (score >= 4 && (!best || score > best.score)) best = { label: theme.label, score };
     });
-    return best ? best.label : 'Other';
+    return best ? best.label : OTHER_THEME.label;
+  }
+
+  function themeColor(label) {
+    return (THEMES.find(t => t.label === label) || OTHER_THEME).color;
+  }
+
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const TIME_BLOCKS = [
+    { label: 'Early (before 9am)', from: 0, to: 8 },
+    { label: 'Morning (9–12)', from: 9, to: 11 },
+    { label: 'Afternoon (12–5)', from: 12, to: 16 },
+    { label: 'Evening (5pm+)', from: 17, to: 23 },
+  ];
+
+  // Median engagement for each weekday × time-of-day block.
+  function postingHeatmap(posts) {
+    const cells = TIME_BLOCKS.map(() => WEEKDAYS.map(() => []));
+    posts.forEach(post => {
+      if (!Number.isInteger(post.hour) || post.reach <= 0) return;
+      const block = TIME_BLOCKS.findIndex(b => post.hour >= b.from && post.hour <= b.to);
+      const day = new Date(post.date + 'T00:00:00Z').getUTCDay();
+      if (block >= 0) cells[block][day].push((post.interactions / post.reach) * 100);
+    });
+    return {
+      days: WEEKDAYS,
+      blocks: TIME_BLOCKS.map(b => b.label),
+      cells: cells.map(row => row.map(values => ({ posts: values.length, medianEngagement: values.length ? median(values) : null }))),
+    };
   }
 
   // ── Analysis ───────────────────────────────────────────────────
@@ -359,6 +420,11 @@
       medianReach: median(items.map(p => p.reach)),
       medianEngagement: median(items.filter(p => p.reach > 0).map(p => (p.interactions / p.reach) * 100)),
       totalReach: sum(items.map(p => p.reach)),
+      avgComments: sum(items.map(p => p.comments || 0)) / items.length,
+      avgShares: sum(items.map(p => p.shares || 0)) / items.length,
+      avgSaves: items.some(p => p.platform === 'ig') ? sum(items.map(p => p.saves || 0)) / items.length : null,
+      followsPerPost: items.some(p => p.platform === 'ig') ? sum(items.map(p => p.follows || 0)) / items.length : null,
+      bestPost: items.filter(p => p.reach >= 50).sort((x, y) => (y.interactions / y.reach) - (x.interactions / x.reach))[0] || null,
       reliable: items.length >= minPosts,
     })).sort((a, b) => b.posts - a.posts);
   }
@@ -416,7 +482,7 @@
 
   function analyze(data, periodId) {
     const range = periodRange(data, periodId);
-    const allPosts = markBoosted((data.posts || []).map(p => ({ ...p, theme: tagTheme(p.caption) })));
+    const allPosts = markBoosted((data.posts || []).map(p => ({ ...p, theme: tagTheme(p.caption, p.date) })));
     const media = data.media || [];
     if (!range) return { empty: true };
 
@@ -469,6 +535,9 @@
       boostedCount: posts.filter(p => p.boosted).length,
       formats: groupStats(organic, p => (p.platform === 'ig' ? 'Instagram ' : 'Facebook ') + p.format, 3),
       themes: groupStats(organic, p => p.theme, 3),
+      themeCounts: countBy(posts, p => p.theme),
+      contentMix: countBy(posts, p => (p.platform === 'ig' ? 'Instagram ' : 'Facebook ') + p.format),
+      heatmap: postingHeatmap(organic),
       topPosts,
       topReach,
       monthly: monthlyRows,
@@ -614,8 +683,8 @@
         postsPerWeek: Number(stats.postsPerWeek.toFixed(2)),
         likelyBoostedPosts: stats.boostedCount,
         longestGapDays: stats.gap ? stats.gap.days : null,
-        formats: stats.formats,
-        themes: stats.themes,
+        formats: stats.formats.map(({ bestPost, ...rest }) => rest),
+        themes: stats.themes.map(({ bestPost, ...rest }) => rest),
         topPosts: stats.topPosts.slice(0, 5).map(p => ({ date: p.date, platform: p.platform, format: p.format, reach: p.reach, engagementRate: Number(p.engagementRate.toFixed(2)), theme: p.theme, caption: p.caption.slice(0, 200) })),
       },
       media: {
@@ -636,7 +705,7 @@
   const api = {
     num, median, parseDate, formatDate, formatNumber, formatPct, monthLabel,
     normalizeFormat, detectPlatform, parseSocialRows, fromLegacyPost,
-    parseMediaRecords, mergePosts, mergeMedia, tagTheme,
+    parseMediaRecords, mergePosts, mergeMedia, tagTheme, themeColor, THEMES,
     PERIODS, periodRange, analyze, mediaNarrative, buildSummary, buildAIEvidence,
   };
 
