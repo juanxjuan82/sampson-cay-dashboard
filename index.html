@@ -1366,11 +1366,15 @@ function normalizeAmecTrackerDate(value, date1904 = false) {
     if (parsed) return [parsed.y, String(parsed.m).padStart(2, '0'), String(parsed.d).padStart(2, '0')].join('-');
   }
   const text = String(value || '').trim();
-  let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (match) return [match[1], match[2].padStart(2, '0'), match[3].padStart(2, '0')].join('-');
-  match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (match) return [match[3], match[1].padStart(2, '0'), match[2].padStart(2, '0')].join('-');
-  return '';
+  let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[ T])/);
+  let key = match ? [match[1], match[2].padStart(2, '0'), match[3].padStart(2, '0')].join('-') : '';
+  if (!key) {
+    match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    key = match ? [match[3], match[1].padStart(2, '0'), match[2].padStart(2, '0')].join('-') : '';
+  }
+  if (!key) return '';
+  const parsed = new Date(`${key}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === key ? key : '';
 }
 
 function normalizeAmecTrackerRows(records, date1904 = false) {
@@ -1454,7 +1458,17 @@ async function uploadAmecTracker(input) {
       const sheetName = workbook.SheetNames.find(name => name.trim().toLowerCase() === 'media mentions');
       if (!sheetName) throw new Error('The workbook needs a sheet named Media Mentions.');
       date1904 = Boolean(workbook.Workbook?.WBProps?.date1904);
-      records = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '', raw: true });
+      const worksheet = workbook.Sheets[sheetName];
+      records = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: true });
+      const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1, range: 0, blankrows: false })[0] || [];
+      const titleHeaders = ['Article Title & URL', 'Article Title', 'Title', 'Headline'];
+      records.forEach(record => {
+        const headerName = titleHeaders.find(name => Object.prototype.hasOwnProperty.call(record, name));
+        const column = headerName ? headers.indexOf(headerName) : -1;
+        if (column < 0 || !Number.isInteger(record.__rowNum__)) return;
+        const cell = worksheet[XLSX.utils.encode_cell({ r: record.__rowNum__, c: column })];
+        if (cell?.l?.Target && /^https?:\/\//i.test(cell.l.Target)) record['Article URL'] = cell.l.Target;
+      });
     }
     const normalized = normalizeAmecTrackerRows(records, date1904);
     if (!normalized.rows.length) throw new Error('No valid rows found. Publication, title and publish date are required.');
@@ -4402,7 +4416,10 @@ async function buildClientHTML(preloadedAmecReport) {
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
     },
   };
-  const dataJSON = JSON.stringify(data);
+  const dataJSON = JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
   const currentHTML = (_pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML))
     .replace(/<script\b(?=[^>]*\btype=["']module["'])[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>/gi, '')

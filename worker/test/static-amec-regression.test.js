@@ -27,3 +27,10 @@ test('future client exports hide admin-only tracker controls', async () => {
   assert.match(html, /#amec-tracker-upload[^\{]*\{\s*display:\s*none\s*!important/);
   assert.match(html, /buildTrackerCardsHTML\(articleTracker\)/);
 });
+
+test('tracker export hardens inline JSON and preserves workbook evidence', async () => {
+  const html = await readFile(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /JSON\.stringify\(data\)[\s\S]*replace\(\/<\/g, '\\\\u003c'\)/);
+  assert.match(html, /cell\?\.l\?\.Target/);
+  assert.match(html, /parsed\.toISOString\(\)\.slice\(0, 10\) === key/);
+});
