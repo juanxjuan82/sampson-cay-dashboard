@@ -159,3 +159,25 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding: 24px
   body { background: #fff; }
   .card { box-shadow: none; break-inside: avoid; }
 }
+
+/* Theme cards */
+.block-sub { margin-top: 24px; }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.theme-card { border-top: 4px solid var(--theme-color); padding: 14px; }
+.theme-label { font-size: 13px; font-weight: 700; }
+.theme-count { font-size: 28px; font-weight: 800; line-height: 1.1; color: var(--theme-color); margin-top: 4px; }
+.theme-metric { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.theme-metric strong { display: block; font-size: 15px; }
+.theme-metric span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+.theme-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; align-items: center; margin-top: 10px; font-size: 12px; }
+.sample { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: #fff4e5; color: #9a5b00; }
+.sample.ok { background: #e7f6ec; color: var(--good); }
+
+/* Format charts */
+.chart-legend { margin: -4px 0 8px; }
+details summary { cursor: pointer; font-size: 14px; }
+details[open] summary { margin-bottom: 10px; }
+.heatmap th, .heatmap td { text-align: center; padding: 6px 4px; font-size: 12px; }
+.heatmap th[scope="row"] { text-align: left; text-transform: none; letter-spacing: 0; font-weight: 500; white-space: nowrap; }
+.heatmap td.heat { border: 2px solid var(--surface); border-radius: 6px; font-weight: 600; }
+.heatmap td.empty { background: #f6f8f9; color: var(--muted); }

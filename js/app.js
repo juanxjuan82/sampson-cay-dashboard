@@ -572,10 +572,8 @@
           <h3>Accounts reached per month</h3>
           <div class="chart-box"><canvas id="chart-reach" aria-label="Accounts reached per month by platform" role="img"></canvas></div>
         </div>
-        <div class="grid-2" style="margin-top:16px">
-          <div class="card"><h3>By format</h3><p class="muted" style="margin-top:0">Organic posts only. “Typical” means the median post.</p>${groupTable(stats.formats)}</div>
-          <div class="card"><h3>By content theme</h3><p class="muted" style="margin-top:0">Themes are tagged automatically from caption keywords.</p>${groupTable(stats.themes)}</div>
-        </div>
+        ${themeCardsHTML()}
+        ${formatChartsHTML(groupTable)}
         <div class="card" style="margin-top:16px">
           <h3>Top posts by engagement</h3>
           <div class="table-wrap"><table>
@@ -583,6 +581,83 @@
             <tbody>${topRows || '<tr><td colspan="6" class="muted">No posts with enough reach to rank.</td></tr>'}</tbody></table></div>
         </div>
       </section>`;
+  }
+
+  // ── Content theme cards ──
+  function themeCardsHTML() {
+    const order = SC.THEMES.map(t => t.label).concat('Other');
+    const counts = new Map(stats.themeCounts.map(t => [t.label, t.count]));
+    const organic = new Map(stats.themes.map(t => [t.label, t]));
+    const total = stats.totals.posts || 1;
+    const cards = order.filter(label => counts.has(label)).map(label => {
+      const g = organic.get(label);
+      const best = g && g.bestPost;
+      return `<div class="card theme-card" style="--theme-color:${SC.themeColor(label)}">
+        <div class="theme-label">${esc(label)}</div>
+        <div class="theme-count">${counts.get(label)}</div>
+        <div class="muted">posts · ${Math.round((counts.get(label) / total) * 100)}% of all posts</div>
+        <div class="theme-metric"><strong>${g ? SC.formatNumber(g.medianReach) : '—'}</strong><span>Typical organic reach</span></div>
+        <div class="theme-metric"><strong>${g ? SC.formatPct(g.medianEngagement) : '—'}</strong><span>Typical organic engagement</span></div>
+        <div class="theme-foot">
+          <span class="sample ${g && g.reliable ? 'ok' : ''}">${g && g.reliable ? 'Enough posts to compare' : 'Too few posts to compare'}</span>
+          ${best && safeUrl(best.permalink) ? `<a href="${esc(best.permalink)}" target="_blank" rel="noopener">Best post ↗</a>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    const reliable = stats.themes.filter(g => g.reliable && g.label !== 'Other');
+    const topEng = reliable.slice().sort((a, b) => b.medianEngagement - a.medianEngagement)[0];
+    const topReach = reliable.slice().sort((a, b) => b.medianReach - a.medianReach)[0];
+    const sentences = [];
+    if (topEng) sentences.push(`<strong>${esc(topEng.label)}</strong> earns the strongest typical engagement (${SC.formatPct(topEng.medianEngagement)}).`);
+    if (topReach) sentences.push(`<strong>${esc(topReach.label)}</strong> reaches the most people per post (typically ${SC.formatNumber(topReach.medianReach)}).`);
+    if (!sentences.length) sentences.push('Not enough organic posts per theme in this period for a reliable comparison.');
+    return `
+      <div class="block-sub">
+        <h3>Content themes</h3>
+        <p class="muted" style="margin-top:0">${sentences.join(' ')} Themes are tagged automatically from caption keywords; boosted posts are left out of the “typical” figures.</p>
+        <div class="theme-grid">${cards}</div>
+      </div>`;
+  }
+
+  // ── Format charts ──
+  function formatChartsHTML(groupTable) {
+    const igFormats = stats.formats.filter(g => g.label.startsWith('Instagram') && g.followsPerPost !== null);
+    const legend = '<p class="muted chart-legend"><span class="dot ig"></span>Instagram &nbsp; <span class="dot fb"></span>Facebook</p>';
+    const box = (id, label, height) => `<div class="chart-box" style="height:${height}px"><canvas id="${id}" role="img" aria-label="${label}"></canvas></div>`;
+    const barHeight = Math.max(180, stats.formats.length * 38 + 40);
+    return `
+      <div class="block-sub">
+        <h3>Formats</h3>
+        <p class="muted" style="margin-top:0">Organic posts only. “Typical” means the middle (median) post, so one viral post doesn't skew it. * = fewer than 3 posts, treat with caution.</p>
+        <div class="grid-2">
+          <div class="card"><h3>Which formats reach the most people</h3>${legend}${box('chart-format-reach', 'Typical reach by format', barHeight)}</div>
+          <div class="card"><h3>Which formats earn the most engagement</h3>${legend}${box('chart-format-eng', 'Typical engagement rate by format', barHeight)}</div>
+          <div class="card"><h3>How people respond to each format</h3><p class="muted chart-legend">Average per post</p>${box('chart-format-response', 'Average comments, shares and saves per post by format', barHeight + 30)}</div>
+          <div class="card"><h3>Content mix</h3>${legend}${box('chart-format-mix', 'Number of posts by format', barHeight)}</div>
+          ${igFormats.length ? `<div class="card"><h3>Which formats attract followers</h3><p class="muted chart-legend">Instagram follows per post</p>${box('chart-format-follows', 'Instagram follows per post by format', Math.max(150, igFormats.length * 38 + 40))}</div>` : ''}
+          <div class="card"><h3>Best time to post</h3><p class="muted chart-legend">Typical engagement by day and time posted. Darker = stronger.</p>${heatmapHTML()}</div>
+        </div>
+        <details class="card" style="margin-top:16px"><summary><strong>Format numbers as a table</strong></summary>${groupTable(stats.formats)}</details>
+      </div>`;
+  }
+
+  function heatmapHTML() {
+    const h = stats.heatmap;
+    const values = h.cells.flat().filter(c => c.posts >= 2).map(c => c.medianEngagement);
+    if (!values.length) return '<p class="muted">Not enough posts with a publish time.</p>';
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const rows = h.cells.map((row, i) => {
+      if (!row.some(c => c.posts)) return '';
+      return `<tr><th scope="row">${esc(h.blocks[i])}</th>${row.map(c => {
+        if (c.posts < 2) return `<td class="heat empty" title="${c.posts ? '1 post — too few' : 'No posts'}">${c.posts ? '·' : ''}</td>`;
+        const t = max > min ? (c.medianEngagement - min) / (max - min) : 1;
+        const light = 92 - t * 62;
+        return `<td class="heat" style="background:hsl(192 70% ${light}%);color:${light < 55 ? '#fff' : '#1a202c'}" title="${c.posts} posts · typical engagement ${SC.formatPct(c.medianEngagement)}">${SC.formatPct(c.medianEngagement)}</td>`;
+      }).join('')}</tr>`;
+    }).join('');
+    return `<div class="table-wrap"><table class="heatmap"><thead><tr><th></th>${h.days.map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="muted" style="margin:6px 0 0">Cells with fewer than 2 posts are left blank.</p>`;
   }
 
   // ── Media section ──
@@ -682,6 +757,55 @@
         }),
       });
     }
+    // Horizontal bar charts by format, coloured by platform.
+    const platformColor = label => label.startsWith('Instagram') ? COLORS.ig : COLORS.fb;
+    const hbar = (id, groups, valueOf, format) => {
+      const canvas = $(id);
+      if (!canvas || !groups.length) return;
+      charts[id] = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: groups.map(g => g.label + (g.reliable === false ? ' *' : '')),
+          datasets: [{ data: groups.map(valueOf), backgroundColor: groups.map(g => platformColor(g.label)), borderRadius: 4, maxBarThickness: 22 }],
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => format(ctx.raw) + (groups[ctx.dataIndex].posts ? ` · ${groups[ctx.dataIndex].posts} posts` : '') } } },
+          scales: {
+            x: { beginAtZero: true, grid: { color: '#eef2f3' }, border: { display: false }, ticks: { callback: v => format(v) } },
+            y: { grid: { display: false } },
+          },
+        },
+      });
+    };
+    const byValue = key => stats.formats.slice().sort((a, b) => b[key] - a[key]);
+    hbar('chart-format-reach', byValue('medianReach'), g => g.medianReach, v => SC.formatNumber(v));
+    hbar('chart-format-eng', byValue('medianEngagement'), g => g.medianEngagement, v => SC.formatPct(v));
+    hbar('chart-format-follows', stats.formats.filter(g => g.followsPerPost !== null).sort((a, b) => b.followsPerPost - a.followsPerPost), g => g.followsPerPost, v => (Math.round(v * 100) / 100).toString());
+    hbar('chart-format-mix', stats.contentMix.map(m => ({ label: m.label, posts: m.count, count: m.count })), g => g.count, v => Math.round(v).toString());
+
+    const responseCanvas = $('chart-format-response');
+    if (responseCanvas) {
+      const groups = stats.formats;
+      const series = [
+        { label: 'Comments', key: 'avgComments', color: '#0b87a6' },
+        { label: 'Shares', key: 'avgShares', color: '#c27c0e' },
+        { label: 'Saves (Instagram only)', key: 'avgSaves', color: '#7c5cd6' },
+      ];
+      charts.response = new Chart(responseCanvas, {
+        type: 'bar',
+        data: {
+          labels: groups.map(g => g.label),
+          datasets: series.map(s => ({ label: s.label, data: groups.map(g => g[s.key] === null ? null : Math.round(g[s.key] * 10) / 10), backgroundColor: s.color, borderRadius: 3, maxBarThickness: 12, borderColor: '#fff', borderWidth: 1 })),
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } },
+          scales: { x: { beginAtZero: true, grid: { color: '#eef2f3' }, border: { display: false } }, y: { grid: { display: false } } },
+        },
+      });
+    }
+
     const mediaCanvas = $('chart-media');
     if (mediaCanvas) {
       const mediaMonths = stats.media.months;
