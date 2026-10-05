@@ -1358,6 +1358,7 @@ let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
 
 let articleTracker = { rows: [], filename: '', importedAt: null, rejected: 0, duplicates: 0 };
+let amecTrackerImportVersion = 0;
 
 function normalizeAmecTrackerDate(value, date1904 = false) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
@@ -1412,7 +1413,7 @@ function buildTrackerCardsHTML(tracker = articleTracker) {
       <section class="amec-client-panel"><h3>Key Moments</h3><p class="amec-client-unmeasured">No dated key moments are available without the PR activity workbook.</p></section>
     </div>`;
   }
-  const outlets = new Set(rows.map(row => row.outlet.toLowerCase())).size;
+  const outlets = new Set(rows.map(row => row.outlet.trim().toLowerCase().replace(/^the\s+/, ''))).size;
   const themeCounts = new Map();
   rows.forEach(row => {
     const label = row.theme || 'Unclassified';
@@ -1442,6 +1443,7 @@ function renderTrackerCards() {
 async function uploadAmecTracker(input) {
   const file = input.files?.[0];
   if (!file) return;
+  const importVersion = ++amecTrackerImportVersion;
   const status = document.getElementById('amec-tracker-status');
   if (status) status.textContent = 'Reading workbook…';
   try {
@@ -1472,13 +1474,14 @@ async function uploadAmecTracker(input) {
     }
     const normalized = normalizeAmecTrackerRows(records, date1904);
     if (!normalized.rows.length) throw new Error('No valid rows found. Publication, title and publish date are required.');
+    if (importVersion !== amecTrackerImportVersion) return;
     articleTracker = { ...normalized, filename: file.name, importedAt: new Date().toISOString() };
     renderTrackerCards();
     if (status) status.textContent = `${normalized.rows.length} records loaded · ${normalized.duplicates} duplicates removed · ${normalized.rejected} invalid rows skipped.`;
   } catch (error) {
-    if (status) status.textContent = error instanceof Error ? error.message : 'The tracker could not be imported.';
+    if (importVersion === amecTrackerImportVersion && status) status.textContent = error instanceof Error ? error.message : 'The tracker could not be imported.';
   } finally {
-    input.value = '';
+    if (importVersion === amecTrackerImportVersion) input.value = '';
   }
 }
 
@@ -1501,7 +1504,7 @@ function buildFallbackAmecReport() {
   });
   const stages = ['objectives', 'inputs', 'activities', 'outputs', 'outtakes'].map(stage => ({
     stage,
-    status: stage === 'activities' || stage === 'outputs' ? (rows.length ? 'measured' : 'unmeasured') : 'unmeasured',
+    status: stage === 'outputs' && rows.length ? 'partial' : 'unmeasured',
     summary: stage === 'outputs' && rows.length ? `${rows.length} tracker records imported.` : 'No additional measure supplied.',
     measures: [],
   }));

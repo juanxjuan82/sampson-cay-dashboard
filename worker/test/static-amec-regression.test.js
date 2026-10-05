@@ -34,3 +34,11 @@ test('tracker export hardens inline JSON and preserves workbook evidence', async
   assert.match(html, /cell\?\.l\?\.Target/);
   assert.match(html, /parsed\.toISOString\(\)\.slice\(0, 10\) === key/);
 });
+
+test('fallback reporting preserves AMEC boundaries and latest-import wins', async () => {
+  const html = await readFile(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /status: stage === 'outputs' && rows\.length \? 'partial' : 'unmeasured'/);
+  assert.match(html, /const importVersion = \+\+amecTrackerImportVersion/);
+  assert.match(html, /if \(importVersion !== amecTrackerImportVersion\) return/);
+  assert.match(html, /outlet\.trim\(\)\.toLowerCase\(\)\.replace\(\/\^the\\s\+\//);
+});
