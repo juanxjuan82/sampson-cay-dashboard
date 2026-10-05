@@ -840,7 +840,8 @@
     #view-amec{padding-bottom:28px}
     @media(max-width:900px){.amec-client-stage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.amec-client-header{display:block}.amec-client-period{margin-top:14px}}
     @media(max-width:620px){.amec-client-report{padding:16px}.amec-client-metrics,.amec-client-two-col,.amec-client-social-grid{grid-template-columns:1fr}.amec-client-stage-grid{grid-template-columns:1fr}}
-  </style></head>
+  </style>  <script src="vendor/xlsx.full.min.js"></script>
+</head>
 <body>
 
 <!-- ══════════════════ HEADER ══════════════════ -->
@@ -1156,7 +1157,22 @@
   </div><!-- /view-posts -->
 
   <div id="view-amec" class="dashboard-view" role="tabpanel" aria-labelledby="tab-amec">
-    <div id="amec-app-root"><section class="amec-client-report" aria-labelledby="amec-client-title">
+    <section id="amec-tracker-upload" class="amec-client-panel" style="margin:0 0 12px">
+    <h3>PR activity workbook</h3>
+    <small>Upload or replace the XLSX workbook, or a CSV export of the Media Mentions sheet.</small>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <label class="btn btn-outline btn-sm" for="amec-tracker-input">↑ Upload PR tracker</label>
+      <input id="amec-tracker-input" type="file" accept=".xlsx,.xls,.csv" onchange="uploadAmecTracker(this)" style="position:absolute;left:-9999px">
+      <span id="amec-tracker-status" class="kpi-sub" role="status">No workbook uploaded in this session.</span>
+    </div>
+  </section>
+  <div id="amec-tracker-cards">
+    <div class="amec-client-two-col" data-amec-recovered-cards>
+      <section class="amec-client-panel"><h3>Media Narrative</h3><p class="amec-client-unmeasured">The published snapshot contains source-coded outputs and themes. Upload the current PR activity workbook in the administrator view to refresh this narrative.</p></section>
+      <section class="amec-client-panel"><h3>Key Moments</h3><p class="amec-client-unmeasured">No dated key moments were included in this saved snapshot. They will appear after the PR activity workbook is imported and the client report is republished.</p></section>
+    </div>
+  </div>
+  <div id="amec-app-root"><section class="amec-client-report" aria-labelledby="amec-client-title">
     <header class="amec-client-header">
       <div><p class="amec-client-kicker">Sampson Cay / Yntegra · AMEC evaluation</p><h1 id="amec-client-title">Communications measurement</h1><p>Documented communications outputs, with audience response kept separate until measured.</p></div>
       <div class="amec-client-period"><strong>Reporting period</strong><span>Not available — Not available</span><small>Read-only snapshot · workbook last imported Oct 5, 2026</small></div>
@@ -1340,7 +1356,206 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-10-04.5'; // Bump whenever report-generation code changes.
+
+let articleTracker = { rows: [], filename: '', importedAt: null, rejected: 0, duplicates: 0 };
+let amecTrackerImportVersion = 0;
+
+function normalizeAmecTrackerDate(value, date1904 = false) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === 'number' && window.XLSX?.SSF) {
+    const parsed = XLSX.SSF.parse_date_code(value, { date1904 });
+    if (!parsed) return '';
+    const key = [parsed.y, String(parsed.m).padStart(2, '0'), String(parsed.d).padStart(2, '0')].join('-');
+    const date = new Date(`${key}T00:00:00Z`);
+    return parsed.d > 0 && !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === key ? key : '';
+  }
+  const text = String(value || '').trim();
+  let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[ T])/);
+  let key = match ? [match[1], match[2].padStart(2, '0'), match[3].padStart(2, '0')].join('-') : '';
+  if (!key) {
+    match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    key = match ? [match[3], match[1].padStart(2, '0'), match[2].padStart(2, '0')].join('-') : '';
+  }
+  if (!key) return '';
+  const parsed = new Date(`${key}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === key ? key : '';
+}
+
+function normalizeAmecTrackerRows(records, date1904 = false) {
+  const rows = [];
+  const seen = new Set();
+  let rejected = 0;
+  let duplicates = 0;
+  records.forEach(record => {
+    const title = String(record['Article Title & URL'] || record['Article Title'] || record.Title || record.Headline || '').trim();
+    const outlet = String(record['Publication Name'] || record.Publication || record.Outlet || '').trim();
+    const date = normalizeAmecTrackerDate(record['Publish Date'] || record.Date, date1904);
+    if (!title && !outlet && !date) return;
+    if (!title || !outlet || !date) { rejected += 1; return; }
+    const key = [outlet.toLowerCase().replace(/^the\s+/, ''), date, title.toLowerCase()].join('|');
+    if (seen.has(key)) { duplicates += 1; return; }
+    seen.add(key);
+    rows.push({
+      title: title.slice(0, 1000),
+      outlet: outlet.slice(0, 200),
+      date,
+      type: String(record['Coverage Type'] || record.Type || 'Unclassified').trim().slice(0, 120),
+      theme: String(record.Theme || record.Pillar || '').trim().slice(0, 200),
+      url: String(record['Article URL'] || record.URL || '').trim().slice(0, 2000),
+    });
+  });
+  rows.sort((left, right) => right.date.localeCompare(left.date) || left.outlet.localeCompare(right.outlet));
+  return { rows, rejected, duplicates };
+}
+
+function buildTrackerCardsHTML(tracker = articleTracker) {
+  const rows = Array.isArray(tracker?.rows) ? tracker.rows : [];
+  if (!rows.length) {
+    return `<div class="amec-client-two-col" data-amec-recovered-cards>
+      <section class="amec-client-panel"><h3>Media Narrative</h3><p class="amec-client-unmeasured">No PR activity workbook is included in this report. Upload it in the administrator view and republish.</p></section>
+      <section class="amec-client-panel"><h3>Key Moments</h3><p class="amec-client-unmeasured">No dated key moments are available without the PR activity workbook.</p></section>
+    </div>`;
+  }
+  const outlets = Number.isFinite(tracker.outletCount)
+    ? tracker.outletCount
+    : new Set(rows.map(row => row.outlet.trim().toLowerCase().replace(/^the\s+/, ''))).size;
+  const themeCounts = new Map();
+  rows.forEach(row => {
+    const label = row.theme || 'Unclassified';
+    themeCounts.set(label, (themeCounts.get(label) || 0) + 1);
+  });
+  const computedLeadingTheme = [...themeCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const leadingTheme = tracker.leadingTheme
+    ? [tracker.leadingTheme.label, tracker.leadingTheme.count]
+    : computedLeadingTheme;
+  const latestDate = rows[0].date;
+  const latestRows = rows.filter(row => row.date === latestDate).slice(0, 3);
+  const totalRecords = Number.isFinite(tracker.totalRecords) ? tracker.totalRecords : rows.length;
+  const narrative = `${totalRecords.toLocaleString()} tracked items across ${outlets.toLocaleString()} outlets. ${leadingTheme ? `The most frequently recorded theme is ${escapeAmecSnapshotText(leadingTheme[0])} (${leadingTheme[1].toLocaleString()} items).` : ''} These are publication records, not evidence of public belief or trust.`;
+  const moments = latestRows.map(row => {
+    const linkedTitle = /^https?:\/\//i.test(row.url)
+      ? `<a href="${escapeAmecSnapshotText(row.url)}" target="_blank" rel="noopener noreferrer">${escapeAmecSnapshotText(row.title)}</a>`
+      : escapeAmecSnapshotText(row.title);
+    return `<div class="amec-client-list-row"><span><b>${linkedTitle}</b><small>${escapeAmecSnapshotText(row.outlet)} · ${escapeAmecSnapshotText(row.date)}</small></span></div>`;
+  }).join('');
+  return `<div class="amec-client-two-col" data-amec-recovered-cards>
+    <section class="amec-client-panel"><h3>Media Narrative</h3><p>${narrative}</p><small>Workbook: ${escapeAmecSnapshotText(tracker.filename || 'Imported tracker')} · imported ${escapeAmecSnapshotText(String(tracker.importedAt || '').slice(0, 10) || 'date unavailable')}</small></section>
+    <section class="amec-client-panel"><h3>Key Moments</h3><small>Latest recorded publication date: ${escapeAmecSnapshotText(latestDate)}</small><div class="amec-client-list">${moments}</div></section>
+  </div>`;
+}
+
+function renderTrackerCards() {
+  const mount = document.getElementById('amec-tracker-cards');
+  if (mount) mount.innerHTML = buildTrackerCardsHTML(articleTracker);
+}
+
+function buildClientTrackerSnapshot(tracker = articleTracker) {
+  const rows = Array.isArray(tracker?.rows) ? tracker.rows : [];
+  const outletCount = new Set(rows.map(row => row.outlet.trim().toLowerCase().replace(/^the\s+/, ''))).size;
+  const themeCounts = new Map();
+  rows.forEach(row => {
+    const label = row.theme || 'Unclassified';
+    themeCounts.set(label, (themeCounts.get(label) || 0) + 1);
+  });
+  const leading = [...themeCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+  return {
+    filename: tracker.filename || '',
+    importedAt: tracker.importedAt || null,
+    rejected: Number(tracker.rejected || 0),
+    duplicates: Number(tracker.duplicates || 0),
+    totalRecords: rows.length,
+    outletCount,
+    leadingTheme: leading ? { label: leading[0], count: leading[1] } : null,
+    rows: rows.slice(0, 10).map(row => ({ ...row })),
+  };
+}
+
+async function uploadAmecTracker(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const importVersion = ++amecTrackerImportVersion;
+  const status = document.getElementById('amec-tracker-status');
+  if (status) status.textContent = 'Reading workbook…';
+  try {
+    if (file.size > 15 * 1024 * 1024) throw new Error('Choose a workbook smaller than 15 MB.');
+    let records;
+    let date1904 = false;
+    if (/\.csv$/i.test(file.name)) {
+      const parsed = Papa.parse(await file.text(), { header: true, skipEmptyLines: true });
+      if (parsed.errors?.length) throw new Error('The CSV contains malformed rows.');
+      records = parsed.data;
+    } else {
+      if (!window.XLSX) throw new Error('The Excel reader did not load. Reload and try again.');
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+      const sheetName = workbook.SheetNames.find(name => name.trim().toLowerCase() === 'media mentions');
+      if (!sheetName) throw new Error('The workbook needs a sheet named Media Mentions.');
+      date1904 = Boolean(workbook.Workbook?.WBProps?.date1904);
+      const worksheet = workbook.Sheets[sheetName];
+      records = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: true });
+      const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1, range: 0, blankrows: false })[0] || [];
+      const titleHeaders = ['Article Title & URL', 'Article Title', 'Title', 'Headline'];
+      records.forEach(record => {
+        const headerName = titleHeaders.find(name => Object.prototype.hasOwnProperty.call(record, name));
+        const column = headerName ? headers.indexOf(headerName) : -1;
+        if (column < 0 || !Number.isInteger(record.__rowNum__)) return;
+        const cell = worksheet[XLSX.utils.encode_cell({ r: record.__rowNum__, c: column })];
+        if (cell?.l?.Target && /^https?:\/\//i.test(cell.l.Target)) record['Article URL'] = cell.l.Target;
+      });
+    }
+    const normalized = normalizeAmecTrackerRows(records, date1904);
+    if (!normalized.rows.length) throw new Error('No valid rows found. Publication, title and publish date are required.');
+    if (importVersion !== amecTrackerImportVersion) return;
+    articleTracker = { ...normalized, filename: file.name, importedAt: new Date().toISOString() };
+    renderTrackerCards();
+    if (status) status.textContent = `${normalized.rows.length} records loaded · ${normalized.duplicates} duplicates removed · ${normalized.rejected} invalid rows skipped.`;
+  } catch (error) {
+    if (importVersion === amecTrackerImportVersion && status) status.textContent = error instanceof Error ? error.message : 'The tracker could not be imported.';
+  } finally {
+    if (importVersion === amecTrackerImportVersion) input.value = '';
+  }
+}
+
+function buildFallbackAmecReport() {
+  const rows = Array.isArray(articleTracker.rows) ? articleTracker.rows : [];
+  const countBy = getter => {
+    const counts = new Map();
+    rows.forEach(row => {
+      const label = getter(row) || 'Unclassified';
+      counts.set(label, (counts.get(label) || 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([label, count]) => ({ label, count }));
+  };
+  const dates = rows.map(row => row.date).filter(Boolean).sort();
+  const quarterMap = new Map();
+  rows.forEach(row => {
+    const month = Number(row.date.slice(5, 7));
+    const quarter = `${row.date.slice(0, 4)} Q${Math.ceil(month / 3)}`;
+    quarterMap.set(quarter, (quarterMap.get(quarter) || 0) + 1);
+  });
+  const stages = ['objectives', 'inputs', 'activities', 'outputs', 'outtakes'].map(stage => ({
+    stage,
+    status: stage === 'outputs' && rows.length ? 'partial' : 'unmeasured',
+    summary: stage === 'outputs' && rows.length ? `${rows.length} tracker records imported.` : 'No additional measure supplied.',
+    measures: [],
+  }));
+  return {
+    period: { startDate: dates[0] || null, endDate: dates[dates.length - 1] || null },
+    lastImportedAt: articleTracker.importedAt,
+    stages,
+    outputMetrics: { totalMediaMentions: rows.length, pickupMultiplier: null, highImpactFeatureCount: 0, localPickupNumerator: 0, distributedCampaignCount: 0, publicationShare: [], sentimentDistribution: [], themeSentimentAlignment: [], domainVisibility: [], sentimentSampleSize: 0 },
+    quarterlyActivity: [...quarterMap.entries()].map(([quarter, mediaMentions]) => ({ quarter, pressReleases: 0, communicationActivities: 0, mediaMentions })),
+    sourceCoverage: rows.length ? [{ sheetName: 'Media Mentions', datedRows: rows.length, latestDate: dates[dates.length - 1], rowCount: rows.length }] : [],
+    coverageTypes: countBy(row => row.type),
+    themes: countBy(row => row.theme),
+    topPublications: countBy(row => row.outlet),
+    social: {
+      instagram: { postCount: igPosts.length, metrics: { reach: igPosts.reduce((sum, row) => sum + (row.reach || 0), 0), views: igPosts.reduce((sum, row) => sum + (row.views || 0), 0) } },
+      facebook: { postCount: fbPosts.length, metrics: { reach: fbPosts.reduce((sum, row) => sum + (row.reach || 0), 0), views: fbPosts.reduce((sum, row) => sum + (row.views || 0), 0) } },
+    },
+  };
+}
+
+const DASHBOARD_VERSION = '2026-10-05.3'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -1372,6 +1587,8 @@ window.addEventListener('DOMContentLoaded', () => {
     currentFilter = 'all';
     sharedEditableContent = embedded.editableOverrides || {};
     summaryMode = embedded.summaryMode === 'ai' ? 'ai' : 'deterministic';
+    articleTracker = embedded.articleTracker && Array.isArray(embedded.articleTracker.rows) ? embedded.articleTracker : articleTracker;
+    renderTrackerCards();
     if (embedded.brandColors) {
       Object.assign(TYPE_COLORS, embedded.brandColors.typeColors);
       Object.assign(PLATFORM_COLORS, embedded.brandColors.platformColors);
@@ -4195,12 +4412,8 @@ function buildAmecClientReportStyles() {
 }
 
 async function loadAmecReportForClient() {
-  const exporterDeadline = Date.now() + 5000;
-  while (typeof window.__SAMPSON_AMEC_REPORT_EXPORT__ !== 'function') {
-    if (Date.now() >= exporterDeadline) {
-      throw new Error('The AMEC report is not ready. Reload the admin dashboard and try again.');
-    }
-    await new Promise(resolve => setTimeout(resolve, 100));
+  if (typeof window.__SAMPSON_AMEC_REPORT_EXPORT__ !== 'function') {
+    return buildFallbackAmecReport();
   }
   let timeoutId;
   try {
@@ -4230,13 +4443,18 @@ async function buildClientHTML(preloadedAmecReport) {
     }),
     editableOverrides: { ...sharedEditableContent },
     summaryMode: summaryMode,
+    articleTracker: buildClientTrackerSnapshot(articleTracker),
     brandColors: {
       typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
       platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
     },
   };
-  const dataJSON = JSON.stringify(data);
+  const dataJSON = JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
   const currentHTML = (_pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML))
+    .replace(/<script\b(?=[^>]*\bsrc=["']vendor\/xlsx\.full\.min\.js["'])[^>]*>\s*<\/script>/gi, '')
     .replace(/<script\b(?=[^>]*\btype=["']module["'])[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>/gi, '')
     .replace(/<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["'][^"']*assets\/[^"']+\.css[^"']*["'][^>]*>/gi, '')
@@ -4245,12 +4463,13 @@ async function buildClientHTML(preloadedAmecReport) {
   if (!currentHTML.includes(amecMount)) {
     throw new Error('The report template does not contain the AMEC evaluation panel.');
   }
-  const clientHTML = currentHTML.replace(amecMount, `<div id="amec-app-root">${amecMarkup}</div>`);
+  let clientHTML = currentHTML.replace(amecMount, `<div id="amec-app-root">${amecMarkup}</div>`);
+  clientHTML = clientHTML.replace('<div id="amec-tracker-cards"></div>', `<div id="amec-tracker-cards">${buildTrackerCardsHTML(articleTracker)}</div>`);
   const dataScript = `<script data-sampson-report-data>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
     #upload-screen, #github-modal, #ai-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
-    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root { display: none !important; }
+    #btn-github, #btn-sync-source, #amec-tracker-upload, .toolbar-right, #react-overlay-root { display: none !important; }
     .editable-field { cursor: default !important; }
     :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
     .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
