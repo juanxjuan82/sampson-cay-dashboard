@@ -489,7 +489,7 @@
     return `
       <section class="block card" id="summary">
         <div class="section-head">
-          <div><h2>Executive summary</h2><span class="badge">${label}</span>
+          <div><h2>Executive summary</h2>${admin && source !== 'auto' ? `<span class="badge">${label}</span>` : ''}
             <span class="muted">&nbsp;${esc(stats.range.label)} · ${SC.formatDate(stats.range.start)} – ${SC.formatDate(stats.range.end)}</span></div>
           <div class="btn-row no-print">
             ${admin && !editing ? `<button class="btn" type="button" id="btn-edit">✏️ Edit summary</button>` : ''}
