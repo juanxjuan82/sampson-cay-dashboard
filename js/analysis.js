@@ -515,6 +515,7 @@
       busiestMonth,
       moments,
       latest: items.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+      latestAll: items.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25),
       first: items.length ? items.reduce((min, item) => item.date < min ? item.date : min, items[0].date) : null,
       last: items.length ? items.reduce((max, item) => item.date > max ? item.date : max, items[0].date) : null,
     };
@@ -595,6 +596,10 @@
       hasSocial: posts.length > 0,
       hasMedia: mediaItems.length > 0,
       paid,
+      response: {
+        organic: { comments: sum(organic.map(p => p.comments || 0)), shares: sum(organic.map(p => p.shares || 0)), instagramFollows: sum(organic.map(p => p.follows || 0)) },
+        boosted: { comments: sum(paidPosts.map(p => p.comments || 0)), shares: sum(paidPosts.map(p => p.shares || 0)), instagramFollows: sum(paidPosts.map(p => p.follows || 0)) },
+      },
       organic: organicByPlatform,
       previousOrganic,
       changes: previousTotals ? {
@@ -775,6 +780,8 @@
         changes: stats.changes,
         postsPerWeek: Number(stats.postsPerWeek.toFixed(2)),
         likelyBoostedPosts: stats.boostedCount,
+        audienceResponse: stats.response,
+        topPostsCaptionsNote: 'Captions show what each top post was about; use them to judge which kinds of content (proof of progress, community voices, news responses, commitments) earn a response.',
         boosted: stats.paid,
         organicByPlatform: stats.organic,
         previousOrganicByPlatform: stats.previousOrganic,
@@ -793,6 +800,7 @@
         themes: stats.media.themes.slice(0, 6),
         sentiments: stats.media.sentiments,
         months: stats.media.months,
+        recentHeadlines: stats.media.latestAll.map(i => ({ date: i.date, outlet: i.outlet, type: i.type, theme: i.theme, title: i.title.slice(0, 160) })),
         keyMoments: stats.media.moments.map(mo => ({ date: mo.date, count: mo.count, headlines: mo.items.slice(0, 3).map(i => i.outlet + ': ' + i.title) })),
       },
     };

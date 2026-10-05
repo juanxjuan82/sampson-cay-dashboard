@@ -72,6 +72,10 @@
       data = normalize(remote);
       unsaved = false;
     }
+    // The client report opens on the period the saved summary was written for.
+    if (MODE === 'client' && data.summary && SC.PERIODS[String(data.summary.key || '').split('|')[0]]) {
+      period = data.summary.key.split('|')[0];
+    }
     renderShell();
     render();
   }
@@ -440,7 +444,7 @@
 
   function summaryHTML() {
     const { summary, source } = currentSummary();
-    const label = source === 'ai' ? 'AI-written, reviewed' : source === 'edited' ? 'Edited' : 'Automatic';
+    const label = source === 'ai' ? 'AI-written, reviewed' : source === 'analyst' ? 'Analyst summary' : source === 'edited' ? 'Edited' : 'Automatic';
     const admin = MODE === 'admin';
     const aiReady = Boolean(readStore('dashboard_ai_endpoint_v2', '') && readStore('dashboard_ai_token_v2', ''));
     const block = (title, field) => editing
@@ -536,7 +540,10 @@
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.summary) throw new Error(payload.error || `the AI writer returned ${response.status}`);
       const s = payload.summary;
-      const recs = String(s.recommendedDirection || '').split(/(?<=[.!?])\s+(?=[A-Z])/).map(r => r.trim()).filter(Boolean);
+      const text = String(s.recommendedDirection || '');
+      // One recommendation per line; older worker versions return a paragraph, so fall back to sentences.
+      const recs = (text.includes('\n') ? text.split(/\n+/) : text.split(/(?<=[.!?])\s+(?=[A-Z])/))
+        .map(r => r.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean);
       storeSummary({ overview: s.performanceOverview, working: s.whatsWorking, attention: s.whatsNotWorking, recommendations: recs }, 'ai');
     } catch (error) {
       alert('AI rewrite failed: ' + error.message);
