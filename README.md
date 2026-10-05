@@ -26,3 +26,8 @@ Until you click Save, changes are kept only in the browser you're using.
 - `data/dashboard.json`: the saved data.
 - `worker/`: optional Cloudflare Worker for the "Rewrite with AI" button.
 - `tests/`: run `npm test`.
+
+## When changing the code
+Bump the `?v=` number on the `css/` and `js/` links in `index.html` and `report.html`, so browsers fetch the new files instead of using stored copies.
+
+If you edit `data/dashboard.json` by hand, also set its `savedAt` to the current time, so browsers holding an older copy switch to the new one.

@@ -65,13 +65,24 @@
     if (!SC.PERIODS[period]) period = '90';
     const remote = await loadRemote();
     const local = MODE === 'admin' ? readStore(LOCAL_KEY, null) : null;
-    // Use this browser's copy only when it has changes newer than the published file.
-    if (local && local.updatedAt && (!remote || !remote.savedAt || local.updatedAt > remote.savedAt)) {
+    // This browser's copy is used only when it holds unsaved edits made on top of the
+    // version that is on the website now. If the website has moved on since (saved from
+    // another computer, or updated directly), the website version wins and the old
+    // edits are set aside rather than silently hiding the newer data.
+    const hasUnsaved = Boolean(local && local.updatedAt && (!local.savedAt || local.updatedAt > local.savedAt));
+    const websiteMovedOn = Boolean(remote && remote.savedAt && (!local || !local.savedAt || remote.savedAt > local.savedAt));
+    let setAside = null;
+    if (local && (!remote || (hasUnsaved && !websiteMovedOn))) {
       data = normalize(local);
-      unsaved = Boolean(remote) || data.posts.length > 0 || data.media.length > 0;
+      unsaved = hasUnsaved;
     } else {
       data = normalize(remote);
       unsaved = false;
+      if (hasUnsaved && websiteMovedOn) {
+        writeStore(LOCAL_KEY + '_set_aside', local);
+        setAside = local.updatedAt;
+      }
+      writeStore(LOCAL_KEY, data);
     }
     // The client report opens on the period the saved summary was written for.
     if (MODE === 'client' && data.summary && SC.PERIODS[String(data.summary.key || '').split('|')[0]]) {
@@ -79,6 +90,9 @@
     }
     renderShell();
     render();
+    if (setAside) {
+      setSaveStatus(`The website had a newer version, so it was loaded. Unsaved changes made in this browser on ${new Date(setAside).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} were set aside.`, 'warn');
+    }
   }
 
   function markChanged() {
