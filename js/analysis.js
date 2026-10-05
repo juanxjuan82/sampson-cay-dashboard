@@ -646,6 +646,8 @@
       quietDuringNews: quietDuringNews(longestGapDays(posts, range), mediaItems),
       contentKinds: contentKindStats(organic),
       organicPostCount: organic.length,
+      // Comments are turned off on the project's posts, so a lack of comments says nothing about the audience.
+      commentsOff: Boolean(data.settings && data.settings.commentsOff),
       topPostKind: topPosts[0] ? kindOf(topPosts[0]) : null,
       media: Object.assign(mediaAnalysis(mediaItems, previousMedia), {
         oppositionLed: mediaItems.filter(isOppositionLed).length,
@@ -654,8 +656,8 @@
       hasMedia: mediaItems.length > 0,
       paid,
       response: {
-        organic: { comments: sum(organic.map(p => p.comments || 0)), shares: sum(organic.map(p => p.shares || 0)), instagramFollows: sum(organic.map(p => p.follows || 0)) },
-        boosted: { comments: sum(paidPosts.map(p => p.comments || 0)), shares: sum(paidPosts.map(p => p.shares || 0)), instagramFollows: sum(paidPosts.map(p => p.follows || 0)) },
+        organic: { comments: sum(organic.map(p => p.comments || 0)), shares: sum(organic.map(p => p.shares || 0)), saves: sum(organic.map(p => p.saves || 0)), instagramFollows: sum(organic.map(p => p.follows || 0)) },
+        boosted: { comments: sum(paidPosts.map(p => p.comments || 0)), shares: sum(paidPosts.map(p => p.shares || 0)), saves: sum(paidPosts.map(p => p.saves || 0)), instagramFollows: sum(paidPosts.map(p => p.follows || 0)) },
       },
       organic: organicByPlatform,
       previousOrganic,
@@ -760,7 +762,9 @@
       if (org.all.posts) {
         overview.push(`${paid.posts ? 'Without boosting, a post' : 'A post'} typically reaches a core audience of about ${formatNumber(org.all.medianReach)} people${org.ig.posts >= 3 ? `, and on Instagram that core is engaged (${formatPct(org.ig.medianEngagement)} typical engagement${prevOrg && prevOrg.ig.posts >= 3 && org.ig.medianEngagement - prevOrg.ig.medianEngagement >= 1 ? ', and rising' : ''})` : ''}.`);
       }
-      if (stats.organicPostCount >= 5 && resp.organic.comments / stats.organicPostCount < 0.5) {
+      if (stats.organicPostCount >= 5 && stats.commentsOff) {
+        overview.push(`With comments turned off, shares and saves are the clearest signs of support: ${plural(stats.organicPostCount, 'unboosted post')} drew ${plural(resp.organic.shares, 'share')} and ${plural(resp.organic.saves, 'save')}.`);
+      } else if (stats.organicPostCount >= 5 && resp.organic.comments / stats.organicPostCount < 0.5) {
         overview.push(`That audience responds mostly with likes: ${plural(resp.organic.comments, 'comment')} and ${plural(resp.organic.shares, 'share')} across ${plural(stats.organicPostCount, 'unboosted post')}, so the visible conversation on our channels is still small.`);
       }
     }
@@ -807,7 +811,9 @@
     if (enough && lags(kinds.commitments)) {
       add(5, `Environmental commitment posts drew less response than the rest of the feed (${formatPct(kinds.commitments.igEngagement)} against ${formatPct(kinds.commitments.igEngagementRest)} on Instagram). With environmental approvals at the centre of the public debate, evidence, data and independent experts are the opportunity here.`);
     }
-    if (stats.hasSocial && stats.organicPostCount >= 5 && resp.organic.comments / stats.organicPostCount < 0.5) {
+    if (stats.hasSocial && stats.organicPostCount >= 5 && stats.commentsOff) {
+      add(6, 'With comments off, shares are how supporters speak up. Designing posts to be passed on, with one clear fact or a quote worth repeating, will carry the project\'s story further.');
+    } else if (stats.hasSocial && stats.organicPostCount >= 5 && resp.organic.comments / stats.organicPostCount < 0.5) {
       add(6, 'Building visible two-way conversation is a natural next step: inviting questions and replying publicly will make the support that exists easier to see.');
     }
     if (stats.quietDuringNews) {
@@ -858,6 +864,7 @@
         postsPerWeek: Number(stats.postsPerWeek.toFixed(2)),
         likelyBoostedPosts: stats.boostedCount,
         audienceResponse: stats.response,
+        commentsTurnedOff: stats.commentsOff,
         topPostsCaptionsNote: 'Captions show what each top post was about; use them to judge which kinds of content (proof of progress, community voices, news responses, commitments) earn a response.',
         boosted: stats.paid,
         organicByPlatform: stats.organic,

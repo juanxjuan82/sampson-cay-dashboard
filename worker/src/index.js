@@ -26,7 +26,7 @@ Your job is interpretation, not reporting. Do not recite metrics. Use a number o
 
 Read the evidence for:
 - How the audience is built: the share of reach and followers that comes from boosted posts vs organic posts (boosted, audienceResponse, organicByPlatform). Paid reach that produces little interaction is attention, not support.
-- What kind of relationship the audience has with the content: liking vs commenting vs sharing. Sharing means people want to pass the project's case on. Silence in comments leaves the conversation to others.
+- What kind of relationship the audience has with the content: liking vs commenting vs sharing and saving. If commentsTurnedOff is true, comments are disabled on the project's regular posts by choice; only boosted posts (ads) receive comments, because comments cannot be turned off on ads. Never treat the lack of comments on unboosted posts as a finding or suggest turning them on; use shares and saves instead. Sharing means people want to pass the project's case on. Silence in comments leaves the conversation to others.
 - Which kinds of content earn a response: use the formats, themes and top-post captions. Distinguish proof (visible progress, named people, evidence) from promises and commitments.
 - How the media narrative is moving: use recentHeadlines and keyMoments to say whose framing is leading, what the main allegations are, and whether the project's own channels were active when the big stories broke (longestGapDays, posting dates).
 

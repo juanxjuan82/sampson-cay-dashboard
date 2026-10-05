@@ -172,7 +172,8 @@ test('summaries stay forward-looking and never read as blame', () => {
     const text = [summary.overview, summary.working, summary.attention, ...summary.recommendations].join(' ');
     assert.doesNotMatch(text, blame, `period ${period}`);
   }
-  const saved = [data.summary.overview, data.summary.working, data.summary.attention, ...data.strategy.recommendations].join(' ');
+  const tactics = (data.tactics ? data.tactics.items.flatMap(t => [t.what, t.angle, t.why]).concat(data.tactics.exploring || []) : []);
+  const saved = [data.summary.overview, data.summary.working, data.summary.attention, ...data.strategy.recommendations, ...tactics].join(' ');
   assert.doesNotMatch(saved, blame, 'saved analyst summary');
 });
 
@@ -180,4 +181,13 @@ test('short periods say when there are too few posts to judge', () => {
   const posts = SC.parseSocialRows([igRow('a', '09/01/2026', 100, 5), igRow('b', '09/02/2026', 120, 6)], igHeaders).posts;
   const summary = SC.buildSummary(SC.analyze({ posts, media: [] }, '30'));
   assert.match(summary.working, /too few unboosted posts/);
+});
+
+test('with comments turned off, the summary uses shares and saves instead of comments', () => {
+  const data = require('../data/dashboard.json');
+  const on = SC.buildSummary(SC.analyze(Object.assign({}, data, { settings: { commentsOff: false } }), '365'));
+  const off = SC.buildSummary(SC.analyze(Object.assign({}, data, { settings: { commentsOff: true } }), '365'));
+  assert.match(on.overview, /comments/);
+  assert.match(off.overview, /With comments turned off, shares and saves/);
+  assert.doesNotMatch(off.attention, /two-way conversation|replying publicly/);
 });
