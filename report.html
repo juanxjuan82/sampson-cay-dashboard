@@ -796,6 +796,7 @@
     .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
     .badge-ig,.badge-fb{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.32)}.badge-ig .badge-dot{background:#ff72b6}.badge-fb .badge-dot{background:#73b7ff}
     .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    
     .amec-client-report{padding:28px;background:#eef2f4;color:#263942;border-radius:12px;font:14px/1.5 "Aptos","Segoe UI",sans-serif}
     .amec-client-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:1px solid #d6e0e5;padding-bottom:20px}
     .amec-client-header h1{font-size:clamp(25px,3vw,38px);line-height:1.08;letter-spacing:-.04em;margin:0}
@@ -849,6 +850,7 @@
     #view-amec{padding-bottom:28px}
     @media(max-width:900px){.amec-client-stage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.amec-client-header{display:block}.amec-client-period{margin-top:14px}}
     @media(max-width:620px){.amec-client-report{padding:16px}.amec-client-metrics,.amec-client-two-col,.amec-client-social-grid{grid-template-columns:1fr}.amec-client-stage-grid{grid-template-columns:1fr}}
+  
   </style>
 </head>
 <body>
@@ -1350,7 +1352,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-10-04.4'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-10-04.5'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -3983,7 +3985,7 @@ function buildAdminSourceHTML() {
   if (hasEmbeddedReportDataScript(sourceDocument)) {
     throw new Error('This page contains saved report data. Open the admin index.html page to sync source without report data.');
   }
-  sourceDocument.querySelectorAll('script[type="module"],link[rel="modulepreload"],style[data-vite-dev-id],#tab-amec,#view-amec,#react-root,#react-overlay-root')
+  sourceDocument.querySelectorAll('script[type="module"],link[rel="modulepreload"],style[data-vite-dev-id],#react-root,#react-overlay-root')
     .forEach(element => element.remove());
   sourceDocument.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
     if (/assets\/[^/]+\.css(?:[?#].*)?$/i.test(link.getAttribute('href') || '')) link.remove();
@@ -3992,6 +3994,21 @@ function buildAdminSourceHTML() {
   const source = '<!DOCTYPE html>\n' + sourceDocument.documentElement.outerHTML;
   if (!sourceDocument.head) throw new Error('The admin source template is incomplete.');
   return source;
+}
+
+function addStaticAmecSnapshotToAdminSource(source, report) {
+  const sourceDocument = new DOMParser().parseFromString(source, 'text/html');
+  const amecView = sourceDocument.querySelector('#view-amec');
+  const amecMount = sourceDocument.querySelector('#amec-app-root');
+  if (!sourceDocument.querySelector('#tab-amec') || !amecView || !amecMount) {
+    throw new Error('The admin source template is missing the AMEC tab or its content panel.');
+  }
+  amecMount.innerHTML = buildAmecClientReportHTML(report);
+  const style = sourceDocument.createElement('style');
+  style.setAttribute('data-sampson-amec-client', 'true');
+  style.textContent = buildAmecClientReportStyles();
+  sourceDocument.head.appendChild(style);
+  return '<!DOCTYPE html>\n' + sourceDocument.documentElement.outerHTML;
 }
 
 function hasEmbeddedReportDataScript(sourceDocument) {
@@ -4131,68 +4148,8 @@ function buildAmecClientReportHTML(report) {
   </section>`;
 }
 
-async function loadAmecReportForClient() {
-  const exporterDeadline = Date.now() + 5000;
-  while (typeof window.__SAMPSON_AMEC_REPORT_EXPORT__ !== 'function') {
-    if (Date.now() >= exporterDeadline) {
-      throw new Error('The AMEC report is not ready. Reload the admin dashboard and try again.');
-    }
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  let timeoutId;
-  try {
-    return await Promise.race([
-      window.__SAMPSON_AMEC_REPORT_EXPORT__(),
-      new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Timed out loading the AMEC evaluation. Check your administrator session and retry.')), 30000);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function buildClientHTML() {
-  captureSharedEditableContent();
-  const amecReport = await loadAmecReportForClient();
-  const amecMarkup = buildAmecClientReportHTML(amecReport);
-  const data = {
-    igPosts: igPosts.map(post => {
-      const { id, externalId, sourceMetrics, ...reportPost } = post;
-      return { ...reportPost, date: post.date ? post.date.toISOString() : null };
-    }),
-    fbPosts: fbPosts.map(post => {
-      const { id, externalId, sourceMetrics, ...reportPost } = post;
-      return { ...reportPost, date: post.date ? post.date.toISOString() : null };
-    }),
-    editableOverrides: { ...sharedEditableContent },
-    summaryMode: summaryMode,
-    brandColors: {
-      typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
-      platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
-    },
-  };
-  const dataJSON = JSON.stringify(data);
-  const currentHTML = (_pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML))
-    .replace(/<script\b(?=[^>]*\btype=["']module["'])[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>/gi, '')
-    .replace(/<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["'][^"']*assets\/[^"']+\.css[^"']*["'][^>]*>/gi, '')
-    .replace(/<div\b[^>]*\bid=["']react-root["'][^>]*>\s*<\/div>/gi, '');
-  const amecMount = '<div id="amec-app-root"></div>';
-  if (!currentHTML.includes(amecMount)) {
-    throw new Error('The report template does not contain the AMEC evaluation panel.');
-  }
-  const clientHTML = currentHTML.replace(amecMount, `<div id="amec-app-root">${amecMarkup}</div>`);
-  const dataScript = `<script data-sampson-report-data>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
-  const clientStyles = `<style>
-    #upload-screen, #github-modal, #ai-modal, #analyst-notes,
-    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
-    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root { display: none !important; }
-    .editable-field { cursor: default !important; }
-    :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
-    .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
-    .badge-ig,.badge-fb{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.32)}.badge-ig .badge-dot{background:#ff72b6}.badge-fb .badge-dot{background:#73b7ff}
-    .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+function buildAmecClientReportStyles() {
+  return `
     .amec-client-report{padding:28px;background:#eef2f4;color:#263942;border-radius:12px;font:14px/1.5 "Aptos","Segoe UI",sans-serif}
     .amec-client-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:1px solid #d6e0e5;padding-bottom:20px}
     .amec-client-header h1{font-size:clamp(25px,3vw,38px);line-height:1.08;letter-spacing:-.04em;margin:0}
@@ -4246,6 +4203,72 @@ async function buildClientHTML() {
     #view-amec{padding-bottom:28px}
     @media(max-width:900px){.amec-client-stage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.amec-client-header{display:block}.amec-client-period{margin-top:14px}}
     @media(max-width:620px){.amec-client-report{padding:16px}.amec-client-metrics,.amec-client-two-col,.amec-client-social-grid{grid-template-columns:1fr}.amec-client-stage-grid{grid-template-columns:1fr}}
+  `;
+}
+
+async function loadAmecReportForClient() {
+  const exporterDeadline = Date.now() + 5000;
+  while (typeof window.__SAMPSON_AMEC_REPORT_EXPORT__ !== 'function') {
+    if (Date.now() >= exporterDeadline) {
+      throw new Error('The AMEC report is not ready. Reload the admin dashboard and try again.');
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  let timeoutId;
+  try {
+    return await Promise.race([
+      window.__SAMPSON_AMEC_REPORT_EXPORT__(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Timed out loading the AMEC evaluation. Check your administrator session and retry.')), 30000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function buildClientHTML(preloadedAmecReport) {
+  captureSharedEditableContent();
+  const amecReport = preloadedAmecReport || await loadAmecReportForClient();
+  const amecMarkup = buildAmecClientReportHTML(amecReport);
+  const data = {
+    igPosts: igPosts.map(post => {
+      const { id, externalId, sourceMetrics, ...reportPost } = post;
+      return { ...reportPost, date: post.date ? post.date.toISOString() : null };
+    }),
+    fbPosts: fbPosts.map(post => {
+      const { id, externalId, sourceMetrics, ...reportPost } = post;
+      return { ...reportPost, date: post.date ? post.date.toISOString() : null };
+    }),
+    editableOverrides: { ...sharedEditableContent },
+    summaryMode: summaryMode,
+    brandColors: {
+      typeColors: { 'IG reel': '#0a2a30', 'IG image': '#0d5a6c', 'IG carousel': '#1d7a90', 'Videos': '#4ea3b8', 'Photos': '#8ec8d5' },
+      platformColors: { ig: '#0d5a6c', fb: '#4ea3b8' },
+    },
+  };
+  const dataJSON = JSON.stringify(data);
+  const currentHTML = (_pageTemplate || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML))
+    .replace(/<script\b(?=[^>]*\btype=["']module["'])[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>/gi, '')
+    .replace(/<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["'][^"']*assets\/[^"']+\.css[^"']*["'][^>]*>/gi, '')
+    .replace(/<div\b[^>]*\bid=["']react-root["'][^>]*>\s*<\/div>/gi, '');
+  const amecMount = '<div id="amec-app-root"></div>';
+  if (!currentHTML.includes(amecMount)) {
+    throw new Error('The report template does not contain the AMEC evaluation panel.');
+  }
+  const clientHTML = currentHTML.replace(amecMount, `<div id="amec-app-root">${amecMarkup}</div>`);
+  const dataScript = `<script data-sampson-report-data>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
+  const clientStyles = `<style>
+    #upload-screen, #github-modal, #ai-modal, #analyst-notes,
+    #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
+    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root { display: none !important; }
+    .editable-field { cursor: default !important; }
+    :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
+    .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
+    .badge-ig,.badge-fb{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.32)}.badge-ig .badge-dot{background:#ff72b6}.badge-fb .badge-dot{background:#73b7ff}
+    .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    ${buildAmecClientReportStyles()}
   </style>`;
   return clientHTML.replace('</head>', dataScript + '\n' + clientStyles + '\n</head>');
 }
@@ -4427,12 +4450,7 @@ async function syncAdminSource() {
   const expectedSha = syncButton.dataset.remoteSha;
   const expectedRemoteVersion = syncButton.dataset.remoteVersion || '';
   const expectedRemoteLabel = expectedRemoteVersion || 'no version marker';
-  const sourceBytes = new TextEncoder().encode(source).length;
-  if (sourceBytes > 1000000) {
-    setPushStatus('error', 'The admin source exceeds GitHub’s 1 MB contents API limit and was not changed.');
-    return;
-  }
-  if (!confirm(`Sync source and publish client page?\n\nRepository: ${repoFull}\nFiles: index.html and report.html\nCurrent GitHub source: ${expectedRemoteLabel}\nThis tab source: ${DASHBOARD_VERSION}\n\nThis updates the admin source, then publishes the client report built from the currently loaded CSVs and AMEC snapshot. Saved CSV data is not changed. Continue?`)) {
+  if (!confirm(`Sync source and publish client page?\n\nRepository: ${repoFull}\nFiles: index.html and report.html\nCurrent GitHub source: ${expectedRemoteLabel}\nThis tab source: ${DASHBOARD_VERSION}\n\nThe public index.html will include a read-only aggregate AMEC summary (no tracker rows or admin controls). The client report will also include its AMEC snapshot and the currently loaded CSVs. Saved CSV data is not changed. Continue?`)) {
     setPushStatus('error', 'Sync and publish cancelled. GitHub index.html and report.html were not changed.');
     return;
   }
@@ -4442,13 +4460,19 @@ async function syncAdminSource() {
   setPushStatus('loading', 'Preparing the client report before updating GitHub…');
   let clientHTML;
   try {
-    clientHTML = await buildClientHTML();
+    const amecReport = await loadAmecReportForClient();
+    clientHTML = await buildClientHTML(amecReport);
+    source = addStaticAmecSnapshotToAdminSource(source, amecReport);
+    const sourceBytes = new TextEncoder().encode(source).length;
+    if (sourceBytes > 1000000) {
+      throw new Error('The admin source exceeds GitHub’s 1 MB contents API limit.');
+    }
     const reportBytes = new TextEncoder().encode(clientHTML).length;
     if (reportBytes > 1000000) {
       throw new Error('The client report exceeds GitHub’s 1 MB contents API limit.');
     }
   } catch (error) {
-    setPushStatus('error', `Client report preparation failed; GitHub was not changed. ${escapeHTML(error instanceof Error ? error.message : 'Could not prepare the client report.')}`);
+    setPushStatus('error', `Page preparation failed; GitHub was not changed. ${escapeHTML(error instanceof Error ? error.message : 'Could not prepare the public pages.')}`);
     syncButton.disabled = false;
     publishButton.disabled = false;
     return;
