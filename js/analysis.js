@@ -521,6 +521,57 @@
     };
   }
 
+  // ── Kinds of content (what a post is doing, read from its caption) ──
+  // A post can belong to more than one kind. Used to say what the audience responds to.
+  const CONTENT_KINDS = [
+    { id: 'progress', label: 'progress updates', re: /\b(roof|construction|community cent(er|re)|site prep\w*|preparatory work|surveys?|soundscape|progress is rising|groundbreaking|broke ground|break(s|ing)? ground|crews|taking shape)\b/i },
+    { id: 'news', label: 'responses to the news', re: /\b(turtlegrass|survey|unfounded|set(ting)? the record|questionable|rhetoric|bullying|gatekeeping|court|judicial|as reported|accusation|the facts|ruling|hearing|proceedings)\b/i },
+    { id: 'voices', label: 'community voices', re: /“[^”]{15,}”|"[^"]{15,}"|\b(residents?|business owners?|locals?) (say|share|told|are clear|speak)|hear directly|in their own words|community told us/i },
+    { id: 'commitments', label: 'environmental commitment posts', re: /\b(leed|sustainab\w*|environmental (stewardship|standards|protection|practices|process)|protect(ing)? (the )?(environment|beauty|what makes)|conservation|preserv\w*|xco₂?)\b/i },
+    { id: 'giving', label: 'giving-back posts', re: /\b(donat\w*|gifts?|christmas|school supplies|bicycles?|printer|clinic|condolences|sponsor\w*)\b/i },
+  ];
+
+  function contentKindStats(organicPosts) {
+    const ig = organicPosts.filter(p => p.platform === 'ig' && p.reach > 0);
+    const rate = p => (p.interactions / p.reach) * 100;
+    const sharesPer = items => items.length ? sum(items.map(p => p.shares || 0)) / items.length : 0;
+    return CONTENT_KINDS.map(kind => {
+      const inKind = organicPosts.filter(p => kind.re.test(p.caption || ''));
+      const rest = organicPosts.filter(p => !kind.re.test(p.caption || ''));
+      const igIn = ig.filter(p => kind.re.test(p.caption || ''));
+      const igRest = ig.filter(p => !kind.re.test(p.caption || ''));
+      return {
+        id: kind.id,
+        label: kind.label,
+        posts: inKind.length,
+        igPosts: igIn.length,
+        igEngagement: igIn.length ? median(igIn.map(rate)) : null,
+        igEngagementRest: igRest.length ? median(igRest.map(rate)) : null,
+        sharesPerPost: sharesPer(inKind),
+        sharesPerPostRest: sharesPer(rest),
+      };
+    });
+  }
+
+  function kindOf(post) {
+    const kind = CONTENT_KINDS.find(k => k.re.test(post.caption || ''));
+    return kind ? kind.id : null;
+  }
+
+  // Coverage led by the project's opponents (Turtlegrass, Save the Bays / Save Exuma Alliance, their claims).
+  const OPPOSITION_RE = /turtlegrass|turtle grass|\bTG\b|save (the )?bays?|save exuma|\bSEA\b|opponent|salami|halt(ed)?\b|plans don.?t add up|sound the alarm/i;
+
+  function isOppositionLed(item) {
+    return OPPOSITION_RE.test(item.title + ' ' + item.theme);
+  }
+
+  // The longest stretch without posts, and how much coverage ran during it.
+  function quietDuringNews(gap, mediaItems) {
+    if (!gap || gap.days < 10) return null;
+    const during = mediaItems.filter(m => m.date > gap.from && m.date < gap.to);
+    return during.length >= 3 ? { ...gap, stories: during.length, oppositionStories: during.filter(isOppositionLed).length } : null;
+  }
+
   function analyze(data, periodId) {
     const range = periodRange(data, periodId);
     const allPosts = markBoosted((data.posts || []).map(p => ({ ...p, theme: tagTheme(p.caption, p.date) })));
@@ -592,7 +643,13 @@
       topReach,
       monthly: monthlyRows,
       gap: longestGapDays(posts, range),
-      media: mediaAnalysis(mediaItems, previousMedia),
+      quietDuringNews: quietDuringNews(longestGapDays(posts, range), mediaItems),
+      contentKinds: contentKindStats(organic),
+      organicPostCount: organic.length,
+      topPostKind: topPosts[0] ? kindOf(topPosts[0]) : null,
+      media: Object.assign(mediaAnalysis(mediaItems, previousMedia), {
+        oppositionLed: mediaItems.filter(isOppositionLed).length,
+      }),
       hasSocial: posts.length > 0,
       hasMedia: mediaItems.length > 0,
       paid,
@@ -662,112 +719,132 @@
     return { best, worst: sorted[sorted.length - 1] };
   }
 
+  // Writes the period summary. Tone: interpretive and forward-looking. We published this
+  // content, so findings are framed as what we learn and where to focus next — never as
+  // what should have been done differently.
+  const MIN_POSTS_FOR_SUMMARY = 8;
+
   function buildSummary(stats) {
     if (stats.empty) return null;
     const t = stats.totals;
-    const c = stats.changes;
     const m = stats.media;
     const paid = stats.paid;
     const org = stats.organic;
     const prevOrg = stats.previousOrganic;
-    const formats = bestAndWorst(stats.formats);
-    const themes = bestAndWorst(stats.themes);
-    const reachLeader = stats.formats.filter(g => g.reliable).sort((a, b) => b.medianReach - a.medianReach)[0];
-    const mostlyPaid = paid.posts > 0 && paid.reachShare >= 0.5;
-    const paidWeak = paid.posts >= 3 && org.all.posts >= 3 && paid.engagementRate < org.all.medianEngagement / 2;
-    const platformLine = (name, s) => s.posts ? `a typical ${name} post reached about ${formatNumber(s.medianReach)} people with ${formatPct(s.medianEngagement)} engagement` : '';
-    const join = items => items.filter(Boolean).join(' and ');
+    const resp = stats.response;
+    const kinds = Object.fromEntries((stats.contentKinds || []).map(k => [k.id, k]));
+    const enough = stats.organicPostCount >= MIN_POSTS_FOR_SUMMARY;
+    const periodName = stats.range.id === 'all' ? 'the full history so far' : `the ${stats.range.label.toLowerCase()}`;
+    const plural = (n, word) => `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`;
 
-    // Overview
+    // A kind of content "resonates" when its typical Instagram engagement is clearly above the rest,
+    // or when it is shared clearly more often. Needs a few posts on each side to say so.
+    const resonates = k => k && k.igPosts >= 3 && k.igEngagementRest !== null && k.igEngagement >= k.igEngagementRest * 1.15;
+    const shared = k => k && k.posts >= 3 && k.sharesPerPost >= 1 && k.sharesPerPost >= k.sharesPerPostRest * 1.5;
+    const lags = k => k && k.igPosts >= 3 && k.igEngagementRest !== null && k.igEngagement <= k.igEngagementRest * 0.9;
+
+    // ── Overview ──
     const overview = [];
-    if (stats.hasSocial) {
-      overview.push(`In the ${stats.range.label.toLowerCase()} (${formatDate(stats.range.start)} – ${formatDate(stats.range.end)}), ${t.posts} posts across Instagram and Facebook reached ${formatNumber(t.reach)} accounts.`);
-      if (mostlyPaid) {
-        overview.push(`Boosting drove ${paid.reachShare >= 0.9 ? 'almost all' : 'most'} of that: ${paid.posts} boosted post${paid.posts === 1 ? '' : 's'} delivered ${Math.round(paid.reachShare * 100)}% of the reach.`);
-      } else if (paid.posts) {
-        overview.push(`Only ${paid.posts} post${paid.posts === 1 ? ' was' : 's were'} boosted (${Math.round(paid.reachShare * 100)}% of reach), so these results are mostly organic.`);
-      }
-      const typical = join([platformLine('Instagram', org.ig), platformLine('Facebook', org.fb)]);
-      if (typical) overview.push(`${paid.posts ? 'Without boosting, ' : ''}${typical}.`.replace(/^a/, 'A'));
-      if (c && c.reach !== null) {
-        const paidShift = prevOrg && stats.previousTotals && Math.abs(c.reach) >= 25;
-        const orgReachChange = prevOrg ? pctChange(org.all.medianReach, prevOrg.all.medianReach) : null;
-        let line = `Compared with the previous period, total reach is ${changeWords(c.reach)}`;
-        if (paidShift && orgReachChange !== null) {
-          line += `, mainly because ${c.reach < 0 ? 'less' : 'more'} was boosted; typical organic reach is ${changeWords(orgReachChange)}`;
-        }
-        overview.push(line + '.');
-      }
+    if (!stats.hasSocial) {
+      overview.push(`No social posts were published in ${periodName}.`);
     } else {
-      overview.push('No social posts were recorded in this period.');
+      const followsPaid = resp.boosted.instagramFollows;
+      const followsAll = followsPaid + resp.organic.instagramFollows;
+      if (paid.posts && paid.reachShare >= 0.5) {
+        overview.push(`In ${periodName}, the channels worked mainly as a paid broadcast: boosted posts brought ${Math.round(paid.reachShare * 100)}% of the ${formatNumber(t.reach)} accounts reached${followsAll >= 20 && followsPaid / followsAll >= 0.7 ? `, and most new Instagram followers (${followsPaid} of ${followsAll})` : ''}.`);
+      } else if (paid.posts) {
+        overview.push(`${periodName.replace(/^t/, 'T')} was mostly organic (${plural(paid.posts, 'boosted post')}), so it shows the channels' natural reach.`);
+      } else {
+        overview.push(`Nothing was boosted in ${periodName}, so these results show the channels' natural reach.`);
+      }
+      if (org.all.posts) {
+        overview.push(`${paid.posts ? 'Without boosting, a post' : 'A post'} typically reaches a core audience of about ${formatNumber(org.all.medianReach)} people${org.ig.posts >= 3 ? `, and on Instagram that core is engaged (${formatPct(org.ig.medianEngagement)} typical engagement${prevOrg && prevOrg.ig.posts >= 3 && org.ig.medianEngagement - prevOrg.ig.medianEngagement >= 1 ? ', and rising' : ''})` : ''}.`);
+      }
+      if (stats.organicPostCount >= 5 && resp.organic.comments / stats.organicPostCount < 0.5) {
+        overview.push(`That audience responds mostly with likes: ${plural(resp.organic.comments, 'comment')} and ${plural(resp.organic.shares, 'share')} across ${plural(stats.organicPostCount, 'unboosted post')}, so the visible conversation on our channels is still small.`);
+      }
     }
     if (stats.hasMedia) {
-      overview.push(`Earned media logged ${m.total} mention${m.total === 1 ? '' : 's'} across ${m.outletCount} outlet${m.outletCount === 1 ? '' : 's'}${c && c.mentions !== null ? ` (${changeWords(c.mentions)} on the previous period)` : ''}.`);
+      const oppShare = m.total ? m.oppositionLed / m.total : 0;
+      overview.push(`Earned media recorded ${plural(m.total, 'mention')} across ${plural(m.outletCount, 'outlet')}${oppShare >= 0.25 ? `, and about ${Math.round(oppShare * 100)}% of it appears to have been driven by opponents' claims, so the project's perspective is competing for attention` : ''}.`);
     }
 
-    // What's working (organic posts only)
+    // ── What's resonating ──
     const working = [];
-    if (org.ig.posts >= 3 && org.fb.posts >= 3 && org.ig.medianEngagement >= org.fb.medianEngagement * 2) {
-      working.push(`Instagram is where the audience engages: unboosted Instagram posts typically earn ${formatPct(org.ig.medianEngagement)} engagement, against ${formatPct(org.fb.medianEngagement)} on Facebook.`);
-    } else if (org.fb.posts >= 3 && org.ig.posts >= 3 && org.fb.medianEngagement >= org.ig.medianEngagement * 2) {
-      working.push(`Facebook is where the audience engages: unboosted Facebook posts typically earn ${formatPct(org.fb.medianEngagement)} engagement, against ${formatPct(org.ig.medianEngagement)} on Instagram.`);
+    if (!enough) {
+      working.push(`There are too few unboosted posts in ${periodName} (${stats.organicPostCount}) to say reliably what resonates; the 12-month view is a better guide.`);
+    } else {
+      if (resonates(kinds.progress)) working.push(`Seeing the project take shape lands best: progress updates drew ${formatPct(kinds.progress.igEngagement)} typical engagement on Instagram, against ${formatPct(kinds.progress.igEngagementRest)} for other posts. Visible proof is the most persuasive thing we can show.`);
+      if (shared(kinds.news)) working.push(`When we respond to the news, supporters pass it on: these posts were shared ${kinds.news.sharesPerPost.toFixed(1)} times each, against ${kinds.news.sharesPerPostRest.toFixed(1)} for other posts. The core audience is ready to carry the project's side of the story.`);
+      else if (resonates(kinds.news)) working.push(`Responses to the news drew above-average engagement (${formatPct(kinds.news.igEngagement)} on Instagram), a sign the audience wants to hear the project's side.`);
+      if (resonates(kinds.voices)) working.push(`Posts where residents and business owners speak drew ${formatPct(kinds.voices.igEngagement)} engagement, against ${formatPct(kinds.voices.igEngagementRest)} for the rest: third-party voices carry weight.`);
+      if (resonates(kinds.giving)) working.push(`Giving-back posts connected well (${formatPct(kinds.giving.igEngagement)} engagement on Instagram).`);
+      if (resonates(kinds.commitments)) working.push(`Environmental posts resonated this period (${formatPct(kinds.commitments.igEngagement)} engagement on Instagram), which is worth building on given how central the environment is to the public debate.`);
+      if (org.ig.posts >= 3 && org.fb.posts >= 3 && org.ig.medianEngagement >= org.fb.medianEngagement * 2) {
+        working.push(`Instagram is where the relationship lives: typical engagement of ${formatPct(org.ig.medianEngagement)} there, against ${formatPct(org.fb.medianEngagement)} on Facebook.`);
+      }
+      if (stats.topPosts[0]) {
+        const top = stats.topPosts[0];
+        const kind = CONTENT_KINDS.find(k => k.id === stats.topPostKind);
+        working.push(`The standout post (${formatDate(top.date)}) was “${top.caption.slice(0, 70).trim()}${top.caption.length > 70 ? '…' : ''}”${kind ? `, one of the ${kind.label}` : ''}.`);
+      }
     }
-    if (prevOrg && org.ig.posts >= 3 && prevOrg.ig.posts >= 3 && org.ig.medianEngagement - prevOrg.ig.medianEngagement >= 1) {
-      working.push(`Organic Instagram engagement is rising (${formatPct(prevOrg.ig.medianEngagement)} to ${formatPct(org.ig.medianEngagement)}).`);
+    if (stats.hasMedia && m.outlets[0] && m.total >= 5) {
+      working.push(`${m.outlets.slice(0, 2).map(o => o.label).join(' and ')} covered the project most often, which makes them dependable outlets for the project's perspective.`);
     }
-    if (formats.best) working.push(`${formats.best.label} posts earn the strongest engagement (median about ${formatPct(formats.best.medianEngagement)} across ${formats.best.posts} organic posts).`);
-    if (themes.best) working.push(`Of the content themes, ${themes.best.label} resonates most (median engagement ${formatPct(themes.best.medianEngagement)}).`);
-    if (stats.topPosts[0]) {
-      const top = stats.topPosts[0];
-      working.push(`The most engaging post (${formatDate(top.date)}, ${top.platform === 'ig' ? 'Instagram' : 'Facebook'}) earned ${formatPct(top.engagementRate)} engagement: “${top.caption.slice(0, 90)}${top.caption.length > 90 ? '…' : ''}”`);
-    }
-    if (stats.hasMedia && m.outlets[0]) working.push(`${m.outlets[0].label} is the most consistent media outlet (${m.outlets[0].count} mentions).`);
-    if (!working.length) working.push('There is not yet enough data in this period to identify clear strengths.');
+    if (!working.length) working.push(`No clear standouts in ${periodName}.`);
 
-    // Needs attention
-    const attention = [];
-    if (org.all.posts >= 3 && org.all.medianReach < 500) {
-      attention.push(`Organic reach is small${prevOrg && Math.abs(pctChange(org.all.medianReach, prevOrg.all.medianReach) || 0) < 25 ? ' and not growing' : ''}: a typical unboosted post reaches about ${formatNumber(org.all.medianReach)} people, so visibility depends on boosting.`);
+    // ── What to focus on next ──
+    // Each point has a priority; credibility points rank high given the competing narrative.
+    const focus = [];
+    const add = (priority, text) => focus.push([priority, text]);
+    if (org.all.posts >= 5 && org.all.medianReach < 500) {
+      add(1, `Growing the organic audience is the biggest opportunity: an unboosted post typically reaches about ${formatNumber(org.all.medianReach)} people. Co-posting with partners and featuring community members by name can carry posts to their followers too.`);
     }
-    if (paidWeak) {
-      attention.push(`Boosted posts bought reach but little interaction: ${formatPct(paid.engagementRate)} engagement, against a typical ${formatPct(org.all.medianEngagement)} for organic posts.`);
+    if (paid.posts >= 3 && org.all.posts >= 3 && paid.engagementRate < org.all.medianEngagement / 2) {
+      add(4, `Boosted posts brought wide attention but little interaction (${formatPct(paid.engagementRate)} engagement). The takeaway is to put paid reach behind posts that have already earned a response from the core audience.`);
     }
-    if (formats.worst && formats.best && formats.worst.medianEngagement < formats.best.medianEngagement * 0.6) {
-      attention.push(`${formats.worst.label} posts lag behind (median engagement ${formatPct(formats.worst.medianEngagement)} across ${formats.worst.posts} posts).`);
+    if (enough && lags(kinds.commitments)) {
+      add(5, `Environmental commitment posts drew less response than the rest of the feed (${formatPct(kinds.commitments.igEngagement)} against ${formatPct(kinds.commitments.igEngagementRest)} on Instagram). With environmental approvals at the centre of the public debate, evidence, data and independent experts are the opportunity here.`);
     }
-    if (themes.worst && themes.best && themes.worst.label !== themes.best.label && themes.worst.medianEngagement < themes.best.medianEngagement * 0.7) {
-      attention.push(`${themes.worst.label} content earns less engagement than other themes (median ${formatPct(themes.worst.medianEngagement)}).`);
+    if (stats.hasSocial && stats.organicPostCount >= 5 && resp.organic.comments / stats.organicPostCount < 0.5) {
+      add(6, 'Building visible two-way conversation is a natural next step: inviting questions and replying publicly will make the support that exists easier to see.');
     }
-    if (stats.gap && stats.gap.days >= 14) attention.push(`There was a ${Math.round(stats.gap.days)}-day gap with no posts (${formatDate(stats.gap.from)} – ${formatDate(stats.gap.to)}).`);
+    if (stats.quietDuringNews) {
+      const q = stats.quietDuringNews;
+      add(3, `The ${Math.round(q.days)}-day pause in posting (${formatDate(q.from)} – ${formatDate(q.to)}) overlapped with ${plural(q.stories, 'media story', )}${q.oppositionStories ? `, ${q.oppositionStories} of them driven by opponents` : ''}. Keeping a steady presence during busy news weeks will keep the project's voice in the conversation.`.replace('media storys', 'media stories'));
+    } else if (stats.gap && stats.gap.days >= 14) {
+      add(3, `Posting paused for ${Math.round(stats.gap.days)} days (${formatDate(stats.gap.from)} – ${formatDate(stats.gap.to)}); a small backlog of ready-to-go posts will keep the rhythm steady.`);
+    }
+    if (stats.hasMedia && m.total >= 5 && m.oppositionLed / m.total >= 0.25) {
+      add(2, 'Much of the coverage carried opponents\' framing. Quick, factual responses and sharing supportive coverage within a day or two will help keep the project\'s perspective in front of audiences.');
+    }
     if (stats.hasMedia && m.total >= 5 && m.outlets[0] && m.outlets[0].count / m.total > 0.4) {
-      attention.push(`Coverage is concentrated: ${Math.round((m.outlets[0].count / m.total) * 100)}% of mentions come from ${m.outlets[0].label}.`);
+      add(7, `${Math.round((m.outlets[0].count / m.total) * 100)}% of coverage came from ${m.outlets[0].label}; widening relationships with other outlets will broaden who hears the project's story.`);
     }
-    const negative = m.sentiments.find(s => /neg/i.test(s.label));
-    if (negative && negative.count / Math.max(1, sum(m.sentiments.map(s => s.count))) >= 0.2) {
-      attention.push(`${negative.count} media mentions were recorded as negative.`);
-    }
-    if (c && c.mentions !== null && c.mentions <= -25) attention.push(`Media mentions dropped ${Math.abs(Math.round(c.mentions))}% on the previous period.`);
-    if (!attention.length) attention.push('No major warning signs in this period.');
-
-    // Recommendations
-    const recs = [];
-    const strongest = [formats.best && formats.best.label + ' posts', themes.best && themes.best.label + ' stories'].filter(Boolean).join(' and ');
-    if (paidWeak) recs.push(`Boost selectively: put spend behind posts that already show strong organic engagement in their first day or two${strongest ? ` (currently ${strongest})` : ''}, instead of boosting by default.`);
-    if (formats.best) recs.push(`Lean into ${formats.best.label} posts — they consistently earn the most engagement.`);
-    if (themes.best) recs.push(`Keep ${themes.best.label} stories at the centre of the content plan${themes.worst && themes.worst.label !== themes.best.label ? `, and rework how ${themes.worst.label} posts are told (stronger visuals, people and outcomes) before cutting them` : ''}.`);
-    if (org.all.posts >= 3 && org.all.medianReach < 500) recs.push('Grow organic reach: co-post with partners and tag the community members featured in posts, so content reaches their followers too.');
-    if (stats.gap && stats.gap.days >= 14) recs.push('Keep a steady posting rhythm — schedule a backlog of evergreen posts so there are no multi-week silences.');
-    else if (stats.postsPerWeek < 3 && stats.hasSocial) recs.push(`Posting averaged ${stats.postsPerWeek.toFixed(1)} times a week; aim for at least 3 a week to stay visible.`);
-    if (stats.hasMedia) recs.push('Share strong press coverage on social within a day or two of publication, to extend its reach to followers.');
-    if (stats.hasMedia && m.total >= 5 && m.outlets[0] && m.outlets[0].count / m.total > 0.4) recs.push(`Broaden media relationships beyond ${m.outlets[0].label} — pitch exclusives or features to outlets that have not covered the project yet.`);
-    if (!stats.hasMedia) recs.push('Upload the PR activity workbook so media coverage can be tracked alongside social performance.');
+    if (!focus.length) add(9, 'Keep doing what is working; nothing in this period calls for a change of direction.');
+    // Keep the four most important points.
+    const focusText = focus.sort((a, b) => a[0] - b[0]).slice(0, 4).map(f => f[1]);
 
     return {
       overview: overview.join(' '),
       working: working.join(' '),
-      attention: attention.join(' '),
-      recommendations: recs.slice(0, 5),
+      attention: focusText.join(' '),
+      recommendations: buildRecommendations(stats, kinds),
     };
+  }
+
+  // Default strategic recommendations, used until an analyst saves their own.
+  function buildRecommendations(stats, kinds) {
+    const recs = [];
+    const org = stats.organic;
+    const commitmentsLag = kinds.commitments && kinds.commitments.igPosts >= 3 && kinds.commitments.igEngagementRest !== null && kinds.commitments.igEngagement <= kinds.commitments.igEngagementRest * 0.9;
+    recs.push(`Lead with proof: show visible progress, evidence and independent experts${commitmentsLag ? ', rather than statements of commitment' : ''}.`);
+    recs.push('Let the community speak for the project: named residents and business owners in their own words, through co-posts and short videos.');
+    if (stats.hasMedia) recs.push('Respond quickly when news breaks: a short factual post the same day, then share supportive coverage within 24–48 hours.');
+    if (stats.paid.posts) recs.push('Use paid reach deliberately: boost posts that have already earned a response organically.');
+    if (org.ig.posts >= 3 && org.fb.posts >= 3 && org.ig.medianEngagement >= org.fb.medianEngagement * 2) recs.push('Make Instagram the home for community conversation, and use Facebook mainly for wider distribution.');
+    return recs.slice(0, 5);
   }
 
   // A compact, factual bundle for the optional AI writer.
@@ -810,7 +887,7 @@
     num, median, parseDate, formatDate, formatNumber, formatPct, monthLabel,
     normalizeFormat, detectPlatform, parseSocialRows, fromLegacyPost,
     parseMediaRecords, mergePosts, mergeMedia, tagTheme, themeColor, THEMES, bahamasDayAndHour, postingHeatmap,
-    PERIODS, periodRange, analyze, mediaNarrative, buildSummary, buildAIEvidence,
+    PERIODS, periodRange, analyze, mediaNarrative, buildSummary, buildAIEvidence, isOppositionLed, CONTENT_KINDS,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

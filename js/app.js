@@ -436,41 +436,65 @@
     return `${stats.range.id}|${stats.range.start}|${stats.range.end}`;
   }
 
+  // The period part of the summary (overview, what's resonating, what to focus on next) follows the
+  // selected time period. Strategic recommendations are saved once and stay the same for every period.
   function currentSummary() {
     const saved = data.summary;
     if (saved && saved.key === summaryKey()) return { summary: saved, source: saved.source };
     return { summary: SC.buildSummary(stats), source: 'auto' };
   }
 
+  function currentRecommendations() {
+    const strategy = data.strategy;
+    if (strategy && Array.isArray(strategy.recommendations) && strategy.recommendations.length) {
+      return { list: strategy.recommendations, saved: true, reviewedAt: strategy.reviewedAt || null };
+    }
+    return { list: SC.buildSummary(stats).recommendations, saved: false, reviewedAt: null };
+  }
+
   function summaryHTML() {
     const { summary, source } = currentSummary();
+    const recs = currentRecommendations();
     const label = source === 'ai' ? 'AI-written, reviewed' : source === 'analyst' ? 'Analyst summary' : source === 'edited' ? 'Edited' : 'Automatic';
     const admin = MODE === 'admin';
     const aiReady = Boolean(readStore('dashboard_ai_endpoint_v2', '') && readStore('dashboard_ai_token_v2', ''));
-    const block = (title, field) => editing
-      ? `<div><h3>${title}</h3><textarea data-field="${field}">${esc(field === 'recommendations' ? summary.recommendations.join('\n') : summary[field])}</textarea>${field === 'recommendations' ? '<p class="muted">One recommendation per line.</p>' : ''}</div>`
-      : field === 'recommendations'
-        ? `<div><h3>${title}</h3><ol>${summary.recommendations.map(r => `<li>${esc(r)}</li>`).join('')}</ol></div>`
-        : `<div><h3>${title}</h3><p>${esc(summary[field])}</p></div>`;
+    const editingSummary = editing === 'summary';
+    const editingRecs = editing === 'recs';
+    const block = (title, field, wide) => `<div${wide ? ' class="wide"' : ''}><h3>${title}</h3>${editingSummary
+      ? `<textarea data-field="${field}">${esc(summary[field])}</textarea>`
+      : `<p>${esc(summary[field])}</p>`}</div>`;
+    const reviewed = recs.reviewedAt ? `Last reviewed ${SC.formatDate(recs.reviewedAt)}` : 'Suggested automatically — edit and save to set them';
     return `
       <section class="block card" id="summary">
         <div class="section-head">
-          <div><h2>Executive summary</h2><span class="badge">${label}</span></div>
+          <div><h2>Executive summary</h2><span class="badge">${label}</span>
+            <span class="muted">&nbsp;${esc(stats.range.label)} · ${SC.formatDate(stats.range.start)} – ${SC.formatDate(stats.range.end)}</span></div>
           <div class="btn-row no-print">
-            ${admin && !editing ? `<button class="btn" type="button" id="btn-edit">✏️ Edit</button>` : ''}
-            ${admin && editing ? `<button class="btn" type="button" id="btn-cancel-edit">Cancel</button><button class="btn btn-primary" type="button" id="btn-save-edit">✓ Done</button>` : ''}
+            ${admin && !editing ? `<button class="btn" type="button" id="btn-edit">✏️ Edit summary</button>` : ''}
+            ${editingSummary ? `<button class="btn" type="button" id="btn-cancel-edit">Cancel</button><button class="btn btn-primary" type="button" id="btn-save-edit">✓ Done</button>` : ''}
             ${admin && !editing && source !== 'auto' ? `<button class="btn" type="button" id="btn-reset-summary">↺ Back to automatic</button>` : ''}
             ${admin && !editing && aiReady ? `<button class="btn" type="button" id="btn-ai">✨ Rewrite with AI</button>` : ''}
             ${!editing ? `<button class="btn" type="button" id="btn-copy">📋 Copy</button>` : ''}
           </div>
         </div>
         <div class="summary-grid">
-          ${block('Overview', 'overview')}
-          ${block('What’s working', 'working')}
-          ${block('What needs attention', 'attention')}
-          ${block('Recommendations', 'recommendations')}
+          ${block('Overview', 'overview', true)}
+          ${block('What’s resonating', 'working')}
+          ${block('What to focus on next', 'attention')}
         </div>
-        ${admin && !editing && source !== 'auto' ? '<p class="muted" style="margin:12px 0 0">This edited summary is tied to this date range. Uploading newer data creates a new date range and a fresh automatic summary.</p>' : ''}
+        ${admin && !editing && source !== 'auto' ? '<p class="muted" style="margin:12px 0 0">This written summary belongs to this date range. Other periods, and newer data, show the automatic summary.</p>' : ''}
+        <div class="strategy">
+          <div class="section-head">
+            <div><h3>Strategic recommendations</h3><p class="muted" style="margin:0">${reviewed} · the same for every time period</p></div>
+            <div class="btn-row no-print">
+              ${admin && !editing ? `<button class="btn" type="button" id="btn-edit-recs">✏️ Edit recommendations</button>` : ''}
+              ${editingRecs ? `<button class="btn" type="button" id="btn-cancel-edit">Cancel</button><button class="btn btn-primary" type="button" id="btn-save-recs">✓ Save</button>` : ''}
+            </div>
+          </div>
+          ${editingRecs
+            ? `<textarea data-field="recommendations">${esc(recs.list.join('\n'))}</textarea><p class="muted">One recommendation per line. Leave empty to go back to the automatic suggestions.</p>`
+            : `<ol>${recs.list.map(r => `<li>${esc(r)}</li>`).join('')}</ol>`}
+        </div>
       </section>`;
   }
 
@@ -480,40 +504,51 @@
       overview: summary.overview,
       working: summary.working,
       attention: summary.attention,
-      recommendations: summary.recommendations.filter(Boolean),
       source,
     };
     markChanged();
   }
 
+  function storeRecommendations(list, source) {
+    data.strategy = list.length ? { recommendations: list, reviewedAt: new Date().toISOString().slice(0, 10), source } : null;
+    markChanged();
+  }
+
+  function cleanLines(text) {
+    return String(text || '').split(/\n+/).map(r => r.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean);
+  }
+
   function bindSummary() {
     const on = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
-    on('btn-edit', () => { editing = true; render(); });
+    const value = field => document.querySelector(`#summary textarea[data-field="${field}"]`).value.trim();
+    on('btn-edit', () => { editing = 'summary'; render(); });
+    on('btn-edit-recs', () => { editing = 'recs'; render(); });
     on('btn-cancel-edit', () => { editing = false; render(); });
     on('btn-save-edit', () => {
-      const value = field => document.querySelector(`#summary textarea[data-field="${field}"]`).value.trim();
+      const summary = { overview: value('overview'), working: value('working'), attention: value('attention') };
       editing = false;
-      storeSummary({
-        overview: value('overview'),
-        working: value('working'),
-        attention: value('attention'),
-        recommendations: value('recommendations').split('\n').map(s => s.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean),
-      }, 'edited');
+      storeSummary(summary, 'edited');
+    });
+    on('btn-save-recs', () => {
+      const list = cleanLines(value('recommendations'));
+      editing = false;
+      storeRecommendations(list, 'edited');
     });
     on('btn-reset-summary', () => {
-      if (!confirm('Discard the edited summary and go back to the automatic one?')) return;
+      if (!confirm('Discard the written summary for this period and go back to the automatic one?')) return;
       data.summary = null;
       markChanged();
     });
     on('btn-ai', generateAISummary);
     on('btn-copy', async () => {
       const { summary } = currentSummary();
+      const recs = currentRecommendations();
       const text = [
         `Executive summary — ${stats.range.label} (${SC.formatDate(stats.range.start)} – ${SC.formatDate(stats.range.end)})`,
         '', 'Overview', summary.overview,
-        '', 'What’s working', summary.working,
-        '', 'What needs attention', summary.attention,
-        '', 'Recommendations', ...summary.recommendations.map((r, i) => `${i + 1}. ${r}`),
+        '', 'What’s resonating', summary.working,
+        '', 'What to focus on next', summary.attention,
+        '', 'Strategic recommendations', ...recs.list.map((r, i) => `${i + 1}. ${r}`),
         ...(stats.hasMedia ? ['', 'Media narrative', SC.mediaNarrative(stats)] : []),
       ].join('\n');
       try {
@@ -532,19 +567,26 @@
     button.disabled = true;
     button.textContent = 'Writing…';
     try {
+      const recs = currentRecommendations();
       const response = await fetch(endpoint.endsWith('/summary') ? endpoint : endpoint + '/summary', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evidence: SC.buildAIEvidence(stats), accountContext: readStore('dashboard_ai_context_v2', '') || '' }),
+        body: JSON.stringify({
+          evidence: SC.buildAIEvidence(stats),
+          accountContext: readStore('dashboard_ai_context_v2', '') || '',
+          currentRecommendations: recs.saved ? recs.list : [],
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.summary) throw new Error(payload.error || `the AI writer returned ${response.status}`);
       const s = payload.summary;
-      const text = String(s.recommendedDirection || '');
-      // One recommendation per line; older worker versions return a paragraph, so fall back to sentences.
-      const recs = (text.includes('\n') ? text.split(/\n+/) : text.split(/(?<=[.!?])\s+(?=[A-Z])/))
-        .map(r => r.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean);
-      storeSummary({ overview: s.performanceOverview, working: s.whatsWorking, attention: s.whatsNotWorking, recommendations: recs }, 'ai');
+      // Saved recommendations are only replaced by editing them; the AI only fills them in when none are saved.
+      if (!recs.saved) {
+        const text = String(s.recommendedDirection || '');
+        const list = text.includes('\n') ? cleanLines(text) : text.split(/(?<=[.!?])\s+(?=[A-Z])/).map(r => r.trim()).filter(Boolean);
+        if (list.length) data.strategy = { recommendations: list, reviewedAt: new Date().toISOString().slice(0, 10), source: 'ai' };
+      }
+      storeSummary({ overview: s.performanceOverview, working: s.whatsWorking, attention: s.whatsNotWorking }, 'ai');
     } catch (error) {
       alert('AI rewrite failed: ' + error.message);
       button.disabled = false;

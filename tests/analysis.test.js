@@ -111,8 +111,9 @@ test('analysis covers period totals, comparison, formats, themes and media', () 
 test('summary, narrative and AI evidence are produced in plain language', () => {
   const stats = SC.analyze(sampleData(), 'all');
   const summary = SC.buildSummary(stats);
-  assert.match(summary.overview, /40 posts/);
-  assert.match(summary.working, /Instagram Reel/);
+  assert.match(summary.overview, /^Nothing was boosted/);
+  assert.match(summary.overview, /A post typically reaches a core audience/);
+  assert.match(summary.overview, /4 mentions across 2 outlets/);
   assert.ok(summary.recommendations.length >= 2);
   const narrative = SC.mediaNarrative(stats);
   assert.match(narrative, /4 times across 2 outlets/);
@@ -158,7 +159,25 @@ test('boosted posts are detected from reach and kept out of organic comparisons'
   assert.ok(stats.paid.reachShare > 0.9);
   assert.ok(!stats.formats.find(f => f.label === 'Instagram Reel'), 'boosted reels are not in the organic format stats');
   const summary = SC.buildSummary(stats);
-  assert.match(summary.overview, /Boosting drove almost all/);
-  assert.match(summary.attention, /Boosted posts bought reach but little interaction/);
-  assert.match(summary.recommendations[0], /Boost selectively/);
+  assert.match(summary.overview, /worked mainly as a paid broadcast: boosted posts brought 9\d% /);
+  assert.match(summary.attention, /Boosted posts brought wide attention but little interaction/);
+  assert.ok(summary.recommendations.some(r => /Use paid reach deliberately/.test(r)));
+});
+
+test('summaries stay forward-looking and never read as blame', () => {
+  const data = require('../data/dashboard.json');
+  const blame = /should have|shouldn.t have|failed|went wrong|mistake|you |your |neglect|poor(ly)?\b|weak(est)?\b/i;
+  for (const period of Object.keys(SC.PERIODS)) {
+    const summary = SC.buildSummary(SC.analyze(data, period));
+    const text = [summary.overview, summary.working, summary.attention, ...summary.recommendations].join(' ');
+    assert.doesNotMatch(text, blame, `period ${period}`);
+  }
+  const saved = [data.summary.overview, data.summary.working, data.summary.attention, ...data.strategy.recommendations].join(' ');
+  assert.doesNotMatch(saved, blame, 'saved analyst summary');
+});
+
+test('short periods say when there are too few posts to judge', () => {
+  const posts = SC.parseSocialRows([igRow('a', '09/01/2026', 100, 5), igRow('b', '09/02/2026', 120, 6)], igHeaders).posts;
+  const summary = SC.buildSummary(SC.analyze({ posts, media: [] }, '30'));
+  assert.match(summary.working, /too few unboosted posts/);
 });
