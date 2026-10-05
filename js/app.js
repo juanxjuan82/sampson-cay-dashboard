@@ -635,7 +635,7 @@
           <div class="card"><h3>How people respond to each format</h3><p class="muted chart-legend">Average per post</p>${box('chart-format-response', 'Average comments, shares and saves per post by format', barHeight + 30)}</div>
           <div class="card"><h3>Content mix</h3>${legend}${box('chart-format-mix', 'Number of posts by format', barHeight)}</div>
           ${igFormats.length ? `<div class="card"><h3>Which formats attract followers</h3><p class="muted chart-legend">Instagram follows per post</p>${box('chart-format-follows', 'Instagram follows per post by format', Math.max(150, igFormats.length * 38 + 40))}</div>` : ''}
-          <div class="card"><h3>Best time to post</h3><p class="muted chart-legend">Typical engagement by day and time posted. Darker = stronger.</p>${heatmapHTML()}</div>
+          <div class="card"><h3>Best time to post</h3><p class="muted chart-legend">Typical engagement by day and time posted, in Bahamas time. Darker = stronger.</p>${heatmapHTML()}</div>
         </div>
         <details class="card" style="margin-top:16px"><summary><strong>Format numbers as a table</strong></summary>${groupTable(stats.formats)}</details>
       </div>`;

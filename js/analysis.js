@@ -330,13 +330,26 @@
     { label: 'Evening (5pm+)', from: 17, to: 23 },
   ];
 
-  // Median engagement for each weekday × time-of-day block.
+  // Meta's CSV exports give publish times in US Pacific time. The Bahamas runs on
+  // US Eastern time (same daylight-saving dates), so it is always 3 hours later.
+  const EXPORT_TO_BAHAMAS_HOURS = 3;
+
+  function bahamasDayAndHour(post) {
+    const shifted = post.hour + EXPORT_TO_BAHAMAS_HOURS;
+    const dayShift = Math.floor(shifted / 24);
+    return {
+      day: (new Date(post.date + 'T00:00:00Z').getUTCDay() + dayShift) % 7,
+      hour: shifted % 24,
+    };
+  }
+
+  // Median engagement for each weekday × time-of-day block, in Bahamas time.
   function postingHeatmap(posts) {
     const cells = TIME_BLOCKS.map(() => WEEKDAYS.map(() => []));
     posts.forEach(post => {
       if (!Number.isInteger(post.hour) || post.reach <= 0) return;
-      const block = TIME_BLOCKS.findIndex(b => post.hour >= b.from && post.hour <= b.to);
-      const day = new Date(post.date + 'T00:00:00Z').getUTCDay();
+      const { day, hour } = bahamasDayAndHour(post);
+      const block = TIME_BLOCKS.findIndex(b => hour >= b.from && hour <= b.to);
       if (block >= 0) cells[block][day].push((post.interactions / post.reach) * 100);
     });
     return {
@@ -705,7 +718,7 @@
   const api = {
     num, median, parseDate, formatDate, formatNumber, formatPct, monthLabel,
     normalizeFormat, detectPlatform, parseSocialRows, fromLegacyPost,
-    parseMediaRecords, mergePosts, mergeMedia, tagTheme, themeColor, THEMES,
+    parseMediaRecords, mergePosts, mergeMedia, tagTheme, themeColor, THEMES, bahamasDayAndHour, postingHeatmap,
     PERIODS, periodRange, analyze, mediaNarrative, buildSummary, buildAIEvidence,
   };
 
