@@ -127,7 +127,9 @@
     rows.forEach(row => {
       const id = String(row['Post ID'] || '').trim();
       const date = parseDate(row['Publish time']);
-      if (!id || !date || (platform === 'fb' && String(row['Is crosspost']).trim() === '1')) {
+      // Facebook rows marked "Is crosspost" are kept: their reach and engagement are
+      // Facebook-only, separate from the Instagram copy of the same video.
+      if (!id || !date) {
         skipped += 1;
         return;
       }
@@ -330,13 +332,26 @@
     { label: 'Evening (5pm+)', from: 17, to: 23 },
   ];
 
-  // Median engagement for each weekday × time-of-day block.
+  // Meta's CSV exports give publish times in US Pacific time. The Bahamas runs on
+  // US Eastern time (same daylight-saving dates), so it is always 3 hours later.
+  const EXPORT_TO_BAHAMAS_HOURS = 3;
+
+  function bahamasDayAndHour(post) {
+    const shifted = post.hour + EXPORT_TO_BAHAMAS_HOURS;
+    const dayShift = Math.floor(shifted / 24);
+    return {
+      day: (new Date(post.date + 'T00:00:00Z').getUTCDay() + dayShift) % 7,
+      hour: shifted % 24,
+    };
+  }
+
+  // Median engagement for each weekday × time-of-day block, in Bahamas time.
   function postingHeatmap(posts) {
     const cells = TIME_BLOCKS.map(() => WEEKDAYS.map(() => []));
     posts.forEach(post => {
       if (!Number.isInteger(post.hour) || post.reach <= 0) return;
-      const block = TIME_BLOCKS.findIndex(b => post.hour >= b.from && post.hour <= b.to);
-      const day = new Date(post.date + 'T00:00:00Z').getUTCDay();
+      const { day, hour } = bahamasDayAndHour(post);
+      const block = TIME_BLOCKS.findIndex(b => hour >= b.from && hour <= b.to);
       if (block >= 0) cells[block][day].push((post.interactions / post.reach) * 100);
     });
     return {
@@ -399,12 +414,23 @@
   }
 
   // Posts with reach far above the platform's usual level were most likely boosted (paid).
+  // Meta's exports don't say which posts were paid, so it is inferred from reach.
+  // On this account organic posts almost never pass ~1,500 reach while boosted ones
+  // reach 2,000–50,000, so anything at or above BOOSTED_REACH counts as boosted.
+  // The "4× the usual" rule still catches outliers if the account's scale changes.
+  const BOOSTED_REACH = 2000;
+  // A format or theme needs at least this many organic posts before it is compared.
+  const MIN_POSTS_TO_COMPARE = 5;
+
   function markBoosted(posts) {
     const medians = {};
     ['ig', 'fb'].forEach(platform => {
-      medians[platform] = median(posts.filter(p => p.platform === platform && p.reach > 0).map(p => p.reach));
+      medians[platform] = median(posts.filter(p => p.platform === platform && p.reach > 0 && p.reach < BOOSTED_REACH).map(p => p.reach));
     });
-    return posts.map(p => ({ ...p, boosted: medians[p.platform] > 0 && p.reach > medians[p.platform] * 4 }));
+    return posts.map(p => ({
+      ...p,
+      boosted: p.reach >= BOOSTED_REACH || (medians[p.platform] > 0 && p.reach > medians[p.platform] * 4 && p.reach > 500),
+    }));
   }
 
   function groupStats(posts, getKey, minPosts) {
@@ -427,6 +453,20 @@
       bestPost: items.filter(p => p.reach >= 50).sort((x, y) => (y.interactions / y.reach) - (x.interactions / x.reach))[0] || null,
       reliable: items.length >= minPosts,
     })).sort((a, b) => b.posts - a.posts);
+  }
+
+  function organicStats(posts) {
+    const stat = items => ({
+      posts: items.length,
+      medianReach: median(items.map(p => p.reach)),
+      medianEngagement: median(items.filter(p => p.reach > 0).map(p => (p.interactions / p.reach) * 100)),
+      engagementRate: engagementRate(items),
+    });
+    return {
+      all: stat(posts),
+      ig: stat(posts.filter(p => p.platform === 'ig')),
+      fb: stat(posts.filter(p => p.platform === 'fb')),
+    };
   }
 
   function pctChange(current, previous) {
@@ -475,6 +515,7 @@
       busiestMonth,
       moments,
       latest: items.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+      latestAll: items.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25),
       first: items.length ? items.reduce((min, item) => item.date < min ? item.date : min, items[0].date) : null,
       last: items.length ? items.reduce((max, item) => item.date > max ? item.date : max, items[0].date) : null,
     };
@@ -493,6 +534,15 @@
     const previousMedia = range.previous ? media.filter(m => inRange(m.date, range.previous)) : null;
 
     const totals = socialTotals(posts);
+    const paidPosts = posts.filter(p => p.boosted);
+    const paid = {
+      posts: paidPosts.length,
+      reach: sum(paidPosts.map(p => p.reach)),
+      reachShare: totals.reach > 0 ? sum(paidPosts.map(p => p.reach)) / totals.reach : 0,
+      engagementRate: engagementRate(paidPosts),
+    };
+    const organicByPlatform = organicStats(organic);
+    const previousOrganic = previousPosts && previousPosts.length ? organicStats(previousPosts.filter(p => !p.boosted)) : null;
     const previousTotals = previousPosts && previousPosts.length ? socialTotals(previousPosts) : null;
     const byPlatform = {
       ig: socialTotals(posts.filter(p => p.platform === 'ig')),
@@ -533,8 +583,8 @@
       byPlatform,
       postsPerWeek: posts.length / weeks,
       boostedCount: posts.filter(p => p.boosted).length,
-      formats: groupStats(organic, p => (p.platform === 'ig' ? 'Instagram ' : 'Facebook ') + p.format, 3),
-      themes: groupStats(organic, p => p.theme, 3),
+      formats: groupStats(organic, p => (p.platform === 'ig' ? 'Instagram ' : 'Facebook ') + p.format, MIN_POSTS_TO_COMPARE),
+      themes: groupStats(organic, p => p.theme, MIN_POSTS_TO_COMPARE),
       themeCounts: countBy(posts, p => p.theme),
       contentMix: countBy(posts, p => (p.platform === 'ig' ? 'Instagram ' : 'Facebook ') + p.format),
       heatmap: postingHeatmap(organic),
@@ -545,6 +595,13 @@
       media: mediaAnalysis(mediaItems, previousMedia),
       hasSocial: posts.length > 0,
       hasMedia: mediaItems.length > 0,
+      paid,
+      response: {
+        organic: { comments: sum(organic.map(p => p.comments || 0)), shares: sum(organic.map(p => p.shares || 0)), instagramFollows: sum(organic.map(p => p.follows || 0)) },
+        boosted: { comments: sum(paidPosts.map(p => p.comments || 0)), shares: sum(paidPosts.map(p => p.shares || 0)), instagramFollows: sum(paidPosts.map(p => p.follows || 0)) },
+      },
+      organic: organicByPlatform,
+      previousOrganic,
       changes: previousTotals ? {
         posts: pctChange(totals.posts, previousTotals.posts),
         reach: pctChange(totals.reach, previousTotals.reach),
@@ -591,7 +648,18 @@
     const reliable = groups.filter(g => g.reliable && g.label !== 'Other');
     if (reliable.length < 2) return { best: reliable[0] || null, worst: null };
     const sorted = reliable.slice().sort((a, b) => b.medianEngagement - a.medianEngagement);
-    return { best: sorted[0], worst: sorted[sorted.length - 1] };
+    let best = sorted[0];
+    // Two groups within 10% of each other are effectively tied, so name both.
+    if (sorted.length > 2 && sorted[1].medianEngagement >= best.medianEngagement * 0.9) {
+      const [first, second] = [best.label, sorted[1].label];
+      const sharedPrefix = first.split(' ')[0] === second.split(' ')[0] && first.includes(' ') ? first.split(' ')[0] + ' ' : '';
+      best = Object.assign({}, best, {
+        label: sharedPrefix ? `${first} and ${second.slice(sharedPrefix.length)}` : `${first} and ${second}`,
+        posts: best.posts + sorted[1].posts,
+        medianEngagement: (best.medianEngagement + sorted[1].medianEngagement) / 2,
+      });
+    }
+    return { best, worst: sorted[sorted.length - 1] };
   }
 
   function buildSummary(stats) {
@@ -599,16 +667,36 @@
     const t = stats.totals;
     const c = stats.changes;
     const m = stats.media;
+    const paid = stats.paid;
+    const org = stats.organic;
+    const prevOrg = stats.previousOrganic;
     const formats = bestAndWorst(stats.formats);
     const themes = bestAndWorst(stats.themes);
     const reachLeader = stats.formats.filter(g => g.reliable).sort((a, b) => b.medianReach - a.medianReach)[0];
+    const mostlyPaid = paid.posts > 0 && paid.reachShare >= 0.5;
+    const paidWeak = paid.posts >= 3 && org.all.posts >= 3 && paid.engagementRate < org.all.medianEngagement / 2;
+    const platformLine = (name, s) => s.posts ? `a typical ${name} post reached about ${formatNumber(s.medianReach)} people with ${formatPct(s.medianEngagement)} engagement` : '';
+    const join = items => items.filter(Boolean).join(' and ');
 
     // Overview
     const overview = [];
     if (stats.hasSocial) {
-      overview.push(`In the ${stats.range.label.toLowerCase()} (${formatDate(stats.range.start)} – ${formatDate(stats.range.end)}), ${t.posts} posts across Instagram and Facebook reached ${formatNumber(t.reach)} accounts and drew ${formatNumber(t.interactions)} interactions, an engagement rate of ${formatPct(t.engagementRate)}.`);
-      if (c) {
-        overview.push(`Compared with the previous period, reach is ${changeWords(c.reach)}, interactions are ${changeWords(c.interactions)} and the number of posts is ${changeWords(c.posts)}.`);
+      overview.push(`In the ${stats.range.label.toLowerCase()} (${formatDate(stats.range.start)} – ${formatDate(stats.range.end)}), ${t.posts} posts across Instagram and Facebook reached ${formatNumber(t.reach)} accounts.`);
+      if (mostlyPaid) {
+        overview.push(`Boosting drove ${paid.reachShare >= 0.9 ? 'almost all' : 'most'} of that: ${paid.posts} boosted post${paid.posts === 1 ? '' : 's'} delivered ${Math.round(paid.reachShare * 100)}% of the reach.`);
+      } else if (paid.posts) {
+        overview.push(`Only ${paid.posts} post${paid.posts === 1 ? ' was' : 's were'} boosted (${Math.round(paid.reachShare * 100)}% of reach), so these results are mostly organic.`);
+      }
+      const typical = join([platformLine('Instagram', org.ig), platformLine('Facebook', org.fb)]);
+      if (typical) overview.push(`${paid.posts ? 'Without boosting, ' : ''}${typical}.`.replace(/^a/, 'A'));
+      if (c && c.reach !== null) {
+        const paidShift = prevOrg && stats.previousTotals && Math.abs(c.reach) >= 25;
+        const orgReachChange = prevOrg ? pctChange(org.all.medianReach, prevOrg.all.medianReach) : null;
+        let line = `Compared with the previous period, total reach is ${changeWords(c.reach)}`;
+        if (paidShift && orgReachChange !== null) {
+          line += `, mainly because ${c.reach < 0 ? 'less' : 'more'} was boosted; typical organic reach is ${changeWords(orgReachChange)}`;
+        }
+        overview.push(line + '.');
       }
     } else {
       overview.push('No social posts were recorded in this period.');
@@ -616,32 +704,40 @@
     if (stats.hasMedia) {
       overview.push(`Earned media logged ${m.total} mention${m.total === 1 ? '' : 's'} across ${m.outletCount} outlet${m.outletCount === 1 ? '' : 's'}${c && c.mentions !== null ? ` (${changeWords(c.mentions)} on the previous period)` : ''}.`);
     }
-    if (stats.boostedCount) {
-      overview.push(`${stats.boostedCount} post${stats.boostedCount === 1 ? ' was' : 's were'} most likely boosted (reach more than four times normal), so format and theme comparisons below use organic posts only.`);
-    }
 
-    // What's working
+    // What's working (organic posts only)
     const working = [];
-    if (formats.best) working.push(`${formats.best.label} posts earn the strongest engagement (median ${formatPct(formats.best.medianEngagement)} across ${formats.best.posts} posts).`);
-    if (reachLeader && (!formats.best || reachLeader.label !== formats.best.label)) working.push(`${reachLeader.label} posts travel furthest, with a median reach of ${formatNumber(reachLeader.medianReach)}.`);
+    if (org.ig.posts >= 3 && org.fb.posts >= 3 && org.ig.medianEngagement >= org.fb.medianEngagement * 2) {
+      working.push(`Instagram is where the audience engages: unboosted Instagram posts typically earn ${formatPct(org.ig.medianEngagement)} engagement, against ${formatPct(org.fb.medianEngagement)} on Facebook.`);
+    } else if (org.fb.posts >= 3 && org.ig.posts >= 3 && org.fb.medianEngagement >= org.ig.medianEngagement * 2) {
+      working.push(`Facebook is where the audience engages: unboosted Facebook posts typically earn ${formatPct(org.fb.medianEngagement)} engagement, against ${formatPct(org.ig.medianEngagement)} on Instagram.`);
+    }
+    if (prevOrg && org.ig.posts >= 3 && prevOrg.ig.posts >= 3 && org.ig.medianEngagement - prevOrg.ig.medianEngagement >= 1) {
+      working.push(`Organic Instagram engagement is rising (${formatPct(prevOrg.ig.medianEngagement)} to ${formatPct(org.ig.medianEngagement)}).`);
+    }
+    if (formats.best) working.push(`${formats.best.label} posts earn the strongest engagement (median about ${formatPct(formats.best.medianEngagement)} across ${formats.best.posts} organic posts).`);
     if (themes.best) working.push(`Of the content themes, ${themes.best.label} resonates most (median engagement ${formatPct(themes.best.medianEngagement)}).`);
     if (stats.topPosts[0]) {
       const top = stats.topPosts[0];
-      working.push(`The top post (${formatDate(top.date)}, ${top.platform === 'ig' ? 'Instagram' : 'Facebook'}) reached ${formatNumber(top.reach)} with ${formatPct(top.engagementRate)} engagement: “${top.caption.slice(0, 110)}${top.caption.length > 110 ? '…' : ''}”`);
+      working.push(`The most engaging post (${formatDate(top.date)}, ${top.platform === 'ig' ? 'Instagram' : 'Facebook'}) earned ${formatPct(top.engagementRate)} engagement: “${top.caption.slice(0, 90)}${top.caption.length > 90 ? '…' : ''}”`);
     }
     if (stats.hasMedia && m.outlets[0]) working.push(`${m.outlets[0].label} is the most consistent media outlet (${m.outlets[0].count} mentions).`);
     if (!working.length) working.push('There is not yet enough data in this period to identify clear strengths.');
 
     // Needs attention
     const attention = [];
+    if (org.all.posts >= 3 && org.all.medianReach < 500) {
+      attention.push(`Organic reach is small${prevOrg && Math.abs(pctChange(org.all.medianReach, prevOrg.all.medianReach) || 0) < 25 ? ' and not growing' : ''}: a typical unboosted post reaches about ${formatNumber(org.all.medianReach)} people, so visibility depends on boosting.`);
+    }
+    if (paidWeak) {
+      attention.push(`Boosted posts bought reach but little interaction: ${formatPct(paid.engagementRate)} engagement, against a typical ${formatPct(org.all.medianEngagement)} for organic posts.`);
+    }
     if (formats.worst && formats.best && formats.worst.medianEngagement < formats.best.medianEngagement * 0.6) {
       attention.push(`${formats.worst.label} posts lag behind (median engagement ${formatPct(formats.worst.medianEngagement)} across ${formats.worst.posts} posts).`);
     }
     if (themes.worst && themes.best && themes.worst.label !== themes.best.label && themes.worst.medianEngagement < themes.best.medianEngagement * 0.7) {
       attention.push(`${themes.worst.label} content earns less engagement than other themes (median ${formatPct(themes.worst.medianEngagement)}).`);
     }
-    if (c && c.reach !== null && c.reach <= -10) attention.push(`Reach fell ${Math.abs(Math.round(c.reach))}% on the previous period.`);
-    if (c && c.engagementPoints <= -0.5) attention.push(`Engagement rate slipped ${Math.abs(c.engagementPoints).toFixed(1)} points to ${formatPct(t.engagementRate)}.`);
     if (stats.gap && stats.gap.days >= 14) attention.push(`There was a ${Math.round(stats.gap.days)}-day gap with no posts (${formatDate(stats.gap.from)} – ${formatDate(stats.gap.to)}).`);
     if (stats.hasMedia && m.total >= 5 && m.outlets[0] && m.outlets[0].count / m.total > 0.4) {
       attention.push(`Coverage is concentrated: ${Math.round((m.outlets[0].count / m.total) * 100)}% of mentions come from ${m.outlets[0].label}.`);
@@ -655,14 +751,16 @@
 
     // Recommendations
     const recs = [];
+    const strongest = [formats.best && formats.best.label + ' posts', themes.best && themes.best.label + ' stories'].filter(Boolean).join(' and ');
+    if (paidWeak) recs.push(`Boost selectively: put spend behind posts that already show strong organic engagement in their first day or two${strongest ? ` (currently ${strongest})` : ''}, instead of boosting by default.`);
     if (formats.best) recs.push(`Lean into ${formats.best.label} posts — they consistently earn the most engagement.`);
     if (themes.best) recs.push(`Keep ${themes.best.label} stories at the centre of the content plan${themes.worst && themes.worst.label !== themes.best.label ? `, and rework how ${themes.worst.label} posts are told (stronger visuals, people and outcomes) before cutting them` : ''}.`);
+    if (org.all.posts >= 3 && org.all.medianReach < 500) recs.push('Grow organic reach: co-post with partners and tag the community members featured in posts, so content reaches their followers too.');
     if (stats.gap && stats.gap.days >= 14) recs.push('Keep a steady posting rhythm — schedule a backlog of evergreen posts so there are no multi-week silences.');
     else if (stats.postsPerWeek < 3 && stats.hasSocial) recs.push(`Posting averaged ${stats.postsPerWeek.toFixed(1)} times a week; aim for at least 3 a week to stay visible.`);
     if (stats.hasMedia) recs.push('Share strong press coverage on social within a day or two of publication, to extend its reach to followers.');
     if (stats.hasMedia && m.total >= 5 && m.outlets[0] && m.outlets[0].count / m.total > 0.4) recs.push(`Broaden media relationships beyond ${m.outlets[0].label} — pitch exclusives or features to outlets that have not covered the project yet.`);
     if (!stats.hasMedia) recs.push('Upload the PR activity workbook so media coverage can be tracked alongside social performance.');
-    if (stats.boostedCount) recs.push('Track boosted posts separately so paid reach is not mistaken for organic growth.');
 
     return {
       overview: overview.join(' '),
@@ -682,6 +780,11 @@
         changes: stats.changes,
         postsPerWeek: Number(stats.postsPerWeek.toFixed(2)),
         likelyBoostedPosts: stats.boostedCount,
+        audienceResponse: stats.response,
+        topPostsCaptionsNote: 'Captions show what each top post was about; use them to judge which kinds of content (proof of progress, community voices, news responses, commitments) earn a response.',
+        boosted: stats.paid,
+        organicByPlatform: stats.organic,
+        previousOrganicByPlatform: stats.previousOrganic,
         longestGapDays: stats.gap ? stats.gap.days : null,
         formats: stats.formats.map(({ bestPost, ...rest }) => rest),
         themes: stats.themes.map(({ bestPost, ...rest }) => rest),
@@ -697,6 +800,7 @@
         themes: stats.media.themes.slice(0, 6),
         sentiments: stats.media.sentiments,
         months: stats.media.months,
+        recentHeadlines: stats.media.latestAll.map(i => ({ date: i.date, outlet: i.outlet, type: i.type, theme: i.theme, title: i.title.slice(0, 160) })),
         keyMoments: stats.media.moments.map(mo => ({ date: mo.date, count: mo.count, headlines: mo.items.slice(0, 3).map(i => i.outlet + ': ' + i.title) })),
       },
     };
@@ -705,7 +809,7 @@
   const api = {
     num, median, parseDate, formatDate, formatNumber, formatPct, monthLabel,
     normalizeFormat, detectPlatform, parseSocialRows, fromLegacyPost,
-    parseMediaRecords, mergePosts, mergeMedia, tagTheme, themeColor, THEMES,
+    parseMediaRecords, mergePosts, mergeMedia, tagTheme, themeColor, THEMES, bahamasDayAndHour, postingHeatmap,
     PERIODS, periodRange, analyze, mediaNarrative, buildSummary, buildAIEvidence,
   };
 

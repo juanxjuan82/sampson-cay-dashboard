@@ -22,7 +22,7 @@ test('detects Instagram and Facebook exports and parses metrics', () => {
     { 'Post ID': '10', 'Page name': 'Sampson Cay', 'Post type': 'Photos', 'Publish time': '09/02/2025 10:00', 'Is crosspost': '1', Reach: 50 },
   ], fbHeaders);
   assert.equal(fb.platform, 'fb');
-  assert.equal(fb.posts.length, 1, 'crossposts are skipped');
+  assert.equal(fb.posts.length, 2, 'crossposts are kept: their Facebook numbers are Facebook-only');
   assert.equal(fb.posts[0].reach, 1000);
   assert.equal(fb.posts[0].format, 'Image');
   assert.equal(fb.posts[0].interactions, 15);
@@ -133,4 +133,32 @@ test('saved dashboard data loads and analyses cleanly', () => {
   const stats = SC.analyze(data, 'all');
   assert.ok(stats.totals.reach > 0);
   assert.ok(SC.buildSummary(stats).overview.length > 50);
+});
+
+test('best-time-to-post converts Meta export times (Pacific) to Bahamas time', () => {
+  // Exported as 4am Pacific on Wed Sep 30, 2026 → 7am Bahamas, same day.
+  assert.deepEqual(SC.bahamasDayAndHour({ date: '2026-09-30', hour: 4 }), { day: 3, hour: 7 });
+  // 10pm Pacific Saturday → 1am Bahamas on Sunday.
+  assert.deepEqual(SC.bahamasDayAndHour({ date: '2026-10-03', hour: 22 }), { day: 0, hour: 1 });
+  const map = SC.postingHeatmap([
+    { date: '2026-09-30', hour: 4, reach: 100, interactions: 5 },
+    { date: '2026-09-30', hour: 5, reach: 100, interactions: 7 },
+  ]);
+  assert.equal(map.cells[0][3].posts, 2, 'both land in the early (before 9am) Wednesday cell');
+});
+
+test('boosted posts are detected from reach and kept out of organic comparisons', () => {
+  const posts = [];
+  for (let i = 0; i < 10; i += 1) {
+    posts.push(...SC.parseSocialRows([igRow('o' + i, `09/${String(i + 1).padStart(2, '0')}/2026`, 120 + i, 9, 'IG carousel')], igHeaders).posts);
+  }
+  posts.push(...SC.parseSocialRows([igRow('p1', '09/20/2026', 15000, 30, 'IG reel'), igRow('p2', '09/21/2026', 9000, 20, 'IG reel'), igRow('p3', '09/22/2026', 4000, 10, 'IG reel')], igHeaders).posts);
+  const stats = SC.analyze({ posts, media: [] }, 'all');
+  assert.equal(stats.boostedCount, 3);
+  assert.ok(stats.paid.reachShare > 0.9);
+  assert.ok(!stats.formats.find(f => f.label === 'Instagram Reel'), 'boosted reels are not in the organic format stats');
+  const summary = SC.buildSummary(stats);
+  assert.match(summary.overview, /Boosting drove almost all/);
+  assert.match(summary.attention, /Boosted posts bought reach but little interaction/);
+  assert.match(summary.recommendations[0], /Boost selectively/);
 });
