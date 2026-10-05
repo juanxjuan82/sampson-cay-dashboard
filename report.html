@@ -790,7 +790,8 @@
 <style>
     #upload-screen, #github-modal, #ai-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
-    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root { display: none !important; }
+    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root,
+    #tab-amec, #view-amec { display: none !important; }
     .editable-field { cursor: default !important; }
     :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
     .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
@@ -988,6 +989,7 @@
       <div id="exec-summary-body"></div>
     </div>
   </div>
+  <div id="crisis-overview-root"></div>
 
 
   <!-- 90-DAY PERIOD-OVER-PERIOD COMPARISON -->
@@ -1637,6 +1639,10 @@ function getThemeStats(posts) {
   };
 }
 
+function themeLabelHTML(theme) {
+  return escapeHTML(theme.label);
+}
+
 function renderThemes(posts) {
   const grid = document.getElementById('theme-grid');
   const table = document.getElementById('theme-table-wrap');
@@ -1657,7 +1663,7 @@ function renderThemes(posts) {
   grid.innerHTML = result.rows.map(function(row) {
     const enough = row.organicCount >= THEME_MIN_SAMPLE;
     return '<div class="theme-card" style="--theme-color:' + row.color + '">'
-      + '<div class="theme-card-label">' + escapeHTML(row.label) + '</div>'
+      + '<div class="theme-card-label">' + themeLabelHTML(row) + '</div>'
       + '<div class="theme-card-count">' + row.count + '</div>'
       + '<div class="theme-card-sub">content items · ' + Math.round(row.share * 100) + '% tagged with this theme</div>'
       + '<div class="theme-card-metric"><strong>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</strong><span>Median organic reach</span></div>'
@@ -1669,16 +1675,16 @@ function renderThemes(posts) {
     + result.rows.map(function(row) {
       const enough = row.organicCount >= THEME_MIN_SAMPLE;
       const example = row.topPost && row.topPost.permalink ? '<a class="post-link" href="' + escapeHTML(row.topPost.permalink) + '" target="_blank">View post ↗</a>' : '—';
-      return '<tr><td><span class="theme-swatch" style="background:' + row.color + '"></span><strong>' + escapeHTML(row.label) + '</strong></td>'
+      return '<tr><td><span class="theme-swatch" style="background:' + row.color + '"></span><strong>' + themeLabelHTML(row) + '</strong></td>'
         + '<td>' + row.count + '</td><td><span class="evidence-badge ' + (enough ? 'enough' : 'limited') + '">' + row.organicCount + ' platform observations</span></td>'
         + '<td>' + (row.organicCount ? fmt(row.medianReach) : '—') + '</td><td>' + (row.organicCount ? fmtPct(row.medianEngagement) : '—') + '</td>'
         + '<td>' + (row.organicCount ? Math.round(row.lowShare * 100) + '%' : '—') + '</td><td>' + example + '</td></tr>';
     }).join('') + '</tbody></table>';
 
   const statements = [];
-  if (strongestEngagement) statements.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
-  if (strongestReach) statements.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median organic reach at <strong>' + fmt(strongestReach.medianReach) + '</strong> per post.');
-  if (highestLowShare && highestLowShare.lowShare >= 0.4) statements.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> is most concentrated in the bottom engagement quartile at <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong>; treat this as a signal to review, not proof that the theme caused lower performance.');
+  if (strongestEngagement) statements.push('<strong>' + themeLabelHTML(strongestEngagement) + '</strong> has the strongest median organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
+  if (strongestReach) statements.push('<strong>' + themeLabelHTML(strongestReach) + '</strong> has the strongest median organic reach at <strong>' + fmt(strongestReach.medianReach) + '</strong> per post.');
+  if (highestLowShare && highestLowShare.lowShare >= 0.4) statements.push('<strong>' + themeLabelHTML(highestLowShare) + '</strong> is most concentrated in the bottom engagement quartile at <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong>; treat this as a signal to review, not proof that the theme caused lower performance.');
   if (!statements.length) statements.push('No theme has at least ' + THEME_MIN_SAMPLE + ' estimated organic posts, so the current data does not support a reliable theme comparison.');
 
   analysis.innerHTML = statements.join(' ');
@@ -3459,7 +3465,7 @@ function renderTopPosts(posts) {
     <tr>
       <td style="font-weight:700; color:#94a3b8; font-size:12px">${i+1}</td>
       <td><span class="platform-tag ${p.platform}">${p.platform === 'ig' ? '📸 IG' : '🔵 FB'}</span></td>
-      <td><span class="theme-tag">${classifyThemes(p).length ? classifyThemes(p).map(function(theme) { return theme.label; }).join(' · ') : 'Unclassified'}</span></td>
+      <td><span class="theme-tag">${classifyThemes(p).length ? classifyThemes(p).map(themeLabelHTML).join(' · ') : 'Unclassified'}</span></td>
       <td><span class="type-tag ${typeClass(p.type)}">${p.type}</span></td>
       <td style="color:var(--text-muted); font-size:12px; white-space:nowrap">${p.dateStr}</td>
       <td><div class="post-caption" title="${p.caption.replace(/"/g,"'")}">${p.caption || '—'}</div></td>
@@ -3617,33 +3623,33 @@ function renderExecSummary() {
   })[0];
   const workingParts = [];
   if (strongestEngagement) {
-    workingParts.push('<strong>' + escapeHTML(strongestEngagement.label) + '</strong> has the strongest median estimated organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
+    workingParts.push('<strong>' + themeLabelHTML(strongestEngagement) + '</strong> has the strongest median estimated organic engagement rate at <strong>' + fmtPct(strongestEngagement.medianEngagement) + '</strong>.');
   }
   if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
-    workingParts.push('<strong>' + escapeHTML(strongestReach.label) + '</strong> has the strongest median estimated organic reach at <strong>' + fmt(Math.round(strongestReach.medianReach)) + '</strong> per post.');
+    workingParts.push('<strong>' + themeLabelHTML(strongestReach) + '</strong> has the strongest median estimated organic reach at <strong>' + fmt(Math.round(strongestReach.medianReach)) + '</strong> per post.');
   }
   const whatsWorkingFallback = workingParts.length
     ? workingParts.join(' ')
     : 'No theme has enough estimated organic posts for a reliable comparison.';
   const attentionParts = [];
   if (weakestEngagement) {
-    attentionParts.push('<strong>' + escapeHTML(weakestEngagement.label) + '</strong> has the lowest eligible median estimated organic engagement rate at <strong>' + fmtPct(weakestEngagement.medianEngagement) + '</strong>.');
+    attentionParts.push('<strong>' + themeLabelHTML(weakestEngagement) + '</strong> has the lowest eligible median estimated organic engagement rate at <strong>' + fmtPct(weakestEngagement.medianEngagement) + '</strong>.');
   }
   if (highestLowShare && highestLowShare.lowShare >= 0.25) {
-    attentionParts.push('<strong>' + escapeHTML(highestLowShare.label) + '</strong> appears in the bottom engagement quartile for <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong> of its estimated organic posts; treat this as a review signal, not proof of cause.');
+    attentionParts.push('<strong>' + themeLabelHTML(highestLowShare) + '</strong> appears in the bottom engagement quartile for <strong>' + Math.round(highestLowShare.lowShare * 100) + '%</strong> of its estimated organic posts; treat this as a review signal, not proof of cause.');
   }
   const whatsNeedsAttentionFallback = attentionParts.length
     ? attentionParts.join(' ')
     : 'No eligible theme is consistently concentrated among the lowest-engagement posts.';
   const directionParts = [];
   if (strongestEngagement) {
-    directionParts.push('Use <strong>' + escapeHTML(strongestEngagement.label) + '</strong> as the primary engagement pillar.');
+    directionParts.push('Use <strong>' + themeLabelHTML(strongestEngagement) + '</strong> as the primary engagement pillar.');
   }
   if (strongestReach && (!strongestEngagement || strongestReach.id !== strongestEngagement.id)) {
-    directionParts.push('Retain <strong>' + escapeHTML(strongestReach.label) + '</strong> for awareness, supported by specific proof and audience relevance.');
+    directionParts.push('Retain <strong>' + themeLabelHTML(strongestReach) + '</strong> for awareness, supported by specific proof and audience relevance.');
   }
   if (weakestEngagement) {
-    directionParts.push('Refine <strong>' + escapeHTML(weakestEngagement.label) + '</strong> before increasing its share of the content plan.');
+    directionParts.push('Refine <strong>' + themeLabelHTML(weakestEngagement) + '</strong> before increasing its share of the content plan.');
   }
   const recommendedDirectionFallback = directionParts.length
     ? directionParts.join(' ')
@@ -4262,7 +4268,8 @@ async function buildClientHTML(preloadedAmecReport) {
   const clientStyles = `<style>
     #upload-screen, #github-modal, #ai-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
-    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root { display: none !important; }
+    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root,
+    #tab-amec, #view-amec { display: none !important; }
     .editable-field { cursor: default !important; }
     :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
     .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
