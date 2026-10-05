@@ -628,7 +628,7 @@
     return `
       <div class="block-sub">
         <h3>Formats</h3>
-        <p class="muted" style="margin-top:0">Organic posts only. “Typical” means the middle (median) post, so one viral post doesn't skew it. * = fewer than 3 posts, treat with caution.</p>
+        <p class="muted" style="margin-top:0">Organic posts only. “Typical” means the middle (median) post, so one viral post doesn't skew it. * = fewer than 5 posts, treat with caution.</p>
         <div class="grid-2">
           <div class="card"><h3>Which formats reach the most people</h3>${legend}${box('chart-format-reach', 'Typical reach by format', barHeight)}</div>
           <div class="card"><h3>Which formats earn the most engagement</h3>${legend}${box('chart-format-eng', 'Typical engagement rate by format', barHeight)}</div>
