@@ -1186,7 +1186,13 @@
   </div><!-- /view-posts -->
 
   <div id="view-amec" class="dashboard-view" role="tabpanel" aria-labelledby="tab-amec">
-    <div id="amec-app-root"><section class="amec-client-report" aria-labelledby="amec-client-title">
+    <div id="amec-tracker-cards">
+    <div class="amec-client-two-col" data-amec-recovered-cards>
+      <section class="amec-client-panel"><h3>Media Narrative</h3><p class="amec-client-unmeasured">The published snapshot contains source-coded outputs and themes. Upload the current PR activity workbook in the administrator view to refresh this narrative.</p></section>
+      <section class="amec-client-panel"><h3>Key Moments</h3><p class="amec-client-unmeasured">No dated key moments were included in this saved snapshot. They will appear after the PR activity workbook is imported and the client report is republished.</p></section>
+    </div>
+  </div>
+  <div id="amec-app-root"><section class="amec-client-report" aria-labelledby="amec-client-title">
     <header class="amec-client-header">
       <div><p class="amec-client-kicker">Sampson Cay / Yntegra · AMEC evaluation</p><h1 id="amec-client-title">Communications measurement</h1><p>Documented communications outputs, with audience response kept separate until measured.</p></div>
       <div class="amec-client-period"><strong>Reporting period</strong><span>Not available — Not available</span><small>Read-only snapshot · workbook last imported Oct 5, 2026</small></div>
@@ -1371,7 +1377,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-10-05.2'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-10-05.4'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -2680,16 +2686,20 @@ function getInstagramWeeklyContentPace(posts) {
   }
 
   const timestamps = datedPosts.map(post => post.day);
-  const days = Math.floor((Math.max(...timestamps) - Math.min(...timestamps)) / 86400000) + 1;
-  const weeks = days / 7;
-  const reels = datedPosts.filter(post => post.type.includes('reel')).length;
-  const staticPosts = datedPosts.filter(post => /image|carousel/.test(post.type)).length;
+  const latestDay = Math.max(...timestamps);
+  const earliestDay = Math.min(...timestamps);
+  const observedDays = Math.floor((latestDay - earliestDay) / 86400000) + 1;
+  const windowDays = 28;
+  const windowStart = latestDay - ((windowDays - 1) * 86400000);
+  const recentPosts = datedPosts.filter(post => post.day >= windowStart && post.day <= latestDay);
+  const reels = recentPosts.filter(post => post.type.includes('reel')).length;
+  const staticPosts = recentPosts.filter(post => /image|carousel/.test(post.type)).length;
 
   return {
-    days,
-    comparable: days >= 28,
-    reelsPerWeek: reels / weeks,
-    staticPerWeek: staticPosts / weeks,
+    days: Math.min(observedDays, windowDays),
+    comparable: observedDays >= windowDays,
+    reelsPerWeek: reels / 4,
+    staticPerWeek: staticPosts / 4,
   };
 }
 
@@ -2742,7 +2752,7 @@ function renderKPIs(posts) {
       sectorPaceEl.textContent = 'Add at least four weeks of dated Instagram posts to compare weekly pace.';
     } else {
       const formatPace = value => value.toLocaleString(undefined, { maximumFractionDigits: 1 });
-      sectorPaceEl.textContent = 'Current pace over ' + pace.days + ' days: ' + formatPace(pace.reelsPerWeek) + ' Reels + ' + formatPace(pace.staticPerWeek) + ' image/carousel posts per week.';
+      sectorPaceEl.textContent = 'Current pace over the latest 28-day window: ' + formatPace(pace.reelsPerWeek) + ' Reels + ' + formatPace(pace.staticPerWeek) + ' image/carousel posts per week.';
     }
   }
 }
