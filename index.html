@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en" xk-pk-bridge="true"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Social Media Performance Dashboard</title>
@@ -723,6 +722,8 @@
   .push-status.loading { background: #edf5f6; color: #0a4a59; border: 1px solid #bed2d0; }
   .push-status.success { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
   .push-status.error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+  .source-version-status { display:none; margin:-4px 0 12px; color:var(--text-muted); font-size:11px; line-height:1.45; }
+  .source-version-status.visible { display:block; }
   .spinner {
     width: 14px; height: 14px; border: 2px solid currentColor;
     border-top-color: transparent; border-radius: 50%;
@@ -783,6 +784,8 @@
   }
 
 </style>
+  
+  
 </head>
 <body>
 
@@ -803,20 +806,20 @@
 
     <div class="upload-zones">
       <div class="upload-zone" id="zone-fb">
-        <input type="file" accept=".csv" multiple id="file-fb" onchange="handleFile('fb', this)">
+        <input type="file" accept=".csv" multiple="" id="file-fb" onchange="handleFile('fb', this)">
         <div class="icon">🔵</div>
         <div class="label" id="label-fb">Facebook CSV</div>
         <div class="sub">Select one or more 90-day exports</div>
       </div>
       <div class="upload-zone" id="zone-ig">
-        <input type="file" accept=".csv" multiple id="file-ig" onchange="handleFile('ig', this)">
+        <input type="file" accept=".csv" multiple="" id="file-ig" onchange="handleFile('ig', this)">
         <div class="icon">📸</div>
         <div class="label" id="label-ig">Instagram CSV</div>
         <div class="sub">Select one or more 90-day exports</div>
       </div>
     </div>
 
-    <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()" disabled>
+    <button class="btn btn-primary" id="load-btn" onclick="loadDashboard()" disabled="">
       Generate Dashboard →
     </button>
 
@@ -824,7 +827,7 @@
       Multiple CSVs per platform are merged and deduplicated by Post ID. CSVs are processed in your browser; sign in with an administrator account to save them to the shared dashboard.
     </p>
     <div id="upload-social-status" aria-live="polite"></div>
-    <div id="restore-social-snapshot" hidden style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+    <div id="restore-social-snapshot" hidden="" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
       <p style="margin-bottom:9px;font-size:12px;color:var(--text-muted);line-height:1.5">
         Optional historical data restore. This imports the dated report snapshot for Jan 2–Jul 30, 2026 (67 posts per platform) only when you choose it.
       </p>
@@ -859,7 +862,7 @@
     <button class="dashboard-tab active" type="button" onclick="switchDashboardView('overview', this)">Overview</button>
     <button class="dashboard-tab" type="button" onclick="switchDashboardView('details', this)">Detailed Performance</button>
     <button class="dashboard-tab" type="button" onclick="switchDashboardView('posts', this)">Top Posts</button>
-    <button class="dashboard-tab" id="tab-amec" type="button" role="tab" aria-controls="view-amec" onclick="switchDashboardView('amec', this)">AMEC Evaluation</button>
+    
   </div>
 
   <div id="view-overview" class="dashboard-view active">
@@ -1098,9 +1101,7 @@
 
   </div><!-- /view-posts -->
 
-  <div id="view-amec" class="dashboard-view" role="tabpanel" aria-labelledby="tab-amec">
-    <div id="amec-app-root"></div>
-  </div><!-- /view-amec -->
+  <!-- /view-amec -->
 
   <!-- ANALYST NOTES — hidden from client report -->
   <div id="analyst-notes" style="display:none">
@@ -1124,17 +1125,16 @@
     <p>This will publish <strong>report.html</strong> directly to your repo. Your client's URL updates automatically — no manual upload needed.</p>
 
     <div class="push-status" id="push-status"></div>
+    <div class="source-version-status" id="source-version-status" aria-live="polite"></div>
 
     <label>GitHub Personal Access Token</label>
-    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-      oninput="saveGHSettings()" autocomplete="off">
+    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" oninput="saveGHSettings()" autocomplete="off">
 
     <label>Repository (owner/repo)</label>
-    <input type="text" id="gh-repo" placeholder="juanxjuan82/sampson-cay-dashboard"
-      oninput="saveGHSettings()">
+    <input type="text" id="gh-repo" placeholder="juanxjuan82/sampson-cay-dashboard" oninput="saveGHSettings()">
 
     <p style="margin-bottom:12px">
-      <a class="modal-link" href="https://github.com/settings/tokens/new?scopes=repo&description=Social+Dashboard" target="_blank">
+      <a class="modal-link" href="https://github.com/settings/tokens/new?scopes=repo&amp;description=Social+Dashboard" target="_blank">
         Generate a token on GitHub →
       </a>
       &nbsp;(check the <strong>repo</strong> scope, set expiration to your preference)
@@ -1142,6 +1142,7 @@
 
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closeGitHubModal()">Cancel</button>
+      <button class="btn btn-outline btn-sm" id="btn-sync-source" type="button" onclick="syncAdminSource()" style="display:none">Sync source + publish client</button>
       <button class="btn btn-github btn-sm" id="btn-push-confirm" onclick="pushToGitHub()">⬆ Publish Now</button>
     </div>
   </div>
@@ -1186,7 +1187,7 @@ let boostThreshold = Infinity; // set by renderAnalystNotes; used to flag likely
 let sharedEditableContent = {};
 let summaryMode = 'deterministic';
 let aiGenerateAfterSettings = false;
-const DASHBOARD_VERSION = '2026-10-04.1'; // Bump whenever report-generation code changes.
+const DASHBOARD_VERSION = '2026-10-04.4'; // Bump whenever report-generation code changes.
 
 // Capture a clean page template before any charts or data are rendered.
 // We do this immediately at script load time so the HTML is small and fast to serialise.
@@ -3706,6 +3707,8 @@ function openGitHubModal() {
   if (!document.getElementById('gh-repo').value) {
     document.getElementById('gh-repo').value = 'juanxjuan82/sampson-cay-dashboard';
   }
+  hideSourceSyncButton();
+  clearSourceVersionStatus();
   setPushStatus('', '');
   document.getElementById('github-modal').classList.add('open');
 }
@@ -3735,8 +3738,261 @@ function setPushStatus(type, msg) {
   }
 }
 
-function buildClientHTML() {
+function clearSourceVersionStatus() {
+  const el = document.getElementById('source-version-status');
+  if (!el) return;
+  el.textContent = '';
+  el.classList.remove('visible');
+}
+
+function showSourceVersionStatus(remoteVersion, status) {
+  const el = document.getElementById('source-version-status');
+  if (!el) return;
+  el.classList.add('visible');
+  if (status === 'checking') {
+    el.textContent = `Checking versions — this tab: ${DASHBOARD_VERSION}; GitHub index.html: checking…`;
+    return;
+  }
+  if (status === 'unavailable') {
+    el.textContent = `This tab: ${DASHBOARD_VERSION}; GitHub index.html version could not be checked.`;
+    return;
+  }
+  el.textContent = `This tab: ${DASHBOARD_VERSION} · GitHub index.html: ${remoteVersion || 'no version marker'} (${status}).`;
+}
+
+function compareDashboardVersions(left, right) {
+  const parse = value => {
+    const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})\.(\d+)$/);
+    if (!match) return null;
+    const date = Date.parse(`${match[1]}T00:00:00Z`);
+    if (!Number.isFinite(date)) return null;
+    return { date, revision: Number(match[2]) };
+  };
+  const local = parse(left);
+  const remote = parse(right);
+  if (!local || !remote) return null;
+  if (local.date !== remote.date) return local.date > remote.date ? 1 : -1;
+  if (local.revision === remote.revision) return 0;
+  return local.revision > remote.revision ? 1 : -1;
+}
+
+function isAdminSourcePage() {
+  const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+  return !path.endsWith('/report.html') &&
+    !path.endsWith('/client.html') &&
+    window.__SAMPSON_DASHBOARD_SOURCE__ !== 'embedded' &&
+    !window.__EMBEDDED_DATA__;
+}
+
+function hideSourceSyncButton() {
+  const button = document.getElementById('btn-sync-source');
+  if (!button) return;
+  button.style.display = 'none';
+  button.disabled = false;
+  button.dataset.remoteSha = '';
+  button.dataset.remoteVersion = '';
+  button.dataset.repo = '';
+}
+
+function showSourceSyncButton(repoFull, remoteIndex, remoteVersion) {
+  const button = document.getElementById('btn-sync-source');
+  if (!button) return;
+  button.dataset.remoteSha = remoteIndex.sha || '';
+  button.dataset.remoteVersion = remoteVersion || '';
+  button.dataset.repo = repoFull;
+  button.textContent = 'Sync source + publish client';
+  button.style.display = 'inline-flex';
+  button.disabled = false;
+}
+
+async function fetchGitHubFresh(url, options = {}) {
+  return fetch(url, { ...options, cache: 'no-store' });
+}
+
+function buildAdminSourceHTML() {
+  if (!isAdminSourcePage()) {
+    throw new Error('Open the admin index.html page before syncing the dashboard source.');
+  }
+  if (!_pageTemplate) {
+    throw new Error('The clean admin page template is not ready. Reload index.html and try again.');
+  }
+  const sourceDocument = new DOMParser().parseFromString(_pageTemplate, 'text/html');
+  if (hasEmbeddedReportDataScript(sourceDocument)) {
+    throw new Error('This page contains saved report data. Open the admin index.html page to sync source without report data.');
+  }
+  sourceDocument.querySelectorAll('script[type="module"],link[rel="modulepreload"],style[data-vite-dev-id],#tab-amec,#view-amec,#react-root,#react-overlay-root')
+    .forEach(element => element.remove());
+  sourceDocument.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+    if (/assets\/[^/]+\.css(?:[?#].*)?$/i.test(link.getAttribute('href') || '')) link.remove();
+  });
+  sourceDocument.querySelector('#github-static-source-only')?.remove();
+  const source = '<!DOCTYPE html>\n' + sourceDocument.documentElement.outerHTML;
+  if (!sourceDocument.head) throw new Error('The admin source template is incomplete.');
+  return source;
+}
+
+function hasEmbeddedReportDataScript(sourceDocument) {
+  return Boolean(sourceDocument.querySelector('script[data-sampson-report-data]'));
+}
+
+function escapeAmecSnapshotText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character]);
+}
+
+function formatAmecSnapshotValue(value, unit) {
+  if (value === null || value === undefined || (typeof value === 'number' && !Number.isFinite(value))) {
+    return 'Not measured';
+  }
+  const formatted = typeof value === 'number'
+    ? value.toLocaleString('en-US', { maximumFractionDigits: 1 })
+    : escapeAmecSnapshotText(value);
+  return `${formatted}${unit ? ` ${escapeAmecSnapshotText(unit)}` : ''}`;
+}
+
+function formatAmecSnapshotDate(value) {
+  if (!value) return 'Not available';
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00Z`);
+  return Number.isNaN(date.getTime())
+    ? escapeAmecSnapshotText(value)
+    : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+function buildAmecClientReportHTML(report) {
+  if (!report || !Array.isArray(report.stages) || !report.outputMetrics) {
+    throw new Error('The AMEC report response was incomplete.');
+  }
+  const metrics = report.outputMetrics;
+  const stageByKey = new Map(report.stages.map(stage => [stage.stage, stage]));
+  const stages = [
+    ['objectives', 'Objectives', '01'],
+    ['inputs', 'Inputs', '02'],
+    ['activities', 'Activities', '03'],
+    ['outputs', 'Outputs', '04'],
+    ['outtakes', 'Outtakes', '05'],
+  ];
+  const stageHTML = stages.map(([key, name, number]) => {
+    const stage = stageByKey.get(key);
+    const status = stage?.status === 'measured' ? 'Measured' : stage?.status === 'partial' ? 'Partial' : 'Not measured';
+    const statusClass = stage?.status === 'measured' ? 'measured' : stage?.status === 'partial' ? 'partial' : 'unmeasured';
+    const measures = (Array.isArray(stage?.measures) ? stage.measures : []).slice(0, 2).map(measure => `
+      <div class="amec-client-measure">
+        <span>${escapeAmecSnapshotText(measure.label)}</span>
+        <strong>${formatAmecSnapshotValue(measure.value, measure.unit)}</strong>
+        <small>${measure.source ? `Source: ${escapeAmecSnapshotText(measure.source)}${measure.note ? ` · ${escapeAmecSnapshotText(measure.note)}` : ''}` : escapeAmecSnapshotText(measure.note || 'No measure supplied.')}</small>
+      </div>`).join('');
+    return `
+      <article class="amec-client-stage ${statusClass}">
+        <div class="amec-client-stage-head"><span>${escapeAmecSnapshotText(name)}</span><b>${number}</b></div>
+        <span class="amec-client-status">${status}</span>
+        <p>${escapeAmecSnapshotText(stage?.summary || 'No measure supplied for this stage.')}</p>
+        ${measures}
+      </article>`;
+  }).join('');
+
+  const activity = Array.isArray(report.quarterlyActivity) ? report.quarterlyActivity : [];
+  const activityRows = activity.length
+    ? activity.map(row => `<tr><th>${escapeAmecSnapshotText(row.quarter)}</th><td>${Number(row.pressReleases || 0).toLocaleString()}</td><td>${Number(row.communicationActivities || 0).toLocaleString()}</td><td>${Number(row.mediaMentions || 0).toLocaleString()}</td></tr>`).join('')
+    : '<tr><td colspan="4">No dated activity is recorded for this period.</td></tr>';
+
+  const listBlock = (rows, emptyMessage, renderRow) => Array.isArray(rows) && rows.length
+    ? `<div class="amec-client-list">${rows.map(renderRow).join('')}</div>`
+    : `<p class="amec-client-unmeasured">${escapeAmecSnapshotText(emptyMessage)}</p>`;
+  const publicationShare = listBlock(metrics.publicationShare, 'Publication share is unavailable for this period.', row => {
+    const share = Math.max(0, Math.min(100, Number(row.sharePercent) || 0));
+    return `<div class="amec-client-list-row"><span>${escapeAmecSnapshotText(row.label)}</span><i><b style="width:${share}%"></b></i><strong>${share.toFixed(1)}%</strong><small>${Number(row.count || 0).toLocaleString()}</small></div>`;
+  });
+  const sentiment = listBlock(metrics.sentimentDistribution, 'Sentiment is unmeasured; no explicit source-coded labels are available.', row =>
+    `<div class="amec-client-list-row"><span>${escapeAmecSnapshotText(row.label)} · ${escapeAmecSnapshotText(row.source)}</span><strong>${Number(row.count || 0).toLocaleString()}</strong><small>${Number(row.sharePercent || 0).toFixed(1)}%</small></div>`);
+  const alignment = listBlock(metrics.themeSentimentAlignment, 'Theme and sentiment alignment is unmeasured; both source fields are required.', row =>
+    `<div class="amec-client-list-row"><span><b>${escapeAmecSnapshotText(row.theme)}</b><small>${escapeAmecSnapshotText(row.sentiment)} · ${escapeAmecSnapshotText(row.source)}</small></span><strong>${Number(row.count || 0).toLocaleString()}</strong></div>`);
+  const domainVisibility = listBlock(metrics.domainVisibility, 'Domain metadata is unmeasured.', row => {
+    const tierLabels = { metadataConfirmed: 'Metadata confirmed', linkOnly: 'Link only', unmeasured: 'Unmeasured' };
+    return `<div class="amec-client-list-row"><span><b>${escapeAmecSnapshotText(row.domain || tierLabels[row.tier] || row.tier)}</b><small>${escapeAmecSnapshotText(tierLabels[row.tier] || row.tier)}</small></span><strong>${Number(row.count || 0).toLocaleString()}</strong></div>`;
+  });
+  const sourceCoverage = Array.isArray(report.sourceCoverage) ? report.sourceCoverage : [];
+  const coverageRows = sourceCoverage.length
+    ? sourceCoverage.map(row => `<div class="amec-client-list-row"><span><b>${escapeAmecSnapshotText(row.sheetName)}</b><small>${Number(row.datedRows || 0).toLocaleString()} dated · latest ${formatAmecSnapshotDate(row.latestDate)}</small></span><strong>${Number(row.rowCount || 0).toLocaleString()} rows</strong></div>`).join('')
+    : '<p class="amec-client-unmeasured">No source coverage details supplied.</p>';
+  const coverageTypes = listBlock(report.coverageTypes, 'No coverage type classifications available.', row =>
+    `<div class="amec-client-list-row"><span>${escapeAmecSnapshotText(row.label)}</span><strong>${Number(row.count || 0).toLocaleString()}</strong></div>`);
+  const descriptors = [
+    ...(Array.isArray(report.themes) ? report.themes.slice(0, 4).map(row => ({ ...row, kind: 'Theme' })) : []),
+    ...(Array.isArray(report.topPublications) ? report.topPublications.slice(0, 4).map(row => ({ ...row, kind: 'Publication' })) : []),
+  ];
+  const topDescriptors = listBlock(descriptors, 'No themes or publication labels available.', row =>
+    `<div class="amec-client-list-row"><span><b>${escapeAmecSnapshotText(row.label)}</b><small>${escapeAmecSnapshotText(row.kind)}</small></span><strong>${Number(row.count || 0).toLocaleString()}</strong></div>`);
+  const socialChannels = Object.entries(report.social || {}).map(([platform, social]) => {
+    const metricsHTML = Object.entries(social?.metrics || {}).slice(0, 4).map(([name, value]) =>
+      `<div><strong>${Number(value || 0).toLocaleString()}</strong><small>${escapeAmecSnapshotText(name)}</small></div>`).join('');
+    return `<div class="amec-client-social"><span>${platform === 'facebook' ? 'Facebook' : 'Instagram'} · ${Number(social?.postCount || 0).toLocaleString()} posts</span>${metricsHTML || '<strong>Metrics not supplied</strong>'}</div>`;
+  }).join('');
+
+  return `<section class="amec-client-report" aria-labelledby="amec-client-title">
+    <header class="amec-client-header">
+      <div><p class="amec-client-kicker">Sampson Cay / Yntegra · AMEC evaluation</p><h1 id="amec-client-title">Communications measurement</h1><p>Documented communications outputs, with audience response kept separate until measured.</p></div>
+      <div class="amec-client-period"><strong>Reporting period</strong><span>${formatAmecSnapshotDate(report.period?.startDate)} — ${formatAmecSnapshotDate(report.period?.endDate)}</span><small>Read-only snapshot · workbook last imported ${formatAmecSnapshotDate(report.lastImportedAt)}</small></div>
+    </header>
+    <div class="amec-client-metrics">
+      <div><span>Documented outputs</span><strong>${Number(metrics.totalMediaMentions || 0).toLocaleString()}</strong><small>Media mentions · Tribune subset excluded</small></div>
+      <div><span>Pickup multiplier</span><strong>${formatAmecSnapshotValue(metrics.pickupMultiplier, '×')}</strong><small>${Number(metrics.localPickupNumerator || 0).toLocaleString()} distinct outlets ÷ ${Number(metrics.distributedCampaignCount || 0).toLocaleString()} dated campaign IDs</small></div>
+      <div><span>High-impact features</span><strong>${Number(metrics.highImpactFeatureCount || 0).toLocaleString()}</strong><small>Source-recorded feature rows</small></div>
+    </div>
+    <div class="amec-client-section-heading"><h2>AMEC framework</h2><p>Measured status describes available evidence, not causal attribution.</p></div>
+    <div class="amec-client-stage-grid">${stageHTML}</div>
+    <div class="amec-client-section-heading"><h2>Activity and source coverage</h2><p>Recorded activity is not audience response or verified impact.</p></div>
+    <div class="amec-client-two-col">
+      <section class="amec-client-panel"><h3>Quarterly activity by source</h3><small>Tribune Articles Only is a subset and is excluded from media mention totals.</small><div class="amec-client-table-wrap"><table><thead><tr><th>Quarter</th><th>Press releases</th><th>Other activities</th><th>Media mentions</th></tr></thead><tbody>${activityRows}</tbody></table></div></section>
+      <section class="amec-client-panel"><h3>Evidence source coverage</h3>${coverageRows}</section>
+    </div>
+    <div class="amec-client-section-heading"><h2>Evidence descriptors</h2><p>Source-coded labels and classifications, not measures of audience outtakes.</p></div>
+    <div class="amec-client-two-col">
+      <section class="amec-client-panel"><h3>Coverage types</h3><small>Source-coded classifications.</small>${coverageTypes}</section>
+      <section class="amec-client-panel"><h3>Top themes and publications</h3><small>Record frequency.</small>${topDescriptors}</section>
+    </div>
+    <div class="amec-client-two-col">
+      <section class="amec-client-panel"><h3>Publication share</h3><small>Share within documented media mentions.</small>${publicationShare}</section>
+      <section class="amec-client-panel"><h3>Explicit source-coded sentiment</h3><small>${Number(metrics.sentimentSampleSize || 0).toLocaleString()} records carry a sentiment field.</small>${sentiment}</section>
+    </div>
+    <div class="amec-client-two-col">
+      <section class="amec-client-panel"><h3>Theme sentiment alignment</h3><small>Rows require both explicit source fields.</small>${alignment}</section>
+      <section class="amec-client-panel"><h3>Domain visibility tiers</h3><small>Metadata evidence only, not domain reach or publisher rank.</small>${domainVisibility}</section>
+    </div>
+    <section class="amec-client-panel"><h3>Social channel outputs</h3><small>Platform-supplied output metrics, not evidence of audience understanding or impact.</small><div class="amec-client-social-grid">${socialChannels}</div></section>
+    <footer class="amec-client-footer">Reach/impact is displayed as recorded and is not treated as verified impact. Audience awareness, understanding, behavior change, and organizational impact are unmeasured. Tribune Articles Only is a subset source, not an additional media mention count.</footer>
+  </section>`;
+}
+
+async function loadAmecReportForClient() {
+  const exporterDeadline = Date.now() + 5000;
+  while (typeof window.__SAMPSON_AMEC_REPORT_EXPORT__ !== 'function') {
+    if (Date.now() >= exporterDeadline) {
+      throw new Error('The AMEC report is not ready. Reload the admin dashboard and try again.');
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  let timeoutId;
+  try {
+    return await Promise.race([
+      window.__SAMPSON_AMEC_REPORT_EXPORT__(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Timed out loading the AMEC evaluation. Check your administrator session and retry.')), 30000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function buildClientHTML() {
   captureSharedEditableContent();
+  const amecReport = await loadAmecReportForClient();
+  const amecMarkup = buildAmecClientReportHTML(amecReport);
   const data = {
     igPosts: igPosts.map(post => {
       const { id, externalId, sourceMetrics, ...reportPost } = post;
@@ -3759,29 +4015,91 @@ function buildClientHTML() {
     .replace(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*>/gi, '')
     .replace(/<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["'][^"']*assets\/[^"']+\.css[^"']*["'][^>]*>/gi, '')
     .replace(/<div\b[^>]*\bid=["']react-root["'][^>]*>\s*<\/div>/gi, '');
-  const dataScript = `<script>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
+  const amecMount = '<div id="amec-app-root"></div>';
+  if (!currentHTML.includes(amecMount)) {
+    throw new Error('The report template does not contain the AMEC evaluation panel.');
+  }
+  const clientHTML = currentHTML.replace(amecMount, `<div id="amec-app-root">${amecMarkup}</div>`);
+  const dataScript = `<script data-sampson-report-data>window.__EMBEDDED_DATA__ = ${dataJSON};<\/script>`;
   const clientStyles = `<style>
     #upload-screen, #github-modal, #ai-modal, #analyst-notes,
     #btn-edit-recs, #btn-done-recs, #btn-copy-doc, #btn-ai-generate, #btn-ai-settings, #edit-banner,
-    #btn-github, .toolbar-right, #tab-amec, #view-amec, #react-overlay-root { display: none !important; }
+    #btn-github, #btn-sync-source, .toolbar-right, #react-overlay-root { display: none !important; }
     .editable-field { cursor: default !important; }
     :root { --ig:#0d5a6c;--fb:#4ea3b8;--reel:#0a2a30;--image:#0d5a6c;--carousel:#1d7a90;--video:#4ea3b8;--photo:#8ec8d5;--ig-grad:linear-gradient(135deg,#0a2a30 0%,#0d5a6c 100%); }
     .insight-box.green{border-left-color:#0d5a6c}.insight-box.purple{border-left-color:#0a2a30}.insight-box.orange{border-left-color:#1d7a90}
     .badge-ig,.badge-fb{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.32)}.badge-ig .badge-dot{background:#ff72b6}.badge-fb .badge-dot{background:#73b7ff}
     .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .amec-client-report{padding:28px;background:#eef2f4;color:#263942;border-radius:12px;font:14px/1.5 "Aptos","Segoe UI",sans-serif}
+    .amec-client-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:1px solid #d6e0e5;padding-bottom:20px}
+    .amec-client-header h1{font-size:clamp(25px,3vw,38px);line-height:1.08;letter-spacing:-.04em;margin:0}
+    .amec-client-header p{color:#6c7d84;margin:8px 0 0;max-width:720px}
+    .amec-client-kicker{color:#387c7f!important;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .amec-client-period{display:grid;gap:4px;min-width:220px;color:#6c7d84;font-size:12px}
+    .amec-client-period strong{color:#263942}
+    .amec-client-period small{font-size:10px}
+    .amec-client-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+    .amec-client-metrics>div,.amec-client-stage,.amec-client-panel{background:#fbfcfc;border:1px solid #d6e0e5;border-radius:9px}
+    .amec-client-metrics>div{padding:15px}
+    .amec-client-metrics span,.amec-client-metrics small{display:block;color:#6c7d84;font-size:11px}
+    .amec-client-metrics strong{display:block;color:#27565f;font-size:26px;line-height:1.15;margin:6px 0}
+    .amec-client-section-heading{margin:24px 0 11px}
+    .amec-client-section-heading h2{font-size:18px;margin:0 0 3px}
+    .amec-client-section-heading p,.amec-client-panel>small{font-size:11px;color:#6c7d84;margin:0}
+    .amec-client-stage-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+    .amec-client-stage{padding:13px;min-width:0}
+    .amec-client-stage-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-weight:800}
+    .amec-client-stage-head b{color:#387c7f;font-size:11px}
+    .amec-client-status{display:inline-flex;margin:9px 0 4px;padding:3px 7px;border-radius:999px;background:#e6ebed;color:#53666e;font-size:9px;font-weight:800;text-transform:uppercase}
+    .amec-client-stage.measured .amec-client-status{background:#e1eee8;color:#356c56}
+    .amec-client-stage.partial .amec-client-status{background:#f3ead9;color:#8a6227}
+    .amec-client-stage p{font-size:11px;color:#53666e;line-height:1.5;margin:4px 0 11px}
+    .amec-client-measure{border-top:1px solid #e2e8eb;padding-top:8px;margin-top:8px}
+    .amec-client-measure span,.amec-client-measure small{display:block;color:#6c7d84;font-size:9px}
+    .amec-client-measure strong{display:block;font-size:12px;margin:3px 0}
+    .amec-client-measure small{line-height:1.45}
+    .amec-client-two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+    .amec-client-panel{padding:15px;min-width:0}
+    .amec-client-panel h3{font-size:13px;margin:0 0 3px}
+    .amec-client-table-wrap{overflow-x:auto;margin-top:10px}
+    .amec-client-panel table{width:100%;border-collapse:collapse;font-size:10px}
+    .amec-client-panel th,.amec-client-panel td{text-align:left;padding:7px;border-bottom:1px solid #e2e8eb}
+    .amec-client-panel th{color:#6c7d84;font-size:9px;text-transform:uppercase}
+    .amec-client-list{display:grid;margin-top:9px}
+    .amec-client-list-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e8edef;font-size:10px}
+    .amec-client-list-row:last-child{border-bottom:0}
+    .amec-client-list-row>span{min-width:0}
+    .amec-client-list-row small{display:block;color:#6c7d84;font-size:9px;margin-top:2px}
+    .amec-client-list-row i{width:90px;height:5px;background:#e2e8eb;border-radius:99px;overflow:hidden}
+    .amec-client-list-row i b{display:block;height:100%;background:#387c7f}
+    .amec-client-unmeasured{color:#6c7d84;font-size:11px;margin:11px 0 0;padding:11px;background:#f2f6f7;border-radius:6px}
+    .amec-client-social-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+    .amec-client-social{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px;background:#f2f6f7;border-radius:7px}
+    .amec-client-social>span{width:100%;font-size:11px;font-weight:700}
+    .amec-client-social>div{display:grid}
+    .amec-client-social>div strong{font-size:13px}
+    .amec-client-social small{font-size:9px;color:#6c7d84;text-transform:uppercase}
+    .amec-client-footer{border-top:1px solid #d6e0e5;margin-top:16px;padding-top:11px;color:#6c7d84;font-size:10px}
+    #view-amec{padding-bottom:28px}
+    @media(max-width:900px){.amec-client-stage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.amec-client-header{display:block}.amec-client-period{margin-top:14px}}
+    @media(max-width:620px){.amec-client-report{padding:16px}.amec-client-metrics,.amec-client-two-col,.amec-client-social-grid{grid-template-columns:1fr}.amec-client-stage-grid{grid-template-columns:1fr}}
   </style>`;
-  return currentHTML.replace('</head>', dataScript + '\n' + clientStyles + '\n</head>');
+  return clientHTML.replace('</head>', dataScript + '\n' + clientStyles + '\n</head>');
 }
 
-async function pushToGitHub() {
+async function pushToGitHub(prebuiltClientHTML, sourceWasSynced = false) {
+  const setPublishError = message => {
+    setPushStatus('error', `${sourceWasSynced ? 'Admin source synced, but the client report was not published. ' : ''}${message}`);
+  };
+  hideSourceSyncButton();
   const token = document.getElementById('gh-token').value.trim();
   const repoFull = document.getElementById('gh-repo').value.trim();
   if (!token || !repoFull || !repoFull.includes('/')) {
-    setPushStatus('error', 'Please fill in both the token and repo fields (owner/repo).');
+    setPublishError('Please fill in both the token and repo fields (owner/repo).');
     return;
   }
   if (igPosts.length === 0 && fbPosts.length === 0) {
-    setPushStatus('error', 'No data loaded yet — upload your CSVs first.');
+    setPublishError('No data loaded yet — upload your CSVs first.');
     return;
   }
 
@@ -3795,22 +4113,41 @@ async function pushToGitHub() {
   };
 
   document.getElementById('btn-push-confirm').disabled = true;
+  showSourceVersionStatus(undefined, 'checking');
   setPushStatus('loading', 'Checking dashboard version…');
 
   try {
-    const indexRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/index.html`, { headers });
+    const indexRes = await fetchGitHubFresh(`https://api.github.com/repos/${owner}/${repo}/contents/index.html`, { headers });
     if (!indexRes.ok) throw new Error('Could not verify the current dashboard source.');
     const remoteIndex = await indexRes.json();
     const remoteSource = decodeURIComponent(escape(atob(String(remoteIndex.content || '').replace(/\n/g, ''))));
     const remoteVersionMatch = remoteSource.match(/const DASHBOARD_VERSION = ['"]([^'"]+)['"]/);
     const remoteVersion = remoteVersionMatch ? remoteVersionMatch[1] : null;
+    showSourceVersionStatus(remoteVersion, remoteVersion === DASHBOARD_VERSION ? 'match' : 'mismatch');
     if (!remoteVersion || remoteVersion !== DASHBOARD_VERSION) {
-      setPushStatus('error', 'This dashboard tab is out of date and publishing has been blocked. Hard-refresh index.html, reload the CSV exports, then publish again.');
+      const versionOrder = remoteVersion ? compareDashboardVersions(DASHBOARD_VERSION, remoteVersion) : null;
+      const currentVersionLabel = escapeHTML(DASHBOARD_VERSION);
+      const remoteVersionLabel = remoteVersion ? escapeHTML(remoteVersion) : 'no version marker';
+      const repoLabel = escapeHTML(repoFull);
+      const canSync = isAdminSourcePage() && !!remoteIndex.sha && (!remoteVersion || versionOrder === 1);
+      if (canSync) showSourceSyncButton(repoFull, remoteIndex, remoteVersion);
+      if (!isAdminSourcePage()) {
+        setPublishError(`Publishing blocked: this saved report page is not the admin source. This tab is ${currentVersionLabel}; GitHub index.html is ${remoteVersionLabel}. Open and hard-refresh the current index.html page.`);
+      } else if (canSync && !remoteVersion) {
+        setPublishError(`GitHub index.html in ${repoLabel} has no version marker. Use “Sync source + publish client” to update index.html and publish report.html in one confirmed action.`);
+      } else if (canSync) {
+        setPublishError(`Source versions differ: this tab is ${currentVersionLabel}; GitHub index.html in ${repoLabel} is ${remoteVersionLabel}. Use “Sync source + publish client” to update both pages in one confirmed action. CSV data will not be changed.`);
+      } else if (versionOrder === -1) {
+        setPublishError(`Publishing blocked: this tab is older than GitHub index.html. This tab is ${currentVersionLabel}; GitHub is ${remoteVersionLabel}. Hard-refresh the current index.html, then reload the CSV exports.`);
+      } else {
+        setPublishError(`Publishing blocked because the source versions differ. This tab is ${currentVersionLabel}; GitHub index.html in ${repoLabel} is ${remoteVersionLabel}. The version order could not be verified, so source sync is unavailable. Open the current index.html and retry.`);
+      }
       document.getElementById('btn-push-confirm').disabled = false;
       return;
     }
   } catch (e) {
-    setPushStatus('error', 'Unable to verify the dashboard version, so publishing was blocked: ' + e.message);
+    showSourceVersionStatus(undefined, 'unavailable');
+    setPublishError('Unable to verify the dashboard version, so publishing was blocked: ' + e.message);
     document.getElementById('btn-push-confirm').disabled = false;
     return;
   }
@@ -3822,9 +4159,9 @@ async function pushToGitHub() {
 
   let clientHTML, content;
   try {
-    clientHTML = buildClientHTML();
+    clientHTML = typeof prebuiltClientHTML === 'string' ? prebuiltClientHTML : await buildClientHTML();
   } catch(e) {
-    setPushStatus('error', 'Failed to build report: ' + e.message);
+    setPublishError('Failed to build report: ' + e.message);
     document.getElementById('btn-push-confirm').disabled = false;
     return;
   }
@@ -3832,11 +4169,18 @@ async function pushToGitHub() {
   setPushStatus('loading', 'Encoding file…');
   await new Promise(r => setTimeout(r, 80));
 
+  const reportBytes = new TextEncoder().encode(clientHTML).length;
+  if (reportBytes > 1000000) {
+    setPublishError('The client report exceeds GitHub’s 1 MB contents API limit and was not published.');
+    document.getElementById('btn-push-confirm').disabled = false;
+    return;
+  }
+
   try {
     // Fast UTF-8 safe base64 — avoids byte-by-byte loop that stalls on large files
     content = btoa(unescape(encodeURIComponent(clientHTML)));
   } catch(e) {
-    setPushStatus('error', 'Encoding failed: ' + e.message);
+    setPublishError('Encoding failed: ' + e.message);
     document.getElementById('btn-push-confirm').disabled = false;
     return;
   }
@@ -3845,7 +4189,7 @@ async function pushToGitHub() {
   setPushStatus('loading', 'Checking existing file…');
   let sha = null;
   try {
-    const getRes = await fetch(apiBase, { headers });
+    const getRes = await fetchGitHubFresh(apiBase, { headers });
     if (getRes.ok) {
       const existing = await getRes.json();
       sha = existing.sha;
@@ -3872,8 +4216,128 @@ async function pushToGitHub() {
     setPushStatus('success', `Published! Your client URL will update in ~30 seconds: <a href="https://${owner}.github.io/${repo}/report.html" target="_blank" style="color:#15803d;font-weight:700">View live →</a>`);
     document.getElementById('btn-push-confirm').disabled = false;
   } catch(e) {
-    setPushStatus('error', `Push failed: ${e.message}. Check your token has repo access.`);
+    setPublishError(`Push failed: ${e.message}. Check your token has repo access.`);
     document.getElementById('btn-push-confirm').disabled = false;
+  }
+}
+
+async function syncAdminSource() {
+  const syncButton = document.getElementById('btn-sync-source');
+  const publishButton = document.getElementById('btn-push-confirm');
+  const token = document.getElementById('gh-token').value.trim();
+  const repoFull = document.getElementById('gh-repo').value.trim();
+  if (!syncButton || syncButton.style.display === 'none') return;
+  if (!token || !repoFull || !repoFull.includes('/')) {
+    setPushStatus('error', 'Please fill in both the token and repo fields (owner/repo).');
+    return;
+  }
+  if (!isAdminSourcePage()) {
+    hideSourceSyncButton();
+    setPushStatus('error', 'Source sync is available only from the admin index.html page, not a saved report.');
+    return;
+  }
+  if (repoFull !== syncButton.dataset.repo || !syncButton.dataset.remoteSha) {
+    hideSourceSyncButton();
+    setPushStatus('error', 'The repository settings changed. Click Publish Now to check the source versions again.');
+    return;
+  }
+
+  let source;
+  try {
+    source = buildAdminSourceHTML();
+    const localSourceVersion = source.match(/const DASHBOARD_VERSION = ['"]([^'"]+)['"]/);
+    if (!localSourceVersion || localSourceVersion[1] !== DASHBOARD_VERSION) {
+      throw new Error('The source template does not match the current dashboard version.');
+    }
+  } catch (error) {
+    setPushStatus('error', escapeHTML(error instanceof Error ? error.message : 'Could not prepare the admin source.'));
+    return;
+  }
+
+  const [owner, repo] = repoFull.split('/');
+  const apiBase = `https://api.github.com/repos/${owner}/${repo}/contents/index.html`;
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/vnd.github+json',
+  };
+  const expectedSha = syncButton.dataset.remoteSha;
+  const expectedRemoteVersion = syncButton.dataset.remoteVersion || '';
+  const expectedRemoteLabel = expectedRemoteVersion || 'no version marker';
+  const sourceBytes = new TextEncoder().encode(source).length;
+  if (sourceBytes > 1000000) {
+    setPushStatus('error', 'The admin source exceeds GitHub’s 1 MB contents API limit and was not changed.');
+    return;
+  }
+  if (!confirm(`Sync source and publish client page?\n\nRepository: ${repoFull}\nFiles: index.html and report.html\nCurrent GitHub source: ${expectedRemoteLabel}\nThis tab source: ${DASHBOARD_VERSION}\n\nThis updates the admin source, then publishes the client report built from the currently loaded CSVs and AMEC snapshot. Saved CSV data is not changed. Continue?`)) {
+    setPushStatus('error', 'Sync and publish cancelled. GitHub index.html and report.html were not changed.');
+    return;
+  }
+
+  syncButton.disabled = true;
+  publishButton.disabled = true;
+  setPushStatus('loading', 'Preparing the client report before updating GitHub…');
+  let clientHTML;
+  try {
+    clientHTML = await buildClientHTML();
+    const reportBytes = new TextEncoder().encode(clientHTML).length;
+    if (reportBytes > 1000000) {
+      throw new Error('The client report exceeds GitHub’s 1 MB contents API limit.');
+    }
+  } catch (error) {
+    setPushStatus('error', `Client report preparation failed; GitHub was not changed. ${escapeHTML(error instanceof Error ? error.message : 'Could not prepare the client report.')}`);
+    syncButton.disabled = false;
+    publishButton.disabled = false;
+    return;
+  }
+
+  setPushStatus('loading', 'Rechecking GitHub index.html before source sync…');
+  try {
+    const currentResponse = await fetchGitHubFresh(apiBase, { headers });
+    if (!currentResponse.ok) throw new Error('Could not recheck GitHub index.html. No files were changed.');
+    const currentIndex = await currentResponse.json();
+    const currentSource = decodeURIComponent(escape(atob(String(currentIndex.content || '').replace(/\n/g, ''))));
+    const currentVersionMatch = currentSource.match(/const DASHBOARD_VERSION = ['"]([^'"]+)['"]/);
+    const currentVersion = currentVersionMatch ? currentVersionMatch[1] : '';
+    if (currentIndex.sha !== expectedSha || currentVersion !== expectedRemoteVersion) {
+      throw new Error('GitHub index.html changed since the version check. Click Publish Now to review the new versions.');
+    }
+    if (currentVersion && compareDashboardVersions(DASHBOARD_VERSION, currentVersion) !== 1) {
+      throw new Error('The current tab is not newer than GitHub index.html. Reload the latest admin page instead of overwriting the source.');
+    }
+
+    const content = btoa(unescape(encodeURIComponent(source)));
+    const putResponse = await fetch(apiBase, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        message: `Sync admin dashboard source — ${DASHBOARD_VERSION}`,
+        content,
+        sha: currentIndex.sha,
+      }),
+    });
+    if (!putResponse.ok) {
+      const errorBody = await putResponse.json().catch(() => ({}));
+      throw new Error(errorBody.message || `GitHub rejected the source update (${putResponse.status}).`);
+    }
+
+    const verifyResponse = await fetchGitHubFresh(apiBase, { headers });
+    if (!verifyResponse.ok) throw new Error('GitHub accepted the update, but the new source version could not be verified.');
+    const verifiedIndex = await verifyResponse.json();
+    const verifiedSource = decodeURIComponent(escape(atob(String(verifiedIndex.content || '').replace(/\n/g, ''))));
+    const verifiedMatch = verifiedSource.match(/const DASHBOARD_VERSION = ['"]([^'"]+)['"]/);
+    if (!verifiedMatch || verifiedMatch[1] !== DASHBOARD_VERSION) {
+      throw new Error('GitHub accepted the update, but index.html still reports a different dashboard version.');
+    }
+    hideSourceSyncButton();
+    showSourceVersionStatus(DASHBOARD_VERSION, 'synced');
+    setPushStatus('loading', 'Admin source synced. Publishing the client report…');
+    await pushToGitHub(clientHTML, true);
+  } catch (error) {
+    setPushStatus('error', escapeHTML(error instanceof Error ? error.message : 'Source sync failed.'));
+    syncButton.disabled = false;
+  } finally {
+    publishButton.disabled = false;
   }
 }
 
@@ -3896,18 +4360,22 @@ async function downloadShareable() {
     alert('No data loaded yet — upload your CSVs first.');
     return;
   }
-  const clientHTML = buildClientHTML();
-  const blob = new Blob([clientHTML], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'report.html';
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const clientHTML = await buildClientHTML();
+    const blob = new Blob([clientHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'report.html';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    alert('Could not build the shareable report with its AMEC evaluation: ' + (error.message || error));
+  }
 }
 </script>
 
-<div id="react-root"></div>
-<script type="module" src="./src/main.tsx"></script>
-</body>
-</html>
+
+<script src="https://i.replit.com/script.js" async="" data-website-id="13a585fb-5e71-46e4-be1f-c26f1f8517dc"></script>
+
+</body></html>
