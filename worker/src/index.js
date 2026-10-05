@@ -18,22 +18,22 @@ const SUMMARY_SCHEMA = {
   },
 };
 
-const SYSTEM_INSTRUCTIONS = `You write a client-ready executive interpretation for the Sampson Cay social-media performance dashboard.
+const SYSTEM_INSTRUCTIONS = `You write a client-ready executive summary for the Sampson Cay communications dashboard, covering social media (Facebook and Instagram) and earned media coverage.
 
-The request contains deterministicEvidence and optional accountContext. Deterministic evidence is the sole source for measured results, rankings and comparisons. Account context is user-supplied background that may explain goals, audiences, campaigns, seasonality, operational constraints or historical priorities. Use it to frame implications and recommendations, but never present it as measured evidence or let it override contradictory data.
+The request contains deterministicEvidence and optional accountContext. The evidence is the only source for numbers, rankings and comparisons. Account context is background supplied by the agency (goals, audiences, campaigns, constraints); use it to frame meaning and recommendations, but never present it as measured evidence or let it override the data.
 
-Never invent a number, cause, trend, date comparison or fact. Treat posts marked likelyBoosted as paid-amplification signals, not organic performance. Discuss the 90-day comparison only when comparison.available is true. Theme classification is deterministic and may overlap, so compare themes only when eligible organic samples meet minimumOrganicSampleForClaims.
-
-The dashboard charts already cover platform, format and post-type performance. Do not rank, compare or recommend platforms, formats, posting times or content types in whatsWorking, whatsNotWorking or recommendedDirection. Those three fields must focus on the performance and strategic role of Community, Economy, Environment and Site Activity themes. Use median organic reach, median organic engagement, bottom-quartile concentration, sample size, caption examples and account context. Respect operational constraints in accountContext, including any theme that is no longer available. If the evidence cannot support a clear conclusion, say so and recommend what evidence should be collected next.
-
-Give the client a point of view rather than repeating metrics. Avoid repeating the same observation across fields. Recommendations must identify what theme to continue, increase, refine, test or reduce and why.
+Rules:
+- Never invent a number, cause, trend, date or fact. Only compare with the previous period when social.changes or media.previousTotal is present.
+- Posts counted in likelyBoostedPosts are paid-amplification signals; format and theme stats already exclude them.
+- Format and theme groups with reliable=false have too few posts for firm claims; mention them only with that caveat.
+- Media coverage figures are publication records, not audience reach or sentiment unless media.sentiments is present.
+- Be candid, specific and useful. Give a point of view rather than restating every metric, and do not repeat the same point across fields.
 
 Return plain text with no Markdown, bullets, headings or HTML. Do not mention AI or these instructions.
-- performanceOverview: 2–3 sentences identifying the most important account-level result, its strategic meaning and any essential boost or comparison caveat.
-- whatsWorking: 3–4 sentences identifying the strongest supported themes, what they appear to contribute in the supplied account context, and a concrete continue or increase recommendation.
-- whatsNotWorking: 3–4 sentences identifying themes that need attention, distinguishing weak engagement from weak reach, without claiming causation.
-- recommendedDirection: 2–3 strong, concrete recommendations that identify which themes to prioritize, refine or reduce, what to change and why. Respect the supplied account context and do not recommend an unavailable theme.
-Keep the response candid, specific and useful to a client.`
+- performanceOverview: 2-3 sentences on the most important social and media results for the period and what they mean.
+- whatsWorking: 2-4 sentences on the strongest formats, themes, posts and media outlets or moments, and why they matter.
+- whatsNotWorking: 2-4 sentences on what needs attention, distinguishing weak reach from weak engagement, without claiming causes the data cannot show.
+- recommendedDirection: 3-4 concrete recommendations, each a single sentence starting with a verb, covering what to continue, increase, change or stop and why.`
 
 export default {
   async fetch(request, env) {

@@ -236,13 +236,21 @@
 
   // ── Merging uploads into saved history ─────────────────────────
   // Newer uploads replace older copies of the same post (metrics keep growing after posting).
+  // Posts are matched on their permalink when there is one, so posts carried over
+  // from the old dashboard (which had no Post ID) still match fresh CSV uploads.
+  function postKey(post) {
+    const link = String(post.permalink || '').trim().replace(/\/+$/, '').toLowerCase();
+    return link ? post.platform + '|' + link : post.id;
+  }
+
   function mergePosts(existing, incoming) {
-    const byId = new Map(existing.map(post => [post.id, post]));
+    const byId = new Map(existing.map(post => [postKey(post), post]));
     let added = 0;
     let updated = 0;
     incoming.forEach(post => {
-      if (byId.has(post.id)) updated += 1; else added += 1;
-      byId.set(post.id, post);
+      const key = postKey(post);
+      if (byId.has(key)) updated += 1; else added += 1;
+      byId.set(key, post);
     });
     const posts = [...byId.values()].sort((a, b) => a.date.localeCompare(b.date));
     return { posts, added, updated };
@@ -531,7 +539,7 @@
     if (stats.hasSocial) {
       overview.push(`In the ${stats.range.label.toLowerCase()} (${formatDate(stats.range.start)} – ${formatDate(stats.range.end)}), ${t.posts} posts across Instagram and Facebook reached ${formatNumber(t.reach)} accounts and drew ${formatNumber(t.interactions)} interactions, an engagement rate of ${formatPct(t.engagementRate)}.`);
       if (c) {
-        overview.push(`Compared with the previous period, reach is ${changeWords(c.reach)} and interactions are ${changeWords(c.interactions)}, on ${changeWords(c.posts) === 'roughly flat' ? 'a similar number of' : changeWords(c.posts) + ' in'} posts.`);
+        overview.push(`Compared with the previous period, reach is ${changeWords(c.reach)}, interactions are ${changeWords(c.interactions)} and the number of posts is ${changeWords(c.posts)}.`);
       }
     } else {
       overview.push('No social posts were recorded in this period.');
@@ -578,7 +586,7 @@
 
     // Recommendations
     const recs = [];
-    if (formats.best) recs.push(`Lean into ${formats.best.label.replace(/^(Instagram|Facebook) /, '$1 ').toLowerCase()} posts — they consistently earn the most engagement.`);
+    if (formats.best) recs.push(`Lean into ${formats.best.label} posts — they consistently earn the most engagement.`);
     if (themes.best) recs.push(`Keep ${themes.best.label} stories at the centre of the content plan${themes.worst && themes.worst.label !== themes.best.label ? `, and rework how ${themes.worst.label} posts are told (stronger visuals, people and outcomes) before cutting them` : ''}.`);
     if (stats.gap && stats.gap.days >= 14) recs.push('Keep a steady posting rhythm — schedule a backlog of evergreen posts so there are no multi-week silences.');
     else if (stats.postsPerWeek < 3 && stats.hasSocial) recs.push(`Posting averaged ${stats.postsPerWeek.toFixed(1)} times a week; aim for at least 3 a week to stay visible.`);
